@@ -1,8 +1,38 @@
-# DSP Project Intelligence — Tool 1: Budget Tracker
+# DSP Project Intelligence Platform
 
-A budget health tracker for engineering projects. Shows actual spend vs budget, weekly trends, and alerts when projects are going over budget.
+## What This Is
 
-Built for DSP, a tunnel engineering consultancy. PMs currently track everything in Excel and can't see budget health until it's too late.
+A project management platform for DSP, a tunnel engineering consultancy (~100 engineers, 6 offices globally). Replaces fragmented Excel-based workflows with a unified system.
+
+## The Problem
+
+- PMs can't see real-time budget health — timesheet data arrives monthly, by which time overspend is already baked in
+- Progress tracking is gut-feel ("I think we're 60% done") — no objective measurement
+- Each PM uses their own Excel style — no standardised data, no cross-project comparison
+- No structured way to plan who works on what, or compare plan vs reality
+- Previous software implementations failed because they were too complex
+
+## What We're Building
+
+- **Programme / Scope** (current focus) — project setup, WBS (task → subtask → sub-subtask), scope definition with task types and complexity. The foundation everything else reads from.
+- **Demand Forecasting** (current focus) — per-engineer, per-task, per-week hour allocation. Task scopes auto-fill the grid (autocomplete from scoped hours + date range). Forecast vs actual comparison.
+- **Budget Tracker** — actual spend vs budget, CVR trend chart, EAC, alerts when overspending. Reads from timesheet actuals and forecast data.
+- **Resource Matrix** — cross-project engineer availability, utilisation heat map. Reads from demand forecasts across all projects.
+- **Portfolio & Retrospectives** — all-project dashboard with RAG status, post-project feedback loop.
+
+## Who Uses It
+
+- **PMs / Task Leaders**: project budget health, task breakdown, forecast vs actual
+- **Operational Director**: resource allocation across projects, utilisation
+- **Engineers**: their allocated hours, which tasks to work on
+- **Leadership / MD**: portfolio health, profitability by sector, bid confidence
+
+## Key Design Principles
+
+- **Feels like Excel, not enterprise software** — PMs like spreadsheets, don't fight it
+- **Show value in 5 seconds** — main view answers "are we over budget?" without clicking
+- **Minimal input burden** — import existing data, autocomplete from task scopes, don't re-enter
+- **System informs, PM decides** — no auto-scheduling or black box recommendations
 
 ## Tech Stack
 
@@ -11,6 +41,19 @@ Built for DSP, a tunnel engineering consultancy. PMs currently track everything 
 - **Charts**: Recharts
 - **Database**: Supabase (Postgres)
 - **Hosting**: Vercel (frontend), Supabase (backend)
+
+## Key Domain Concepts
+
+- **Programme**: the entire scoping of a project. One project has one programme.
+- **Scope**: a high-level breakdown item within a programme (e.g. "Network Rail Boiler Room", "Endwalls Design").
+- **Activity**: a task or piece of work within a scope (e.g. "Removal of infill panels", "Structural modelling"). Engineers log time against activities.
+- **Hierarchy**: Programme → Scope → Activity. Progress rolls up bottom-to-top.
+- **Demand forecast**: hours allocated per engineer per activity per week. Scoped hours + date range auto-fill the grid. PM adjusts from there.
+- **CVR (Cost Variation Report)**: compares budget consumed % vs progress %. If budget > progress, the project is overspending. AECOM format is the reference.
+- **EAC (Estimate at Completion)**: actual cost to date + estimated cost to complete remaining work.
+- **Fixed fee**: DSP's projects are mostly fixed-fee — overspend directly erodes profit.
+- **Activity types**: concept design, detailed design, technical review, CAD, workshop, report, site visit.
+- **Triple constraint**: scope, time, cost. For designers, scope is fixed — time and cost vary.
 
 ## Project Structure
 
@@ -58,55 +101,6 @@ cp .env.local.example .env.local
 ```
 
 Set `NEXT_PUBLIC_USE_MOCKS=true` to work without Supabase.
-
----
-
-# Guide for Meryl
-
-## First Time Setup (One-Time)
-
-### 1. Install tools
-
-Open Terminal (Cmd + Space → type "Terminal") and run these one at a time:
-
-```bash
-# Install Node.js (needed to run the project)
-brew install node
-
-# Install Git (for version control)
-brew install git
-
-# Check they worked
-node --version    # should show v20+ or v22+
-git --version     # should show a version number
-```
-
-### 2. Clone the project
-
-```bash
-cd ~/Desktop/Projects
-git clone git@github.com:benteohmes/project-management.git
-cd project-management
-npm install
-```
-
-### 3. Set up environment
-
-```bash
-cp .env.local.example .env.local
-```
-
-No need to edit it — mocks are on by default.
-
-### 4. Run the project
-
-```bash
-npm run dev
-```
-
-Open http://localhost:3000 in your browser. You should see the app.
-
-To stop the server: press `Ctrl + C` in the terminal.
 
 ---
 

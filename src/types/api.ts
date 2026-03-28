@@ -1,4 +1,4 @@
-import { Project, Task } from "./project";
+import { Project, Programme, Scope, Activity } from "./project";
 
 // GET /api/projects/:id/cvr
 export interface ProjectCVR {
@@ -23,6 +23,19 @@ export interface WeeklyTrendPoint {
 
 // GET /api/projects/:id
 export type ProjectDetail = Project & {
-  tasks: Task[];
+  programme: Programme & {
+    scopes: (Scope & {
+      activities: Activity[];
+    })[];
+  };
   cvr: ProjectCVR;
 };
+
+// Demand forecast: hours allocated per engineer per activity per week
+export interface ForecastEntry {
+  id: string;
+  activityId: string;
+  engineerId: string;
+  weekStarting: string;
+  forecastedHours: number;
+}
