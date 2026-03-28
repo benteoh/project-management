@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronRight, ChevronDown, ChevronLeft, Plus, X } from "lucide-react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { ChevronRight, ChevronDown, ChevronLeft, Plus, X, Trash2 } from "lucide-react";
 
 type NodeType = "scope" | "task" | "subtask" | "activity";
 
@@ -357,6 +357,12 @@ function addNodeToTree(nodes: ProgrammeNode[], parentId: string, newNode: Progra
   });
 }
 
+function deleteNodeFromTree(nodes: ProgrammeNode[], nodeId: string): ProgrammeNode[] {
+  return nodes
+    .filter(n => n.id !== nodeId)
+    .map(n => ({ ...n, children: deleteNodeFromTree(n.children, nodeId) }));
+}
+
 // ── Add-form types ────────────────────────────────────────────────────────────
 interface AddFormState { parentId: string; type: NodeType; }
 interface FormValues {
@@ -370,23 +376,62 @@ const defaultForm: FormValues = {
 // ── Editing types ─────────────────────────────────────────────────────────────
 type EditableField = "name" | "totalHours" | "forecastTotalHours" | "status";
 interface EditingCell { nodeId: string; field: EditableField; value: string; }
+interface ContextMenuState { nodeId: string; nodeType: NodeType; x: number; y: number; }
 
 // ── Main component ────────────────────────────────────────────────────────────
 export function ProgrammeTab() {
-  const [data,         setData]         = useState<ProgrammeNode[]>(initialData);
-  const [collapsed,    setCollapsed]    = useState<Set<string>>(new Set());
-  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
-  const [addForm,      setAddForm]      = useState<AddFormState | null>(null);
-  const [formValues,   setFormValues]   = useState<FormValues>(defaultForm);
-  const [editingCell,  setEditingCell]  = useState<EditingCell | null>(null);
-  const [calendar,     setCalendar]     = useState<CalendarState | null>(null);
+  // Undo / redo via a ref-backed stack so keyboard handlers never go stale
+  const histRef = useRef<{ stack: ProgrammeNode[][]; idx: number }>({
+    stack: [initialData],
+    idx: 0,
+  });
+  const [present, setPresent] = useState<ProgrammeNode[]>(initialData);
+
+  const commit = useCallback((next: ProgrammeNode[]) => {
+    const h = histRef.current;
+    h.stack = h.stack.slice(0, h.idx + 1);
+    h.stack.push(next);
+    h.idx = h.stack.length - 1;
+    setPresent(next);
+  }, []);
+
+  const undo = useCallback(() => {
+    const h = histRef.current;
+    if (h.idx <= 0) return;
+    h.idx--;
+    setPresent(h.stack[h.idx]);
+  }, []);
+
+  const redo = useCallback(() => {
+    const h = histRef.current;
+    if (h.idx >= h.stack.length - 1) return;
+    h.idx++;
+    setPresent(h.stack[h.idx]);
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.ctrlKey) return;
+      if (e.key === "z") { e.preventDefault(); undo(); }
+      if (e.key === "y") { e.preventDefault(); redo(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [undo, redo]);
+
+  const [collapsed,   setCollapsed]   = useState<Set<string>>(new Set());
+  const [addForm,     setAddForm]     = useState<AddFormState | null>(null);
+  const [formValues,  setFormValues]  = useState<FormValues>(defaultForm);
+  const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
+  const [calendar,    setCalendar]    = useState<CalendarState | null>(null);
+  const [ctxMenu,     setCtxMenu]     = useState<ContextMenuState | null>(null);
 
   const saveField = (nodeId: string, field: keyof ProgrammeNode, raw: string) => {
     const value =
-      (field === "totalHours" || field === "forecastTotalHours")
-        ? (raw === "" ? null : Number(raw))
+      field === "totalHours" || field === "forecastTotalHours"
+        ? raw === "" ? null : Number(raw)
         : raw;
-    setData(prev => updateNodeInTree(prev, nodeId, field, value as ProgrammeNode[keyof ProgrammeNode]));
+    commit(updateNodeInTree(present, nodeId, field, value as ProgrammeNode[keyof ProgrammeNode]));
   };
 
   const commitEdit = () => {
@@ -395,9 +440,8 @@ export function ProgrammeTab() {
     setEditingCell(null);
   };
 
-  const toggleCollapse = (id: string) => {
+  const toggleCollapse = (id: string) =>
     setCollapsed(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
-  };
 
   const handleAdd = () => {
     if (!addForm || !formValues.name.trim()) return;
@@ -413,9 +457,14 @@ export function ProgrammeTab() {
       status: formValues.status,
       children: [],
     };
-    setData(prev => addNodeToTree(prev, addForm.parentId, newNode));
+    commit(addNodeToTree(present, addForm.parentId, newNode));
     setAddForm(null);
     setFormValues(defaultForm);
+  };
+
+  const handleDelete = (nodeId: string) => {
+    commit(deleteNodeFromTree(present, nodeId));
+    setCtxMenu(null);
   };
 
   const isEditing = (nodeId: string, field: EditableField) =>
@@ -423,41 +472,45 @@ export function ProgrammeTab() {
 
   const startEdit = (nodeId: string, field: EditableField, current: string) => {
     setCalendar(null);
+    setCtxMenu(null);
     setEditingCell({ nodeId, field, value: current });
   };
 
   const openCal = (nodeId: string, field: "start" | "finish", value: string, e: React.MouseEvent<HTMLElement>) => {
     setEditingCell(null);
+    setCtxMenu(null);
     const r = e.currentTarget.getBoundingClientRect();
     setCalendar({ nodeId, field, value, rect: { top: r.top, left: r.left, width: r.width, height: r.height } });
+  };
+
+  const openCtxMenu = (node: ProgrammeNode, e: React.MouseEvent) => {
+    e.preventDefault();
+    setEditingCell(null);
+    setCalendar(null);
+    setCtxMenu({ nodeId: node.id, nodeType: node.type, x: e.clientX, y: e.clientY });
   };
 
   const renderNode = (node: ProgrammeNode, depth: number): React.ReactNode => {
     const isCollapsed = collapsed.has(node.id);
     const hasChildren = node.children.length > 0;
-    const addOptions  = getAddOptions(node.type);
-    const canEdit     = true;
-
-    const rowBg = node.type === "scope" ? "bg-red-100" : node.type === "task" ? "bg-zinc-100" : node.type === "subtask" ? "bg-zinc-50" : "bg-white";
+    const rowBg   = node.type === "scope" ? "bg-red-100" : node.type === "task" ? "bg-zinc-100" : node.type === "subtask" ? "bg-zinc-50" : "bg-white";
     const textCls = node.type === "scope" ? "font-semibold text-red-900" : node.type === "task" || node.type === "subtask" ? "font-medium text-zinc-800" : "text-zinc-700";
-    const hover = canEdit ? "cursor-pointer rounded px-0.5 py-0.5 hover:bg-black/[.06]" : "";
+    const hover   = "cursor-pointer rounded px-0.5 py-0.5 hover:bg-black/[.06]";
 
     return (
       <div key={node.id}>
-        <div className={`flex items-center border-b border-zinc-100 text-sm ${rowBg}`}>
-
-          {/* ── Name ── */}
-          <div
-            className={`flex flex-1 items-center gap-1 py-1.5 pr-3 min-w-0 ${textCls}`}
-            style={{ paddingLeft: `${12 + depth * 20}px` }}
-          >
+        <div
+          className={`flex items-center border-b border-zinc-100 text-sm ${rowBg} select-none`}
+          onContextMenu={e => openCtxMenu(node, e)}
+        >
+          {/* Name */}
+          <div className={`flex flex-1 items-center gap-1 py-1.5 pr-3 min-w-0 ${textCls}`} style={{ paddingLeft: `${12 + depth * 20}px` }}>
             {hasChildren
               ? <button onClick={() => toggleCollapse(node.id)} className="shrink-0 mr-0.5 text-zinc-400 hover:text-zinc-600">{isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}</button>
               : <span className="w-4 shrink-0" />}
             {node.activityId && <span className="shrink-0 font-mono text-xs text-zinc-400 mr-1">{node.activityId}</span>}
             {isEditing(node.id, "name") ? (
-              <input
-                autoFocus
+              <input autoFocus
                 className="flex-1 min-w-0 rounded border border-blue-400 bg-white px-1.5 py-0.5 text-sm text-zinc-800 outline-none ring-1 ring-blue-200"
                 value={editingCell!.value}
                 onChange={e => setEditingCell(p => p ? { ...p, value: e.target.value } : p)}
@@ -465,21 +518,16 @@ export function ProgrammeTab() {
                 onKeyDown={e => { if (e.key === "Enter") commitEdit(); if (e.key === "Escape") setEditingCell(null); }}
               />
             ) : (
-              <span
-                className={`truncate ${hover}`}
-                onClick={() => canEdit && startEdit(node.id, "name", node.name)}
-                title={canEdit ? "Click to edit" : undefined}
-              >
+              <span className={`truncate ${hover}`} onClick={() => startEdit(node.id, "name", node.name)} title="Click to edit · Right-click for options">
                 {node.name}
               </span>
             )}
           </div>
 
-          {/* ── Total Hours ── */}
+          {/* Total Hours */}
           <div className="w-24 shrink-0 px-2 py-1.5 text-right text-zinc-600 tabular-nums">
             {isEditing(node.id, "totalHours") ? (
-              <input
-                autoFocus type="number"
+              <input autoFocus type="number"
                 className="w-full rounded border border-blue-400 bg-white px-1.5 py-0.5 text-sm text-right outline-none ring-1 ring-blue-200"
                 value={editingCell!.value}
                 onChange={e => setEditingCell(p => p ? { ...p, value: e.target.value } : p)}
@@ -487,39 +535,30 @@ export function ProgrammeTab() {
                 onKeyDown={e => { if (e.key === "Enter") commitEdit(); if (e.key === "Escape") setEditingCell(null); }}
               />
             ) : (
-              <span className={hover} onClick={() => canEdit && startEdit(node.id, "totalHours", String(node.totalHours ?? ""))}>
+              <span className={hover} onClick={() => startEdit(node.id, "totalHours", String(node.totalHours ?? ""))}>
                 {node.totalHours ?? "—"}
               </span>
             )}
           </div>
 
-          {/* ── Start (calendar) ── */}
+          {/* Start */}
           <div className="w-28 shrink-0 px-2 py-1.5">
-            <span
-              className={`inline-block font-mono text-xs text-zinc-500 ${hover}`}
-              onClick={e => canEdit && openCal(node.id, "start", node.start, e)}
-              title={canEdit ? "Click to pick date" : undefined}
-            >
+            <span className={`inline-block font-mono text-xs text-zinc-500 ${hover}`} onClick={e => openCal(node.id, "start", node.start, e)} title="Click to pick date">
               {node.start || "—"}
             </span>
           </div>
 
-          {/* ── Finish (calendar) ── */}
+          {/* Finish */}
           <div className="w-28 shrink-0 px-2 py-1.5">
-            <span
-              className={`inline-block font-mono text-xs text-zinc-500 ${hover}`}
-              onClick={e => canEdit && openCal(node.id, "finish", node.finish, e)}
-              title={canEdit ? "Click to pick date" : undefined}
-            >
+            <span className={`inline-block font-mono text-xs text-zinc-500 ${hover}`} onClick={e => openCal(node.id, "finish", node.finish, e)} title="Click to pick date">
               {node.finish || "—"}
             </span>
           </div>
 
-          {/* ── Forecast Hours ── */}
+          {/* Forecast Hours */}
           <div className="w-28 shrink-0 px-2 py-1.5 text-right text-zinc-600 tabular-nums">
             {isEditing(node.id, "forecastTotalHours") ? (
-              <input
-                autoFocus type="number"
+              <input autoFocus type="number"
                 className="w-full rounded border border-blue-400 bg-white px-1.5 py-0.5 text-sm text-right outline-none ring-1 ring-blue-200"
                 value={editingCell!.value}
                 onChange={e => setEditingCell(p => p ? { ...p, value: e.target.value } : p)}
@@ -527,23 +566,19 @@ export function ProgrammeTab() {
                 onKeyDown={e => { if (e.key === "Enter") commitEdit(); if (e.key === "Escape") setEditingCell(null); }}
               />
             ) : (
-              <span className={hover} onClick={() => canEdit && startEdit(node.id, "forecastTotalHours", String(node.forecastTotalHours ?? ""))}>
+              <span className={hover} onClick={() => startEdit(node.id, "forecastTotalHours", String(node.forecastTotalHours ?? ""))}>
                 {node.forecastTotalHours ?? "—"}
               </span>
             )}
           </div>
 
-          {/* ── Status (dropdown) ── */}
+          {/* Status */}
           <div className="w-28 shrink-0 px-2 py-1.5">
             {isEditing(node.id, "status") ? (
-              <select
-                autoFocus
+              <select autoFocus
                 className="w-full rounded border border-blue-400 bg-white px-1 py-0.5 text-xs outline-none ring-1 ring-blue-200"
                 value={editingCell!.value}
-                onChange={e => {
-                  saveField(node.id, "status", e.target.value);
-                  setEditingCell(null);
-                }}
+                onChange={e => { saveField(node.id, "status", e.target.value); setEditingCell(null); }}
                 onBlur={() => setEditingCell(null)}
               >
                 <option>Not Started</option>
@@ -559,37 +594,6 @@ export function ProgrammeTab() {
                 <StatusBadge status={node.status} />
               </span>
             ) : null}
-          </div>
-
-          {/* ── Add dropdown ── */}
-          <div className="w-10 shrink-0 flex items-center justify-center py-1.5 relative">
-            {addOptions.length > 0 && (
-              <>
-                <button
-                  onClick={() => setOpenDropdown(openDropdown === node.id ? null : node.id)}
-                  className="flex h-5 w-5 items-center justify-center rounded border border-zinc-300 bg-white text-zinc-500 shadow-sm transition-colors hover:border-zinc-400 hover:bg-zinc-50 hover:text-zinc-800"
-                >
-                  <Plus size={11} strokeWidth={2.5} />
-                </button>
-                {openDropdown === node.id && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setOpenDropdown(null)} />
-                    <div className="absolute right-0 top-full z-20 mt-1 min-w-max rounded-md border border-zinc-200 bg-white shadow-lg text-xs">
-                      {addOptions.map(opt => (
-                        <button
-                          key={opt.type}
-                          className="flex w-full items-center gap-1.5 px-3 py-2 text-left text-zinc-700 hover:bg-zinc-50 whitespace-nowrap first:rounded-t-md last:rounded-b-md"
-                          onClick={() => { setOpenDropdown(null); setAddForm({ parentId: node.id, type: opt.type }); setFormValues(defaultForm); }}
-                        >
-                          <Plus size={11} className="text-zinc-400" />
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </>
-            )}
           </div>
         </div>
         {!isCollapsed && node.children.map(child => renderNode(child, depth + 1))}
@@ -607,23 +611,49 @@ export function ProgrammeTab() {
         <div className="w-28 shrink-0 px-3 py-2.5">Finish</div>
         <div className="w-28 shrink-0 px-3 py-2.5 text-right">Forecast Hrs</div>
         <div className="w-28 shrink-0 px-3 py-2.5">Status</div>
-        <div className="w-10 shrink-0" />
       </div>
 
       {/* Rows */}
       <div className="flex-1 overflow-y-auto">
-        {data.map(node => renderNode(node, 0))}
+        {present.map(node => renderNode(node, 0))}
       </div>
 
-      {/* Mini calendar portal */}
+      {/* Right-click context menu */}
+      {ctxMenu && (
+        <>
+          <div className="fixed inset-0 z-[99]" onClick={() => setCtxMenu(null)} onContextMenu={e => { e.preventDefault(); setCtxMenu(null); }} />
+          <div
+            className="fixed z-[100] min-w-[160px] overflow-hidden rounded-md border border-zinc-200 bg-white py-1 shadow-xl text-sm"
+            style={{ top: ctxMenu.y, left: ctxMenu.x }}
+          >
+            {getAddOptions(ctxMenu.nodeType).map(opt => (
+              <button
+                key={opt.type}
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-zinc-700 hover:bg-zinc-50"
+                onClick={() => { setCtxMenu(null); setAddForm({ parentId: ctxMenu.nodeId, type: opt.type }); setFormValues(defaultForm); }}
+              >
+                <Plus size={12} className="shrink-0 text-zinc-400" />
+                {opt.label}
+              </button>
+            ))}
+            {getAddOptions(ctxMenu.nodeType).length > 0 && <div className="my-1 border-t border-zinc-100" />}
+            <button
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-red-600 hover:bg-red-50"
+              onClick={() => handleDelete(ctxMenu.nodeId)}
+            >
+              <Trash2 size={12} className="shrink-0" />
+              Delete {ctxMenu.nodeType}
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* Mini calendar */}
       {calendar && (
         <MiniCalendar
           value={calendar.value}
           anchorRect={calendar.rect}
-          onChange={v => {
-            saveField(calendar.nodeId, calendar.field, v);
-            setCalendar(null);
-          }}
+          onChange={v => { saveField(calendar.nodeId, calendar.field, v); setCalendar(null); }}
           onClose={() => setCalendar(null)}
         />
       )}
