@@ -436,7 +436,7 @@ export function ProgrammeTab() {
     const isCollapsed = collapsed.has(node.id);
     const hasChildren = node.children.length > 0;
     const addOptions  = getAddOptions(node.type);
-    const canEdit     = node.type !== "scope";
+    const canEdit     = true;
 
     const rowBg = node.type === "scope" ? "bg-red-100" : node.type === "task" ? "bg-zinc-100" : node.type === "subtask" ? "bg-zinc-50" : "bg-white";
     const textCls = node.type === "scope" ? "font-semibold text-red-900" : node.type === "task" || node.type === "subtask" ? "font-medium text-zinc-800" : "text-zinc-700";
@@ -562,25 +562,27 @@ export function ProgrammeTab() {
           </div>
 
           {/* ── Add dropdown ── */}
-          <div className="w-10 shrink-0 flex items-center justify-center py-2 relative">
+          <div className="w-16 shrink-0 flex items-center justify-center py-1.5 relative">
             {addOptions.length > 0 && (
               <>
                 <button
                   onClick={() => setOpenDropdown(openDropdown === node.id ? null : node.id)}
-                  className="text-zinc-300 hover:text-zinc-500 transition-colors"
+                  className="flex items-center gap-0.5 rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs font-medium text-zinc-600 shadow-sm transition-colors hover:border-zinc-400 hover:bg-zinc-50 hover:text-zinc-800"
                 >
-                  <Plus size={14} />
+                  <Plus size={12} strokeWidth={2.5} />
+                  Add
                 </button>
                 {openDropdown === node.id && (
                   <>
                     <div className="fixed inset-0 z-10" onClick={() => setOpenDropdown(null)} />
-                    <div className="absolute right-1 top-full z-20 mt-0.5 min-w-max rounded border border-zinc-200 bg-white shadow-md text-xs">
+                    <div className="absolute right-0 top-full z-20 mt-1 min-w-max rounded-md border border-zinc-200 bg-white shadow-lg text-xs">
                       {addOptions.map(opt => (
                         <button
                           key={opt.type}
-                          className="block w-full px-3 py-2 text-left hover:bg-zinc-50 text-zinc-700 whitespace-nowrap"
+                          className="flex w-full items-center gap-1.5 px-3 py-2 text-left text-zinc-700 hover:bg-zinc-50 whitespace-nowrap first:rounded-t-md last:rounded-b-md"
                           onClick={() => { setOpenDropdown(null); setAddForm({ parentId: node.id, type: opt.type }); setFormValues(defaultForm); }}
                         >
+                          <Plus size={11} className="text-zinc-400" />
                           {opt.label}
                         </button>
                       ))}
@@ -606,7 +608,7 @@ export function ProgrammeTab() {
         <div className="w-28 shrink-0 px-3 py-2.5">Finish</div>
         <div className="w-28 shrink-0 px-3 py-2.5 text-right">Forecast Hrs</div>
         <div className="w-28 shrink-0 px-3 py-2.5">Status</div>
-        <div className="w-10 shrink-0" />
+        <div className="w-16 shrink-0" />
       </div>
 
       {/* Rows */}
