@@ -562,15 +562,14 @@ export function ProgrammeTab() {
           </div>
 
           {/* ── Add dropdown ── */}
-          <div className="w-16 shrink-0 flex items-center justify-center py-1.5 relative">
+          <div className="w-10 shrink-0 flex items-center justify-center py-1.5 relative">
             {addOptions.length > 0 && (
               <>
                 <button
                   onClick={() => setOpenDropdown(openDropdown === node.id ? null : node.id)}
-                  className="flex items-center gap-0.5 rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs font-medium text-zinc-600 shadow-sm transition-colors hover:border-zinc-400 hover:bg-zinc-50 hover:text-zinc-800"
+                  className="flex h-5 w-5 items-center justify-center rounded border border-zinc-300 bg-white text-zinc-500 shadow-sm transition-colors hover:border-zinc-400 hover:bg-zinc-50 hover:text-zinc-800"
                 >
-                  <Plus size={12} strokeWidth={2.5} />
-                  Add
+                  <Plus size={11} strokeWidth={2.5} />
                 </button>
                 {openDropdown === node.id && (
                   <>
@@ -608,7 +607,7 @@ export function ProgrammeTab() {
         <div className="w-28 shrink-0 px-3 py-2.5">Finish</div>
         <div className="w-28 shrink-0 px-3 py-2.5 text-right">Forecast Hrs</div>
         <div className="w-28 shrink-0 px-3 py-2.5">Status</div>
-        <div className="w-16 shrink-0" />
+        <div className="w-10 shrink-0" />
       </div>
 
       {/* Rows */}
