@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   mockProject,
   mockScopes,
@@ -208,93 +209,51 @@ function ScopeRow({
   );
 }
 
+const TABS = ["Programme", "Forecast"] as const;
+type Tab = (typeof TABS)[number];
+
 export default function ProjectPage() {
   const project = mockProject;
-  const scopes = mockScopes;
   const cvr: ProjectCVR = mockCVR;
-
-  const overspending = cvr.budgetConsumedPercent > cvr.progressPercent;
+  const [activeTab, setActiveTab] = useState<Tab>("Programme");
 
   return (
-    <div className="min-h-screen bg-zinc-50 p-6 font-sans">
+    <div className="flex min-h-screen flex-col bg-zinc-50 font-sans">
       {/* Header */}
-      <div className="mb-6">
+      <div className="px-6 pt-6 pb-0">
         <p className="text-sm text-zinc-500">{project.client}</p>
         <h1 className="text-2xl font-semibold text-zinc-900">{project.name}</h1>
         <p className="mt-1 text-sm text-zinc-400">
           {formatDate(project.startDate)} – {formatDate(project.endDate)} ·{" "}
           {project.office} · {project.status}
         </p>
-      </div>
 
-      {/* Summary cards */}
-      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <SummaryCard label="Fixed Fee" value={formatCurrency(cvr.fixedFee)} />
-        <SummaryCard
-          label="Spent to Date"
-          value={formatCurrency(cvr.totalSpent)}
-          sub={`${cvr.budgetConsumedPercent}% of fee`}
-          alert={overspending}
-        />
-        <SummaryCard
-          label="Profit"
-          value={formatCurrency(cvr.profit)}
-          sub={`${cvr.profitPercent}% margin`}
-        />
-        <SummaryCard
-          label="EAC"
-          value={formatCurrency(cvr.eac)}
-          sub={`${formatCurrency(cvr.costToComplete)} to complete`}
-        />
-      </div>
-
-      {/* CVR Chart */}
-      <div className="mb-6">
-        <CVRChart data={cvr.weeklyTrend} />
-      </div>
-
-      {/* WBS Table */}
-      <div className="rounded-lg border border-zinc-200 bg-white">
-        <div className="border-b border-zinc-200 px-4 py-3">
-          <h2 className="text-sm font-semibold text-zinc-700">
-            Work Breakdown
-          </h2>
+        {/* Chrome-style tabs */}
+        <div className="mt-5 flex items-end gap-0.5">
+          {TABS.map((tab) => {
+            const isActive = tab === activeTab;
+            return (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`relative px-6 py-2.5 text-sm font-medium transition-colors focus:outline-none ${
+                  isActive
+                    ? "rounded-t-lg border border-b-0 border-zinc-200 bg-white text-zinc-900"
+                    : "rounded-t-lg text-zinc-500 hover:text-zinc-700"
+                }`}
+              >
+                {tab}
+              </button>
+            );
+          })}
+          {/* bottom border that tabs sit on */}
+          <div className="flex-1 border-b border-zinc-200" />
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-zinc-100 text-left">
-                <th className="py-2 pr-4 text-xs font-medium uppercase tracking-wide text-zinc-400">
-                  Scope / Activity
-                </th>
-                <th className="py-2 pr-4 text-xs font-medium uppercase tracking-wide text-zinc-400">
-                  Type / Status
-                </th>
-                <th className="py-2 pr-4 text-right text-xs font-medium uppercase tracking-wide text-zinc-400">
-                  Est.
-                </th>
-                <th className="py-2 pr-4 text-right text-xs font-medium uppercase tracking-wide text-zinc-400">
-                  Actual
-                </th>
-                <th className="py-2 pr-4 text-right text-xs font-medium uppercase tracking-wide text-zinc-400">
-                  Variance
-                </th>
-                <th className="py-2 pl-4 text-xs font-medium uppercase tracking-wide text-zinc-400">
-                  Progress
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {scopes.map((scope) => (
-                <ScopeRow
-                  key={scope.id}
-                  scope={scope}
-                  activities={mockActivities[scope.id] ?? []}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
+      </div>
+
+      {/* Tab content */}
+      <div className="flex flex-1 bg-white border-x border-b border-zinc-200 mx-6">
+        {/* empty — content goes here */}
       </div>
     </div>
   );
