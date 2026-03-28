@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronRight, ChevronDown, Plus, X } from "lucide-react";
+import { ChevronRight, ChevronDown, ChevronLeft, Plus, X } from "lucide-react";
 
 type NodeType = "scope" | "task" | "subtask" | "activity";
 
@@ -213,6 +213,111 @@ const initialData: ProgrammeNode[] = [
   },
 ];
 
+// ── Date helpers ────────────────────────────────────────────────────────────
+const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const DAY_NAMES   = ["Mo","Tu","We","Th","Fr","Sa","Su"];
+
+function parseProgrammeDate(str: string): Date | null {
+  if (!str) return null;
+  const parts = str.split("-");
+  if (parts.length !== 3) return null;
+  const day = parseInt(parts[0], 10);
+  const mi  = MONTH_NAMES.findIndex(m => m.toLowerCase() === parts[1].toLowerCase());
+  if (mi === -1 || isNaN(day)) return null;
+  const yr  = parseInt(parts[2], 10);
+  return new Date(yr < 100 ? 2000 + yr : yr, mi, day);
+}
+
+function formatProgrammeDate(d: Date): string {
+  return `${String(d.getDate()).padStart(2,"0")}-${MONTH_NAMES[d.getMonth()]}-${String(d.getFullYear()).slice(-2)}`;
+}
+
+// ── Mini Calendar ────────────────────────────────────────────────────────────
+interface CalendarState {
+  nodeId: string;
+  field: "start" | "finish";
+  value: string;
+  rect: { top: number; left: number; width: number; height: number };
+}
+
+function MiniCalendar({ value, anchorRect, onChange, onClose }: {
+  value: string;
+  anchorRect: { top: number; left: number; width: number; height: number };
+  onChange: (v: string) => void;
+  onClose: () => void;
+}) {
+  const parsed = parseProgrammeDate(value);
+  const [view, setView] = useState<Date>(parsed ?? new Date(2026, 0, 1));
+  const year  = view.getFullYear();
+  const month = view.getMonth();
+
+  const firstDow = (() => { const d = new Date(year, month, 1).getDay() - 1; return d < 0 ? 6 : d; })();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells: (number | null)[] = [
+    ...Array(firstDow).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ];
+
+  return (
+    <>
+      <div className="fixed inset-0 z-[99]" onClick={onClose} />
+      <div
+        className="fixed z-[100] w-56 rounded-lg border border-zinc-200 bg-white p-3 shadow-xl"
+        style={{ top: anchorRect.top + anchorRect.height + 4, left: anchorRect.left }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Month nav */}
+        <div className="mb-2.5 flex items-center justify-between">
+          <button
+            className="rounded p-1 text-zinc-500 hover:bg-zinc-100"
+            onClick={() => setView(new Date(year, month - 1, 1))}
+          >
+            <ChevronLeft size={14} />
+          </button>
+          <span className="text-xs font-semibold text-zinc-700">{MONTH_NAMES[month]} {year}</span>
+          <button
+            className="rounded p-1 text-zinc-500 hover:bg-zinc-100"
+            onClick={() => setView(new Date(year, month + 1, 1))}
+          >
+            <ChevronRight size={14} />
+          </button>
+        </div>
+        {/* Day-of-week headers */}
+        <div className="mb-1 grid grid-cols-7">
+          {DAY_NAMES.map(d => (
+            <div key={d} className="py-0.5 text-center text-[10px] font-medium text-zinc-400">{d}</div>
+          ))}
+        </div>
+        {/* Day grid */}
+        <div className="grid grid-cols-7 gap-y-0.5">
+          {cells.map((day, i) => {
+            if (day === null) return <div key={i} />;
+            const isSelected = parsed &&
+              parsed.getFullYear() === year &&
+              parsed.getMonth()    === month &&
+              parsed.getDate()     === day;
+            return (
+              <div key={i} className="flex justify-center">
+                <button
+                  className={`h-7 w-7 rounded-full text-xs transition-colors ${
+                    isSelected
+                      ? "bg-zinc-900 font-semibold text-white"
+                      : "text-zinc-700 hover:bg-zinc-100"
+                  }`}
+                  onClick={() => { onChange(formatProgrammeDate(new Date(year, month, day))); onClose(); }}
+                >
+                  {day}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── Status badge ─────────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: string }) {
   if (status === "Completed")
     return <span className="rounded px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-700">Completed</span>;
@@ -223,54 +328,75 @@ function StatusBadge({ status }: { status: string }) {
   return null;
 }
 
+// ── Tree helpers ─────────────────────────────────────────────────────────────
 type AddOptions = { label: string; type: NodeType }[];
 
 function getAddOptions(nodeType: NodeType): AddOptions {
-  if (nodeType === "scope") return [{ label: "Add Task", type: "task" }, { label: "Add Activity", type: "activity" }];
-  if (nodeType === "task") return [{ label: "Add Subtask", type: "subtask" }, { label: "Add Activity", type: "activity" }];
+  if (nodeType === "scope")   return [{ label: "Add Task", type: "task" }, { label: "Add Activity", type: "activity" }];
+  if (nodeType === "task")    return [{ label: "Add Subtask", type: "subtask" }, { label: "Add Activity", type: "activity" }];
   if (nodeType === "subtask") return [{ label: "Add Activity", type: "activity" }];
   return [];
 }
 
-interface AddFormState {
-  parentId: string;
-  type: NodeType;
+function updateNodeInTree(
+  nodes: ProgrammeNode[],
+  nodeId: string,
+  field: keyof ProgrammeNode,
+  value: ProgrammeNode[keyof ProgrammeNode],
+): ProgrammeNode[] {
+  return nodes.map(n => {
+    if (n.id === nodeId) return { ...n, [field]: value };
+    return { ...n, children: updateNodeInTree(n.children, nodeId, field, value) };
+  });
 }
-
-interface FormValues {
-  name: string;
-  activityId: string;
-  totalHours: string;
-  start: string;
-  finish: string;
-  forecastTotalHours: string;
-  status: string;
-}
-
-const defaultForm: FormValues = {
-  name: "", activityId: "", totalHours: "", start: "", finish: "", forecastTotalHours: "", status: "Not Started",
-};
 
 function addNodeToTree(nodes: ProgrammeNode[], parentId: string, newNode: ProgrammeNode): ProgrammeNode[] {
-  return nodes.map((n) => {
+  return nodes.map(n => {
     if (n.id === parentId) return { ...n, children: [...n.children, newNode] };
     return { ...n, children: addNodeToTree(n.children, parentId, newNode) };
   });
 }
 
+// ── Add-form types ────────────────────────────────────────────────────────────
+interface AddFormState { parentId: string; type: NodeType; }
+interface FormValues {
+  name: string; activityId: string; totalHours: string;
+  start: string; finish: string; forecastTotalHours: string; status: string;
+}
+const defaultForm: FormValues = {
+  name: "", activityId: "", totalHours: "", start: "", finish: "", forecastTotalHours: "", status: "Not Started",
+};
+
+// ── Editing types ─────────────────────────────────────────────────────────────
+type EditableField = "name" | "totalHours" | "forecastTotalHours" | "status";
+interface EditingCell { nodeId: string; field: EditableField; value: string; }
+
+// ── Main component ────────────────────────────────────────────────────────────
 export function ProgrammeTab() {
-  const [data, setData] = useState<ProgrammeNode[]>(initialData);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [data,         setData]         = useState<ProgrammeNode[]>(initialData);
+  const [collapsed,    setCollapsed]    = useState<Set<string>>(new Set());
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
-  const [addForm, setAddForm] = useState<AddFormState | null>(null);
-  const [formValues, setFormValues] = useState<FormValues>(defaultForm);
+  const [addForm,      setAddForm]      = useState<AddFormState | null>(null);
+  const [formValues,   setFormValues]   = useState<FormValues>(defaultForm);
+  const [editingCell,  setEditingCell]  = useState<EditingCell | null>(null);
+  const [calendar,     setCalendar]     = useState<CalendarState | null>(null);
+
+  const saveField = (nodeId: string, field: keyof ProgrammeNode, raw: string) => {
+    const value =
+      (field === "totalHours" || field === "forecastTotalHours")
+        ? (raw === "" ? null : Number(raw))
+        : raw;
+    setData(prev => updateNodeInTree(prev, nodeId, field, value as ProgrammeNode[keyof ProgrammeNode]));
+  };
+
+  const commitEdit = () => {
+    if (!editingCell) return;
+    saveField(editingCell.nodeId, editingCell.field as keyof ProgrammeNode, editingCell.value);
+    setEditingCell(null);
+  };
 
   const toggleCollapse = (id: string) => {
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
+    setCollapsed(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
   };
 
   const handleAdd = () => {
@@ -287,67 +413,155 @@ export function ProgrammeTab() {
       status: formValues.status,
       children: [],
     };
-    setData((prev) => addNodeToTree(prev, addForm.parentId, newNode));
+    setData(prev => addNodeToTree(prev, addForm.parentId, newNode));
     setAddForm(null);
     setFormValues(defaultForm);
+  };
+
+  const isEditing = (nodeId: string, field: EditableField) =>
+    editingCell?.nodeId === nodeId && editingCell?.field === field;
+
+  const startEdit = (nodeId: string, field: EditableField, current: string) => {
+    setCalendar(null);
+    setEditingCell({ nodeId, field, value: current });
+  };
+
+  const openCal = (nodeId: string, field: "start" | "finish", value: string, e: React.MouseEvent<HTMLElement>) => {
+    setEditingCell(null);
+    const r = e.currentTarget.getBoundingClientRect();
+    setCalendar({ nodeId, field, value, rect: { top: r.top, left: r.left, width: r.width, height: r.height } });
   };
 
   const renderNode = (node: ProgrammeNode, depth: number): React.ReactNode => {
     const isCollapsed = collapsed.has(node.id);
     const hasChildren = node.children.length > 0;
-    const addOptions = getAddOptions(node.type);
+    const addOptions  = getAddOptions(node.type);
+    const canEdit     = node.type !== "scope";
 
-    const rowBg =
-      node.type === "scope" ? "bg-red-100" :
-      node.type === "task" ? "bg-zinc-100" :
-      node.type === "subtask" ? "bg-zinc-50" :
-      "bg-white";
-
-    const textWeight =
-      node.type === "scope" ? "font-semibold text-red-900" :
-      node.type === "task" || node.type === "subtask" ? "font-medium text-zinc-800" :
-      "text-zinc-700";
+    const rowBg = node.type === "scope" ? "bg-red-100" : node.type === "task" ? "bg-zinc-100" : node.type === "subtask" ? "bg-zinc-50" : "bg-white";
+    const textCls = node.type === "scope" ? "font-semibold text-red-900" : node.type === "task" || node.type === "subtask" ? "font-medium text-zinc-800" : "text-zinc-700";
+    const hover = canEdit ? "cursor-pointer rounded px-0.5 py-0.5 hover:bg-black/[.06]" : "";
 
     return (
       <div key={node.id}>
         <div className={`flex items-center border-b border-zinc-100 text-sm ${rowBg}`}>
-          {/* Name */}
+
+          {/* ── Name ── */}
           <div
-            className={`flex flex-1 items-center gap-1 py-2 pr-3 min-w-0 ${textWeight}`}
+            className={`flex flex-1 items-center gap-1 py-1.5 pr-3 min-w-0 ${textCls}`}
             style={{ paddingLeft: `${12 + depth * 20}px` }}
           >
-            {hasChildren ? (
-              <button
-                onClick={() => toggleCollapse(node.id)}
-                className="shrink-0 text-zinc-400 hover:text-zinc-600 mr-0.5"
-              >
-                {isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
-              </button>
+            {hasChildren
+              ? <button onClick={() => toggleCollapse(node.id)} className="shrink-0 mr-0.5 text-zinc-400 hover:text-zinc-600">{isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}</button>
+              : <span className="w-4 shrink-0" />}
+            {node.activityId && <span className="shrink-0 font-mono text-xs text-zinc-400 mr-1">{node.activityId}</span>}
+            {isEditing(node.id, "name") ? (
+              <input
+                autoFocus
+                className="flex-1 min-w-0 rounded border border-blue-400 bg-white px-1.5 py-0.5 text-sm text-zinc-800 outline-none ring-1 ring-blue-200"
+                value={editingCell!.value}
+                onChange={e => setEditingCell(p => p ? { ...p, value: e.target.value } : p)}
+                onBlur={commitEdit}
+                onKeyDown={e => { if (e.key === "Enter") commitEdit(); if (e.key === "Escape") setEditingCell(null); }}
+              />
             ) : (
-              <span className="w-4 shrink-0" />
+              <span
+                className={`truncate ${hover}`}
+                onClick={() => canEdit && startEdit(node.id, "name", node.name)}
+                title={canEdit ? "Click to edit" : undefined}
+              >
+                {node.name}
+              </span>
             )}
-            {node.activityId && (
-              <span className="shrink-0 font-mono text-xs text-zinc-400 mr-1">{node.activityId}</span>
+          </div>
+
+          {/* ── Total Hours ── */}
+          <div className="w-24 shrink-0 px-2 py-1.5 text-right text-zinc-600 tabular-nums">
+            {isEditing(node.id, "totalHours") ? (
+              <input
+                autoFocus type="number"
+                className="w-full rounded border border-blue-400 bg-white px-1.5 py-0.5 text-sm text-right outline-none ring-1 ring-blue-200"
+                value={editingCell!.value}
+                onChange={e => setEditingCell(p => p ? { ...p, value: e.target.value } : p)}
+                onBlur={commitEdit}
+                onKeyDown={e => { if (e.key === "Enter") commitEdit(); if (e.key === "Escape") setEditingCell(null); }}
+              />
+            ) : (
+              <span className={hover} onClick={() => canEdit && startEdit(node.id, "totalHours", String(node.totalHours ?? ""))}>
+                {node.totalHours ?? "—"}
+              </span>
             )}
-            <span className="truncate">{node.name}</span>
           </div>
-          {/* Total Hours */}
-          <div className="w-24 shrink-0 px-3 py-2 text-right text-zinc-600 tabular-nums">
-            {node.totalHours ?? "—"}
+
+          {/* ── Start (calendar) ── */}
+          <div className="w-28 shrink-0 px-2 py-1.5">
+            <span
+              className={`inline-block font-mono text-xs text-zinc-500 ${hover}`}
+              onClick={e => canEdit && openCal(node.id, "start", node.start, e)}
+              title={canEdit ? "Click to pick date" : undefined}
+            >
+              {node.start || "—"}
+            </span>
           </div>
-          {/* Start */}
-          <div className="w-28 shrink-0 px-3 py-2 text-zinc-500 font-mono text-xs">{node.start || "—"}</div>
-          {/* Finish */}
-          <div className="w-28 shrink-0 px-3 py-2 text-zinc-500 font-mono text-xs">{node.finish || "—"}</div>
-          {/* Forecast Total Hours */}
-          <div className="w-28 shrink-0 px-3 py-2 text-right text-zinc-600 tabular-nums">
-            {node.forecastTotalHours ?? "—"}
+
+          {/* ── Finish (calendar) ── */}
+          <div className="w-28 shrink-0 px-2 py-1.5">
+            <span
+              className={`inline-block font-mono text-xs text-zinc-500 ${hover}`}
+              onClick={e => canEdit && openCal(node.id, "finish", node.finish, e)}
+              title={canEdit ? "Click to pick date" : undefined}
+            >
+              {node.finish || "—"}
+            </span>
           </div>
-          {/* Status */}
-          <div className="w-28 shrink-0 px-3 py-2">
-            {node.status ? <StatusBadge status={node.status} /> : null}
+
+          {/* ── Forecast Hours ── */}
+          <div className="w-28 shrink-0 px-2 py-1.5 text-right text-zinc-600 tabular-nums">
+            {isEditing(node.id, "forecastTotalHours") ? (
+              <input
+                autoFocus type="number"
+                className="w-full rounded border border-blue-400 bg-white px-1.5 py-0.5 text-sm text-right outline-none ring-1 ring-blue-200"
+                value={editingCell!.value}
+                onChange={e => setEditingCell(p => p ? { ...p, value: e.target.value } : p)}
+                onBlur={commitEdit}
+                onKeyDown={e => { if (e.key === "Enter") commitEdit(); if (e.key === "Escape") setEditingCell(null); }}
+              />
+            ) : (
+              <span className={hover} onClick={() => canEdit && startEdit(node.id, "forecastTotalHours", String(node.forecastTotalHours ?? ""))}>
+                {node.forecastTotalHours ?? "—"}
+              </span>
+            )}
           </div>
-          {/* Add dropdown */}
+
+          {/* ── Status (dropdown) ── */}
+          <div className="w-28 shrink-0 px-2 py-1.5">
+            {isEditing(node.id, "status") ? (
+              <select
+                autoFocus
+                className="w-full rounded border border-blue-400 bg-white px-1 py-0.5 text-xs outline-none ring-1 ring-blue-200"
+                value={editingCell!.value}
+                onChange={e => {
+                  saveField(node.id, "status", e.target.value);
+                  setEditingCell(null);
+                }}
+                onBlur={() => setEditingCell(null)}
+              >
+                <option>Not Started</option>
+                <option>In Progress</option>
+                <option>Completed</option>
+              </select>
+            ) : node.status ? (
+              <span
+                className={`inline-block rounded ${node.type === "activity" ? "cursor-pointer hover:opacity-80" : ""}`}
+                onClick={() => node.type === "activity" && startEdit(node.id, "status", node.status)}
+                title={node.type === "activity" ? "Click to change status" : undefined}
+              >
+                <StatusBadge status={node.status} />
+              </span>
+            ) : null}
+          </div>
+
+          {/* ── Add dropdown ── */}
           <div className="w-10 shrink-0 flex items-center justify-center py-2 relative">
             {addOptions.length > 0 && (
               <>
@@ -361,15 +575,11 @@ export function ProgrammeTab() {
                   <>
                     <div className="fixed inset-0 z-10" onClick={() => setOpenDropdown(null)} />
                     <div className="absolute right-1 top-full z-20 mt-0.5 min-w-max rounded border border-zinc-200 bg-white shadow-md text-xs">
-                      {addOptions.map((opt) => (
+                      {addOptions.map(opt => (
                         <button
                           key={opt.type}
                           className="block w-full px-3 py-2 text-left hover:bg-zinc-50 text-zinc-700 whitespace-nowrap"
-                          onClick={() => {
-                            setOpenDropdown(null);
-                            setAddForm({ parentId: node.id, type: opt.type });
-                            setFormValues(defaultForm);
-                          }}
+                          onClick={() => { setOpenDropdown(null); setAddForm({ parentId: node.id, type: opt.type }); setFormValues(defaultForm); }}
                         >
                           {opt.label}
                         </button>
@@ -381,7 +591,7 @@ export function ProgrammeTab() {
             )}
           </div>
         </div>
-        {!isCollapsed && node.children.map((child) => renderNode(child, depth + 1))}
+        {!isCollapsed && node.children.map(child => renderNode(child, depth + 1))}
       </div>
     );
   };
@@ -401,91 +611,65 @@ export function ProgrammeTab() {
 
       {/* Rows */}
       <div className="flex-1 overflow-y-auto">
-        {data.map((node) => renderNode(node, 0))}
+        {data.map(node => renderNode(node, 0))}
       </div>
+
+      {/* Mini calendar portal */}
+      {calendar && (
+        <MiniCalendar
+          value={calendar.value}
+          anchorRect={calendar.rect}
+          onChange={v => {
+            saveField(calendar.nodeId, calendar.field, v);
+            setCalendar(null);
+          }}
+          onClose={() => setCalendar(null)}
+        />
+      )}
 
       {/* Add modal */}
       {addForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/25">
           <div className="w-96 rounded-lg border border-zinc-200 bg-white p-6 shadow-xl">
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-zinc-800 capitalize">
-                Add {addForm.type}
-              </h3>
-              <button onClick={() => setAddForm(null)} className="text-zinc-400 hover:text-zinc-600">
-                <X size={16} />
-              </button>
+              <h3 className="text-sm font-semibold text-zinc-800 capitalize">Add {addForm.type}</h3>
+              <button onClick={() => setAddForm(null)} className="text-zinc-400 hover:text-zinc-600"><X size={16} /></button>
             </div>
             <div className="space-y-3">
               {addForm.type === "activity" && (
                 <div>
                   <label className="mb-1 block text-xs text-zinc-500">Activity ID</label>
-                  <input
-                    className="w-full rounded border border-zinc-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400"
-                    value={formValues.activityId}
-                    onChange={(e) => setFormValues((p) => ({ ...p, activityId: e.target.value }))}
-                    placeholder="e.g. A5000"
-                  />
+                  <input className="w-full rounded border border-zinc-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400" value={formValues.activityId} onChange={e => setFormValues(p => ({ ...p, activityId: e.target.value }))} placeholder="e.g. A5000" />
                 </div>
               )}
               <div>
                 <label className="mb-1 block text-xs text-zinc-500">Name *</label>
-                <input
-                  className="w-full rounded border border-zinc-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400"
-                  value={formValues.name}
-                  onChange={(e) => setFormValues((p) => ({ ...p, name: e.target.value }))}
-                  placeholder="Enter name"
-                  autoFocus
-                />
+                <input autoFocus className="w-full rounded border border-zinc-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400" value={formValues.name} onChange={e => setFormValues(p => ({ ...p, name: e.target.value }))} placeholder="Enter name" />
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="mb-1 block text-xs text-zinc-500">Start</label>
-                  <input
-                    className="w-full rounded border border-zinc-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400"
-                    value={formValues.start}
-                    onChange={(e) => setFormValues((p) => ({ ...p, start: e.target.value }))}
-                    placeholder="dd-Mmm-yy"
-                  />
+                  <input className="w-full rounded border border-zinc-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400" value={formValues.start} onChange={e => setFormValues(p => ({ ...p, start: e.target.value }))} placeholder="dd-Mmm-yy" />
                 </div>
                 <div>
                   <label className="mb-1 block text-xs text-zinc-500">Finish</label>
-                  <input
-                    className="w-full rounded border border-zinc-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400"
-                    value={formValues.finish}
-                    onChange={(e) => setFormValues((p) => ({ ...p, finish: e.target.value }))}
-                    placeholder="dd-Mmm-yy"
-                  />
+                  <input className="w-full rounded border border-zinc-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400" value={formValues.finish} onChange={e => setFormValues(p => ({ ...p, finish: e.target.value }))} placeholder="dd-Mmm-yy" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="mb-1 block text-xs text-zinc-500">Total Hours</label>
-                  <input
-                    type="number"
-                    className="w-full rounded border border-zinc-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400"
-                    value={formValues.totalHours}
-                    onChange={(e) => setFormValues((p) => ({ ...p, totalHours: e.target.value }))}
-                  />
+                  <input type="number" className="w-full rounded border border-zinc-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400" value={formValues.totalHours} onChange={e => setFormValues(p => ({ ...p, totalHours: e.target.value }))} />
                 </div>
                 <div>
                   <label className="mb-1 block text-xs text-zinc-500">Forecast Hours</label>
-                  <input
-                    type="number"
-                    className="w-full rounded border border-zinc-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400"
-                    value={formValues.forecastTotalHours}
-                    onChange={(e) => setFormValues((p) => ({ ...p, forecastTotalHours: e.target.value }))}
-                  />
+                  <input type="number" className="w-full rounded border border-zinc-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400" value={formValues.forecastTotalHours} onChange={e => setFormValues(p => ({ ...p, forecastTotalHours: e.target.value }))} />
                 </div>
               </div>
               {addForm.type === "activity" && (
                 <div>
                   <label className="mb-1 block text-xs text-zinc-500">Status</label>
-                  <select
-                    className="w-full rounded border border-zinc-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400"
-                    value={formValues.status}
-                    onChange={(e) => setFormValues((p) => ({ ...p, status: e.target.value }))}
-                  >
+                  <select className="w-full rounded border border-zinc-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400" value={formValues.status} onChange={e => setFormValues(p => ({ ...p, status: e.target.value }))}>
                     <option>Not Started</option>
                     <option>In Progress</option>
                     <option>Completed</option>
@@ -494,19 +678,8 @@ export function ProgrammeTab() {
               )}
             </div>
             <div className="mt-5 flex justify-end gap-2">
-              <button
-                onClick={() => setAddForm(null)}
-                className="rounded px-3 py-1.5 text-sm text-zinc-500 hover:text-zinc-700"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAdd}
-                className="rounded bg-zinc-900 px-3 py-1.5 text-sm text-white hover:bg-zinc-700 disabled:opacity-40"
-                disabled={!formValues.name.trim()}
-              >
-                Add
-              </button>
+              <button onClick={() => setAddForm(null)} className="rounded px-3 py-1.5 text-sm text-zinc-500 hover:text-zinc-700">Cancel</button>
+              <button onClick={handleAdd} className="rounded bg-zinc-900 px-3 py-1.5 text-sm text-white hover:bg-zinc-700 disabled:opacity-40" disabled={!formValues.name.trim()}>Add</button>
             </div>
           </div>
         </div>
