@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { mockProject } from "@/mocks/projects";
 import { formatDate } from "@/lib/utils";
+import { ProgrammeTab } from "@/components/programme/ProgrammeTab";
 
 const TABS = ["Programme", "Forecast"] as const;
 type Tab = (typeof TABS)[number];
@@ -44,8 +45,9 @@ export default function ProjectPage() {
       </div>
 
       {/* Tab content */}
-      <div className="mx-6 flex flex-1 border-x border-b border-border bg-card">
-        {/* content per tab goes here */}
+      <div className="mx-6 flex flex-1 flex-col border-x border-b border-border bg-card overflow-hidden">
+        {activeTab === "Programme" && <ProgrammeTab />}
+        {activeTab === "Forecast" && <div className="flex-1" />}
       </div>
     </div>
   );
