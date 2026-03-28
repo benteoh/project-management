@@ -1,5 +1,5 @@
 import { Plus, Trash2 } from "lucide-react";
-import { NodeType, ContextMenuState, AddFormState, FormValues, defaultForm } from "./types";
+import { NodeType, ContextMenuState, AddFormState } from "./types";
 import { getAddOptions } from "./treeUtils";
 
 interface NodeContextMenuProps {

@@ -11,7 +11,7 @@ export function MiniCalendar({ value, anchorRect, onChange, onClose }: {
   onClose: () => void;
 }) {
   const parsed = parseProgrammeDate(value);
-  const [view, setView] = useState<Date>(parsed ?? new Date(2026, 0, 1));
+  const [view, setView] = useState<Date>(parsed ?? new Date());
   const year  = view.getFullYear();
   const month = view.getMonth();
 
@@ -26,21 +26,21 @@ export function MiniCalendar({ value, anchorRect, onChange, onClose }: {
     <>
       <div className="fixed inset-0 z-[99]" onClick={onClose} />
       <div
-        className="fixed z-[100] w-56 rounded-lg border border-zinc-200 bg-white p-3 shadow-xl"
+        className="fixed z-[100] w-56 rounded-lg border border-border bg-card p-3 shadow-elevated"
         style={{ top: anchorRect.top + anchorRect.height + 4, left: anchorRect.left }}
         onClick={e => e.stopPropagation()}
       >
         {/* Month nav */}
         <div className="mb-2.5 flex items-center justify-between">
           <button
-            className="rounded p-1 text-zinc-500 hover:bg-zinc-100"
+            className="rounded p-1 text-muted-foreground hover:bg-muted"
             onClick={() => setView(new Date(year, month - 1, 1))}
           >
             <ChevronLeft size={14} />
           </button>
-          <span className="text-xs font-semibold text-zinc-700">{MONTH_NAMES[month]} {year}</span>
+          <span className="text-xs font-semibold text-foreground">{MONTH_NAMES[month]} {year}</span>
           <button
-            className="rounded p-1 text-zinc-500 hover:bg-zinc-100"
+            className="rounded p-1 text-muted-foreground hover:bg-muted"
             onClick={() => setView(new Date(year, month + 1, 1))}
           >
             <ChevronRight size={14} />
@@ -50,7 +50,7 @@ export function MiniCalendar({ value, anchorRect, onChange, onClose }: {
         {/* Day-of-week headers */}
         <div className="mb-1 grid grid-cols-7">
           {DAY_NAMES.map(d => (
-            <div key={d} className="py-0.5 text-center text-[10px] font-medium text-zinc-400">{d}</div>
+            <div key={d} className="py-0.5 text-center text-[10px] font-medium text-muted-foreground">{d}</div>
           ))}
         </div>
 
@@ -67,8 +67,8 @@ export function MiniCalendar({ value, anchorRect, onChange, onClose }: {
                 <button
                   className={`h-7 w-7 rounded-full text-xs transition-colors ${
                     isSelected
-                      ? "bg-zinc-900 font-semibold text-white"
-                      : "text-zinc-700 hover:bg-zinc-100"
+                      ? "bg-foreground font-semibold text-background"
+                      : "text-foreground hover:bg-muted"
                   }`}
                   onClick={() => { onChange(formatProgrammeDate(new Date(year, month, day))); onClose(); }}
                 >

@@ -81,12 +81,12 @@ export function ProgrammeTab() {
   };
 
   const toggleCollapse = (id: string) =>
-    setCollapsed(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
+    setCollapsed(prev => { const s = new Set(prev); if (s.has(id)) { s.delete(id); } else { s.add(id); } return s; });
 
   const handleAdd = () => {
     if (!addForm || !formValues.name.trim()) return;
     const newNode: ProgrammeNode = {
-      id: `user-${Date.now()}`,
+      id: crypto.randomUUID(),
       activityId: formValues.activityId || undefined,
       name: formValues.name.trim(),
       type: addForm.type,

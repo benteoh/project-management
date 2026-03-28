@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
+import { StatusBadge } from "./StatusBadge";
 
 afterEach(cleanup);
-import { StatusBadge } from "./StatusBadge";
 
 describe("StatusBadge", () => {
   it("renders Completed", () => {
