@@ -85,6 +85,62 @@ data/                       # Real Excel/CSV files from DSP (not in src/)
 docs/                       # Design sketches, domain logic, feedback
 ```
 
+## Design System
+
+All UI must follow these standards. Tokens are defined in `src/app/globals.css`.
+
+### Typography
+- **Font**: Inter (Notion-style sans-serif)
+- **Page title**: `text-2xl font-semibold text-foreground`
+- **Section heading**: `text-sm font-semibold text-foreground`
+- **Table / data label**: `text-xs font-medium uppercase tracking-wide text-muted-foreground`
+- **Body**: `text-sm text-foreground`
+- **Caption / helper**: `text-xs text-muted-foreground`
+
+### Colour tokens (use these, not raw hex)
+| Token | Value | Use |
+|---|---|---|
+| `bg-background` | #f9f9f9 | Page background |
+| `bg-card` | #ffffff | Card / panel surface |
+| `text-foreground` | #18181b | Primary text |
+| `text-muted-foreground` | #71717a | Secondary / label text |
+| `border-border` | #e4e4e7 | Dividers, card borders |
+| `bg-gold` / `text-gold` | **#e4a824** | Brand accent — sacred, use sparingly |
+| `text-status-healthy` / `bg-status-healthy-bg` | green | On track |
+| `text-status-warning` / `bg-status-warning-bg` | gold | At risk |
+| `text-status-critical` / `bg-status-critical-bg` | red | Overspend / blocked |
+| `text-status-info` / `bg-status-info-bg` | blue | Progress, neutral info |
+
+### Radius
+Base is **8px**. Use `rounded-lg` for cards and panels, `rounded-md` for inputs and badges, `rounded-sm` for tight elements.
+
+### Elevation (shadows)
+- **Cards**: `shadow-card` — subtle lift, always used on white card surfaces against the off-white background
+- **Elevated panels / dropdowns**: `shadow-elevated`
+- **Modals / overlays**: `shadow-overlay`
+
+### Spacing
+- **Page padding**: `p-6` desktop / `p-4` mobile
+- **Card internal padding**: `p-5`
+- **Section gap**: `gap-4` or `gap-6`
+- **Table row**: `py-3 px-4`
+- **Compact table row** (data-dense views): `py-2 px-4`
+
+### Chart colours (in order)
+1. Blue (`--chart-1`) — progress / forecast
+2. Green (`--chart-2`) — healthy / actuals on track
+3. Gold (`--chart-3`) — brand / budget line
+4. Red (`--chart-4`) — critical / overspend
+5. Grey (`--chart-5`) — neutral comparison
+
+### Rules
+- Never use raw hex colours in components — always use tokens
+- Gold (`#e4a824`) is sacred — do not adjust it for any reason
+- Cards always sit on `bg-background` with `shadow-card` — never flat white on flat white
+- Status indicators always use the four semantic tokens (healthy / warning / critical / info)
+
+---
+
 ## Development
 
 ```bash
