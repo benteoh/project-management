@@ -1,11 +1,18 @@
 // ProgrammeNode is a UI view model for the programme tree.
 // It is NOT the same as the domain types in src/types/project.ts (Scope, Activity).
 // Domain types are flat; this tree model nests children for the interactive WBS grid.
-// When Supabase is wired up, a mapping layer will convert domain types → ProgrammeNode.
+// Data is loaded and persisted via Supabase (`programme_nodes`, `scope_engineers`, `engineer_pool`).
 
 export type NodeType = "scope" | "task" | "subtask" | "activity";
 
 export type ActivityStatus = "Not Started" | "In Progress" | "Completed" | "";
+
+export interface EngineerAllocation {
+  code: string;
+  isLead: boolean;
+  plannedHrs: number | null;
+  forecastHrs: number | null;
+}
 
 export interface ProgrammeNode {
   id: string;
@@ -18,6 +25,8 @@ export interface ProgrammeNode {
   forecastTotalHours: number | null;
   status: ActivityStatus;
   children: ProgrammeNode[];
+  /** Scope rows only — persisted in `scope_engineers`. */
+  engineers?: EngineerAllocation[];
 }
 
 export type EditableField = "name" | "totalHours" | "forecastTotalHours" | "status";

@@ -23,7 +23,20 @@ describe("parseProgrammeDate", () => {
   });
 
   it("parses all 12 months", () => {
-    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const months = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
     months.forEach((m, i) => {
       const d = parseProgrammeDate(`01-${m}-25`);
       expect(d).not.toBeNull();
@@ -75,11 +88,20 @@ describe("formatProgrammeDate", () => {
 
   it("round-trips with parse for every month", () => {
     const dates = [
-      "01-Jan-26", "15-Feb-26", "28-Mar-26", "30-Apr-26",
-      "15-May-26", "01-Jun-26", "07-Jul-26", "06-Aug-26",
-      "30-Sep-26", "31-Oct-26", "15-Nov-26", "31-Dec-26",
+      "01-Jan-26",
+      "15-Feb-26",
+      "28-Mar-26",
+      "30-Apr-26",
+      "15-May-26",
+      "01-Jun-26",
+      "07-Jul-26",
+      "06-Aug-26",
+      "30-Sep-26",
+      "31-Oct-26",
+      "15-Nov-26",
+      "31-Dec-26",
     ];
-    dates.forEach(original => {
+    dates.forEach((original) => {
       const parsed = parseProgrammeDate(original);
       expect(parsed).not.toBeNull();
       expect(formatProgrammeDate(parsed!)).toBe(original);

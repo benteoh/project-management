@@ -54,7 +54,9 @@ describe("ProgrammeRow", () => {
     // editingCell belonged to a sibling row (editingCell was non-null but
     // this row's isEditing() returned false, yet the input was built eagerly).
     const editingCell = { nodeId: "other-node", field: "name" as const, value: "editing" };
-    expect(() => render(<ProgrammeRow node={node} {...baseProps} editingCell={editingCell} />)).not.toThrow();
+    expect(() =>
+      render(<ProgrammeRow node={node} {...baseProps} editingCell={editingCell} />)
+    ).not.toThrow();
   });
 
   it("shows dash when totalHours is null", () => {

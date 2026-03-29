@@ -49,6 +49,9 @@
   --color-status-info: var(--status-info);
   --color-status-info-bg: var(--status-info-bg);
 
+  /* Shake animation */
+  --animate-shake: shake 0.5s ease-in-out;
+
   /* Radius scale — base is 8px */
   --radius-sm: calc(var(--radius) * 0.5);   /* 4px */
   --radius-md: calc(var(--radius) * 0.75);  /* 6px */
@@ -183,6 +186,14 @@
   --sidebar-ring: oklch(0.726 0.155 72.0);
 }
 
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%       { transform: translateX(-5px); }
+  40%       { transform: translateX(5px); }
+  60%       { transform: translateX(-4px); }
+  80%       { transform: translateX(4px); }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -192,5 +203,11 @@
   }
   html {
     @apply font-sans;
+  }
+}
+
+@layer utilities {
+  .animate-shake {
+    animation: shake 0.5s ease-in-out;
   }
 }

@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { updateNodeInTree, addNodeToTree, deleteNodeFromTree, getAddOptions } from "./treeUtils";
+import {
+  updateNodeInTree,
+  addNodeToTree,
+  deleteNodeFromTree,
+  getAddOptions,
+  getScopeNumberFromName,
+} from "./treeUtils";
 import { ProgrammeNode } from "./types";
 
 const leaf = (id: string): ProgrammeNode => ({
@@ -63,7 +69,12 @@ describe("updateNodeInTree", () => {
 
   it("can set a field to null", () => {
     const tree = [leaf("a1")];
-    const result = updateNodeInTree(tree, "a1", "totalHours", null as unknown as ProgrammeNode[keyof ProgrammeNode]);
+    const result = updateNodeInTree(
+      tree,
+      "a1",
+      "totalHours",
+      null as unknown as ProgrammeNode[keyof ProgrammeNode]
+    );
     expect(result[0].totalHours).toBeNull();
   });
 
@@ -127,7 +138,11 @@ describe("deleteNodeFromTree", () => {
   });
 
   it("deletes a deeply nested node", () => {
-    const task: ProgrammeNode = { ...scope("t1"), type: "task", children: [leaf("a1"), leaf("a2")] };
+    const task: ProgrammeNode = {
+      ...scope("t1"),
+      type: "task",
+      children: [leaf("a1"), leaf("a2")],
+    };
     const tree = [scope("s1", [task])];
     const result = deleteNodeFromTree(tree, "a1");
     expect(result[0].children[0].children).toHaveLength(1);
@@ -159,21 +174,31 @@ describe("deleteNodeFromTree", () => {
   });
 });
 
+describe("getScopeNumberFromName", () => {
+  it("extracts leading scope number", () => {
+    expect(getScopeNumberFromName("12. NR Boiler Room")).toBe("12");
+  });
+
+  it("returns empty when no match", () => {
+    expect(getScopeNumberFromName("No number here")).toBe("");
+  });
+});
+
 describe("getAddOptions", () => {
   it("scope can add task or activity", () => {
     const opts = getAddOptions("scope");
-    expect(opts.map(o => o.type)).toEqual(["task", "activity"]);
-    expect(opts.map(o => o.label)).toEqual(["Add Task", "Add Activity"]);
+    expect(opts.map((o) => o.type)).toEqual(["task", "activity"]);
+    expect(opts.map((o) => o.label)).toEqual(["Add Task", "Add Activity"]);
   });
 
   it("task can add subtask or activity", () => {
     const opts = getAddOptions("task");
-    expect(opts.map(o => o.type)).toEqual(["subtask", "activity"]);
+    expect(opts.map((o) => o.type)).toEqual(["subtask", "activity"]);
   });
 
   it("subtask can only add activity", () => {
     const opts = getAddOptions("subtask");
-    expect(opts.map(o => o.type)).toEqual(["activity"]);
+    expect(opts.map((o) => o.type)).toEqual(["activity"]);
   });
 
   it("activity has no add options", () => {

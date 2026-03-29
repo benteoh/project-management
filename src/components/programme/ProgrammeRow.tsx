@@ -1,10 +1,14 @@
 import { ChevronRight, ChevronDown } from "lucide-react";
 import { ProgrammeNode, EditableField, EditingCell } from "./types";
 import { StatusBadge } from "./StatusBadge";
+import { EngineerChip } from "./EngineerChip";
+import { getScopeNumberFromName } from "./treeUtils";
 
 interface ProgrammeRowProps {
   node: ProgrammeNode;
   depth: number;
+  /** e.g. "11.2" for tasks/subtasks under numbered scopes */
+  namePrefix?: string;
   collapsed: Set<string>;
   editingCell: EditingCell | null;
   onToggleCollapse: (id: string) => void;
@@ -12,24 +16,32 @@ interface ProgrammeRowProps {
   onCommitEdit: () => void;
   onEditingCellChange: (value: string) => void;
   onCancelEdit: () => void;
-  onOpenCal: (nodeId: string, field: "start" | "finish", value: string, e: React.MouseEvent<HTMLElement>) => void;
+  onOpenCal: (
+    nodeId: string,
+    field: "start" | "finish",
+    value: string,
+    e: React.MouseEvent<HTMLElement>
+  ) => void;
   onSaveField: (nodeId: string, field: keyof ProgrammeNode, raw: string) => void;
   onContextMenu: (node: ProgrammeNode, e: React.MouseEvent) => void;
+  onOpenEngPinned?: (scopeId: string, e: React.MouseEvent<HTMLDivElement>) => void;
 }
 
 const ROW_STYLES: Record<ProgrammeNode["type"], { bg: string; text: string }> = {
-  scope:    { bg: "bg-red-100",    text: "font-semibold text-red-900" },
-  task:     { bg: "bg-muted",      text: "font-medium text-foreground" },
-  subtask:  { bg: "bg-muted/50",   text: "font-medium text-foreground" },
-  activity: { bg: "bg-card",       text: "text-foreground" },
+  scope: { bg: "bg-red-100", text: "font-semibold text-red-900" },
+  task: { bg: "bg-muted", text: "font-medium text-foreground" },
+  subtask: { bg: "bg-muted/50", text: "font-medium text-foreground" },
+  activity: { bg: "bg-card", text: "text-foreground" },
 };
 
-const EDIT_INPUT_CLS = "rounded border border-ring bg-card px-1.5 py-0.5 text-sm outline-none ring-1 ring-ring/20";
+const EDIT_INPUT_CLS =
+  "rounded border border-ring bg-card px-1.5 py-0.5 text-sm outline-none ring-1 ring-ring/20";
 const HOVER_CLS = "cursor-pointer rounded px-0.5 py-0.5 hover:bg-black/[.06]";
 
 export function ProgrammeRow({
   node,
   depth,
+  namePrefix,
   collapsed,
   editingCell,
   onToggleCollapse,
@@ -40,6 +52,7 @@ export function ProgrammeRow({
   onOpenCal,
   onSaveField,
   onContextMenu,
+  onOpenEngPinned,
 }: ProgrammeRowProps) {
   const isCollapsed = collapsed.has(node.id);
   const hasChildren = node.children.length > 0;
@@ -51,11 +64,11 @@ export function ProgrammeRow({
   const editInput = (
     <input
       autoFocus
-      className={`flex-1 min-w-0 ${EDIT_INPUT_CLS}`}
+      className={`min-w-0 flex-1 ${EDIT_INPUT_CLS}`}
       value={editingCell?.value ?? ""}
-      onChange={e => onEditingCellChange(e.target.value)}
+      onChange={(e) => onEditingCellChange(e.target.value)}
       onBlur={onCommitEdit}
-      onKeyDown={e => {
+      onKeyDown={(e) => {
         if (e.key === "Enter") onCommitEdit();
         if (e.key === "Escape") onCancelEdit();
       }}
@@ -68,9 +81,9 @@ export function ProgrammeRow({
       type="number"
       className={`w-full text-right ${EDIT_INPUT_CLS}`}
       value={editingCell?.value ?? ""}
-      onChange={e => onEditingCellChange(e.target.value)}
+      onChange={(e) => onEditingCellChange(e.target.value)}
       onBlur={onCommitEdit}
-      onKeyDown={e => {
+      onKeyDown={(e) => {
         if (e.key === "Enter") onCommitEdit();
         if (e.key === "Escape") onCancelEdit();
       }}
@@ -80,18 +93,18 @@ export function ProgrammeRow({
   return (
     <div>
       <div
-        className={`flex items-center border-b border-border text-sm ${bg} select-none`}
-        onContextMenu={e => onContextMenu(node, e)}
+        className={`border-border flex items-center border-b text-sm ${bg} select-none`}
+        onContextMenu={(e) => onContextMenu(node, e)}
       >
         {/* Name */}
         <div
-          className={`flex flex-1 items-center gap-1 py-1.5 pr-3 min-w-0 ${text}`}
+          className={`flex min-w-0 flex-1 items-center gap-1 py-1.5 pr-3 ${text}`}
           style={{ paddingLeft: `${12 + depth * 20}px` }}
         >
           {hasChildren ? (
             <button
               onClick={() => onToggleCollapse(node.id)}
-              className="shrink-0 mr-0.5 text-muted-foreground hover:text-foreground"
+              className="text-muted-foreground hover:text-foreground mr-0.5 shrink-0"
             >
               {isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
             </button>
@@ -99,11 +112,18 @@ export function ProgrammeRow({
             <span className="w-4 shrink-0" />
           )}
           {node.activityId && (
-            <span className="shrink-0 font-mono text-xs text-muted-foreground mr-1">
+            <span className="text-muted-foreground mr-1 shrink-0 font-mono text-xs">
               {node.activityId}
             </span>
           )}
-          {isEditing("name") ? editInput : (
+          {(node.type === "task" || node.type === "subtask") && namePrefix && (
+            <span className="text-muted-foreground mr-1 shrink-0 font-mono text-xs select-none">
+              {namePrefix}
+            </span>
+          )}
+          {isEditing("name") ? (
+            editInput
+          ) : (
             <span
               className={`truncate ${HOVER_CLS}`}
               onClick={() => onStartEdit(node.id, "name", node.name)}
@@ -112,11 +132,19 @@ export function ProgrammeRow({
               {node.name}
             </span>
           )}
+          {node.type === "scope" && onOpenEngPinned && (
+            <EngineerChip
+              engineers={node.engineers ?? []}
+              onClick={(e) => onOpenEngPinned(node.id, e)}
+            />
+          )}
         </div>
 
         {/* Total Hours */}
-        <div className="w-24 shrink-0 px-2 py-1.5 text-right text-muted-foreground tabular-nums">
-          {isEditing("totalHours") ? numericInput : (
+        <div className="text-muted-foreground w-24 shrink-0 px-2 py-1.5 text-right tabular-nums">
+          {isEditing("totalHours") ? (
+            numericInput
+          ) : (
             <span
               className={HOVER_CLS}
               onClick={() => onStartEdit(node.id, "totalHours", String(node.totalHours ?? ""))}
@@ -129,8 +157,8 @@ export function ProgrammeRow({
         {/* Start */}
         <div className="w-28 shrink-0 px-2 py-1.5">
           <span
-            className={`inline-block font-mono text-xs text-muted-foreground ${HOVER_CLS}`}
-            onClick={e => onOpenCal(node.id, "start", node.start, e)}
+            className={`text-muted-foreground inline-block font-mono text-xs ${HOVER_CLS}`}
+            onClick={(e) => onOpenCal(node.id, "start", node.start, e)}
             title="Click to pick date"
           >
             {node.start || "—"}
@@ -140,8 +168,8 @@ export function ProgrammeRow({
         {/* Finish */}
         <div className="w-28 shrink-0 px-2 py-1.5">
           <span
-            className={`inline-block font-mono text-xs text-muted-foreground ${HOVER_CLS}`}
-            onClick={e => onOpenCal(node.id, "finish", node.finish, e)}
+            className={`text-muted-foreground inline-block font-mono text-xs ${HOVER_CLS}`}
+            onClick={(e) => onOpenCal(node.id, "finish", node.finish, e)}
             title="Click to pick date"
           >
             {node.finish || "—"}
@@ -149,11 +177,15 @@ export function ProgrammeRow({
         </div>
 
         {/* Forecast Hours */}
-        <div className="w-28 shrink-0 px-2 py-1.5 text-right text-muted-foreground tabular-nums">
-          {isEditing("forecastTotalHours") ? numericInput : (
+        <div className="text-muted-foreground w-28 shrink-0 px-2 py-1.5 text-right tabular-nums">
+          {isEditing("forecastTotalHours") ? (
+            numericInput
+          ) : (
             <span
               className={HOVER_CLS}
-              onClick={() => onStartEdit(node.id, "forecastTotalHours", String(node.forecastTotalHours ?? ""))}
+              onClick={() =>
+                onStartEdit(node.id, "forecastTotalHours", String(node.forecastTotalHours ?? ""))
+              }
             >
               {node.forecastTotalHours ?? "—"}
             </span>
@@ -167,7 +199,10 @@ export function ProgrammeRow({
               autoFocus
               className={`w-full px-1 py-0.5 text-xs ${EDIT_INPUT_CLS}`}
               value={editingCell?.value ?? ""}
-              onChange={e => { onSaveField(node.id, "status", e.target.value); onCancelEdit(); }}
+              onChange={(e) => {
+                onSaveField(node.id, "status", e.target.value);
+                onCancelEdit();
+              }}
               onBlur={onCancelEdit}
             >
               <option>Not Started</option>
@@ -177,7 +212,9 @@ export function ProgrammeRow({
           ) : node.status ? (
             <span
               className={`inline-block rounded ${node.type === "activity" ? "cursor-pointer hover:opacity-80" : ""}`}
-              onClick={() => node.type === "activity" && onStartEdit(node.id, "status", node.status)}
+              onClick={() =>
+                node.type === "activity" && onStartEdit(node.id, "status", node.status)
+              }
               title={node.type === "activity" ? "Click to change status" : undefined}
             >
               <StatusBadge status={node.status} />
@@ -187,23 +224,41 @@ export function ProgrammeRow({
       </div>
 
       {/* Children */}
-      {!isCollapsed && node.children.map(child => (
-        <ProgrammeRow
-          key={child.id}
-          node={child}
-          depth={depth + 1}
-          collapsed={collapsed}
-          editingCell={editingCell}
-          onToggleCollapse={onToggleCollapse}
-          onStartEdit={onStartEdit}
-          onCommitEdit={onCommitEdit}
-          onEditingCellChange={onEditingCellChange}
-          onCancelEdit={onCancelEdit}
-          onOpenCal={onOpenCal}
-          onSaveField={onSaveField}
-          onContextMenu={onContextMenu}
-        />
-      ))}
+      {!isCollapsed &&
+        (() => {
+          let taskCount = 0;
+          let subtaskCount = 0;
+          const scopeNum = node.type === "scope" ? getScopeNumberFromName(node.name) : "";
+          return node.children.map((child) => {
+            let childNamePrefix: string | undefined;
+            if (child.type === "task") {
+              taskCount++;
+              childNamePrefix = scopeNum ? `${scopeNum}.${taskCount}` : undefined;
+            } else if (child.type === "subtask") {
+              subtaskCount++;
+              childNamePrefix = namePrefix ? `${namePrefix}.${subtaskCount}` : undefined;
+            }
+            return (
+              <ProgrammeRow
+                key={child.id}
+                node={child}
+                depth={depth + 1}
+                namePrefix={childNamePrefix}
+                collapsed={collapsed}
+                editingCell={editingCell}
+                onToggleCollapse={onToggleCollapse}
+                onStartEdit={onStartEdit}
+                onCommitEdit={onCommitEdit}
+                onEditingCellChange={onEditingCellChange}
+                onCancelEdit={onCancelEdit}
+                onOpenCal={onOpenCal}
+                onSaveField={onSaveField}
+                onContextMenu={onContextMenu}
+                onOpenEngPinned={onOpenEngPinned}
+              />
+            );
+          });
+        })()}
     </div>
   );
 }
