@@ -45,7 +45,7 @@ const initialData: ProgrammeNode[] = [
     id: "s11", name: "11. CGMM - Early Design Workstream", type: "scope",
     totalHours: 79, start: "25-Nov-25", finish: "13-Mar-26", forecastTotalHours: 79, status: "", engineers: [], children: [
       {
-        id: "t11-1", name: "11.1 CGMM", type: "task",
+        id: "t11-1", name: "CGMM", type: "task",
         totalHours: 76, start: "25-Nov-25", finish: "10-Mar-26", forecastTotalHours: 76, status: "", children: [
           { id: "a3630", activityId: "A3630", name: "NR options/HS2 station development - get list", type: "activity", totalHours: 3, start: "25-Nov-25", finish: "27-Nov-25", forecastTotalHours: 3, status: "In Progress", children: [] },
           { id: "a3640", activityId: "A3640", name: "CGMM Development", type: "activity", totalHours: 10, start: "30-Dec-25", finish: "12-Jan-26", forecastTotalHours: 10, status: "In Progress", children: [] },
@@ -59,7 +59,7 @@ const initialData: ProgrammeNode[] = [
         ],
       },
       {
-        id: "t11-2", name: "11.2 Mitigation", type: "task",
+        id: "t11-2", name: "Mitigation", type: "task",
         totalHours: 45, start: "12-Jan-26", finish: "13-Mar-26", forecastTotalHours: 45, status: "", children: [
           { id: "a3720", activityId: "A3720", name: "Mitigation requirements critical assets", type: "activity", totalHours: 7, start: "12-Jan-26", finish: "20-Jan-26", forecastTotalHours: 7, status: "Not Started", children: [] },
           { id: "a3730", activityId: "A3730", name: "Draft Report", type: "activity", totalHours: 9, start: "21-Jan-26", finish: "02-Feb-26", forecastTotalHours: 9, status: "Not Started", children: [] },
@@ -92,7 +92,7 @@ const initialData: ProgrammeNode[] = [
     totalHours: 76, start: "21-Jan-26", finish: "06-May-26", forecastTotalHours: 76, status: "", engineers: [e("SSi", true), e("ARa"), e("KLa")], children: [
       { id: "a3890", activityId: "A3890", name: "Coordination with SDSC (ongoing)", type: "activity", totalHours: 55, start: "21-Jan-26", finish: "07-Apr-26", forecastTotalHours: 10, status: "Not Started", children: [] },
       {
-        id: "t13-1", name: "13.1 +17mOD", type: "task",
+        id: "t13-1", name: "+17mOD", type: "task",
         totalHours: 63, start: "22-Jan-26", finish: "20-Apr-26", forecastTotalHours: 63, status: "", children: [
           { id: "a3900", activityId: "A3900", name: "+17mOD impact assessment (old/new utilities, buildings)", type: "activity", totalHours: 30, start: "22-Jan-26", finish: "04-Mar-26", forecastTotalHours: 30, status: "In Progress", children: [] },
           { id: "a3910", activityId: "A3910", name: "Draft Report", type: "activity", totalHours: 10, start: "05-Mar-26", finish: "18-Mar-26", forecastTotalHours: 10, status: "Not Started", children: [] },
@@ -105,7 +105,7 @@ const initialData: ProgrammeNode[] = [
         ],
       },
       {
-        id: "t13-2", name: "13.2 +13mOD", type: "task",
+        id: "t13-2", name: "+13mOD", type: "task",
         totalHours: 73, start: "26-Jan-26", finish: "06-May-26", forecastTotalHours: 73, status: "", children: [
           { id: "a3980", activityId: "A3980", name: "+13mOD impact assessment (old/new utilities, buildings/LU)", type: "activity", totalHours: 50, start: "26-Jan-26", finish: "03-Apr-26", forecastTotalHours: 50, status: "In Progress", children: [] },
           { id: "a3990", activityId: "A3990", name: "Drawings Sketches for Report", type: "activity", totalHours: 40, start: "26-Jan-26", finish: "20-Mar-26", forecastTotalHours: 40, status: "Not Started", children: [] },
@@ -193,7 +193,7 @@ const initialData: ProgrammeNode[] = [
       { id: "a4550", activityId: "A4550", name: "Update comments", type: "activity", totalHours: 5, start: "03-Apr-26", finish: "09-Apr-26", forecastTotalHours: null, status: "Not Started", children: [] },
       { id: "a4560", activityId: "A4560", name: "Final Issue", type: "activity", totalHours: 2, start: "10-Apr-26", finish: "13-Apr-26", forecastTotalHours: null, status: "Not Started", children: [] },
       {
-        id: "t18-1", name: "18.1. Settlement Deeds (TBC)", type: "task",
+        id: "t18-1", name: "Settlement Deeds (TBC)", type: "task",
         totalHours: 46, start: "09-Feb-26", finish: "13-Apr-26", forecastTotalHours: null, status: "", children: [
           { id: "a4570", activityId: "A4570", name: "Get: List of buildings", type: "activity", totalHours: 5, start: "09-Feb-26", finish: "13-Feb-26", forecastTotalHours: null, status: "Not Started", children: [] },
           { id: "a4580", activityId: "A4580", name: "Settlement reports TBC as per NR of reports identified (TBC)", type: "activity", totalHours: 10, start: "16-Feb-26", finish: "27-Feb-26", forecastTotalHours: null, status: "Not Started", children: [] },
@@ -222,6 +222,19 @@ const initialData: ProgrammeNode[] = [
     ],
   },
 ];
+
+// ── Hrs helpers ─────────────────────────────────────────────────────────────
+function fmtHrs(v: number | null): string {
+  if (v === null || v === undefined) return "—";
+  return parseFloat(v.toFixed(2)).toString();
+}
+function validateHrsInput(s: string): boolean {
+  return s === "" || /^\d*\.?\d{0,2}$/.test(s);
+}
+function getScopeNum(scopeName: string): string {
+  const m = scopeName.match(/^(\d+)\./);
+  return m ? m[1] : "";
+}
 
 // ── Engineer pool ────────────────────────────────────────────────────────────
 const DEFAULT_ENGINEER_POOL: string[] = [
@@ -334,6 +347,41 @@ function MiniCalendar({ value, anchorRect, onChange, onClose }: {
   );
 }
 
+// ── Modal date picker ────────────────────────────────────────────────────────
+function ModalDateField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [rect, setRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  const handleClick = () => {
+    if (!btnRef.current) return;
+    const r = btnRef.current.getBoundingClientRect();
+    setRect({ top: r.top, left: r.left, width: r.width, height: r.height });
+    setOpen(true);
+  };
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={handleClick}
+        className="w-full rounded border border-zinc-200 px-2 py-1.5 text-left text-sm text-zinc-700 hover:bg-zinc-50 focus:outline-none focus:ring-1 focus:ring-zinc-400"
+      >
+        {value || <span className="text-zinc-400">Pick date</span>}
+      </button>
+      {open && rect && (
+        <MiniCalendar
+          value={value}
+          anchorRect={rect}
+          onChange={v => { onChange(v); setOpen(false); }}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </>
+  );
+}
+
 // ── Status badge ─────────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: string }) {
   if (status === "Completed")
@@ -346,18 +394,17 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 // ── Engineer chip (inline beside scope name) ──────────────────────────────────
-function EngineerChip({ engineers, onMouseEnter, onMouseLeave }: {
+function EngineerChip({ engineers, onTrigger, onMouseLeave }: {
   engineers: EngineerAllocation[];
-  onMouseEnter: (e: React.MouseEvent<HTMLDivElement>) => void;
+  onTrigger: (e: React.MouseEvent<HTMLDivElement>) => void;
   onMouseLeave: () => void;
 }) {
   if (engineers.length === 0) {
     return (
       <div
         className="ml-2 flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded border border-dashed border-zinc-400 text-zinc-400 hover:border-zinc-600 hover:text-zinc-600"
-        onMouseEnter={onMouseEnter}
-        onMouseLeave={onMouseLeave}
-        title="Hover to assign engineers"
+        onClick={onTrigger}
+        title="Click to assign engineers"
       >
         <Plus size={10} strokeWidth={2.5} />
       </div>
@@ -366,7 +413,7 @@ function EngineerChip({ engineers, onMouseEnter, onMouseLeave }: {
   return (
     <div
       className="ml-2 flex shrink-0 cursor-pointer items-center gap-0.5 rounded border border-zinc-300 bg-white px-1.5 py-0.5 text-xs hover:border-zinc-400"
-      onMouseEnter={onMouseEnter}
+      onMouseEnter={onTrigger}
       onMouseLeave={onMouseLeave}
       title="Hover to view/edit engineer allocation"
     >
@@ -599,10 +646,11 @@ export function ProgrammeTab() {
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const saveField = (nodeId: string, field: keyof ProgrammeNode, raw: string) => {
-    const value =
-      field === "totalHours" || field === "forecastTotalHours"
-        ? raw === "" ? null : Number(raw)
-        : raw;
+    let value: number | string | null = raw;
+    if (field === "totalHours" || field === "forecastTotalHours") {
+      if (raw === "") value = null;
+      else { const n = parseFloat(raw); value = isNaN(n) ? null : Math.round(n * 100) / 100; }
+    }
     commit(updateNodeInTree(present, nodeId, field, value as ProgrammeNode[keyof ProgrammeNode]));
   };
 
@@ -684,12 +732,16 @@ export function ProgrammeTab() {
     setEngineerPool(prev => [...prev, code].sort());
   };
 
-  const renderNode = (node: ProgrammeNode, depth: number): React.ReactNode => {
+  const renderNode = (node: ProgrammeNode, depth: number, prefix?: string): React.ReactNode => {
     const isCollapsed = collapsed.has(node.id);
     const hasChildren = node.children.length > 0;
     const rowBg   = node.type === "scope" ? "bg-red-100" : node.type === "task" ? "bg-zinc-100" : node.type === "subtask" ? "bg-zinc-50" : "bg-white";
     const textCls = node.type === "scope" ? "font-semibold text-red-900" : node.type === "task" || node.type === "subtask" ? "font-medium text-zinc-800" : "text-zinc-700";
     const hover   = "cursor-pointer rounded px-0.5 py-0.5 hover:bg-black/[.06]";
+
+    // compute children prefixes
+    let taskCount = 0, subtaskCount = 0;
+    const scopeNum = node.type === "scope" ? getScopeNum(node.name) : "";
 
     return (
       <div key={node.id}>
@@ -698,11 +750,14 @@ export function ProgrammeTab() {
           onContextMenu={e => openCtxMenu(node, e)}
         >
           {/* Name */}
-          <div className={`flex flex-1 items-center gap-1 py-1.5 pr-3 min-w-0 ${textCls}`} style={{ paddingLeft: `${12 + depth * 20}px` }}>
+          <div className={`flex min-w-[260px] flex-1 items-center gap-1 py-1.5 pr-3 ${textCls}`} style={{ paddingLeft: `${12 + depth * 20}px` }}>
             {hasChildren
               ? <button onClick={() => toggleCollapse(node.id)} className="shrink-0 mr-0.5 text-zinc-400 hover:text-zinc-600">{isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}</button>
               : <span className="w-4 shrink-0" />}
             {node.activityId && <span className="shrink-0 font-mono text-xs text-zinc-400 mr-1">{node.activityId}</span>}
+            {(node.type === "task" || node.type === "subtask") && prefix && (
+              <span className="shrink-0 font-mono text-xs text-zinc-400 mr-1 select-none">{prefix}</span>
+            )}
             {isEditing(node.id, "name") ? (
               <input autoFocus
                 className="flex-1 min-w-0 rounded border border-blue-400 bg-white px-1.5 py-0.5 text-sm text-zinc-800 outline-none ring-1 ring-blue-200"
@@ -719,25 +774,25 @@ export function ProgrammeTab() {
             {node.type === "scope" && (
               <EngineerChip
                 engineers={node.engineers ?? []}
-                onMouseEnter={e => openEngPopup(node.id, e)}
+                onTrigger={e => openEngPopup(node.id, e)}
                 onMouseLeave={closeEngDelayed}
               />
             )}
           </div>
 
-          {/* Total Hours */}
+          {/* Planned Hrs */}
           <div className="w-24 shrink-0 px-2 py-1.5 text-right text-zinc-600 tabular-nums">
             {isEditing(node.id, "totalHours") ? (
-              <input autoFocus type="number"
+              <input autoFocus inputMode="decimal"
                 className="w-full rounded border border-blue-400 bg-white px-1.5 py-0.5 text-sm text-right outline-none ring-1 ring-blue-200"
                 value={editingCell!.value}
-                onChange={e => setEditingCell(p => p ? { ...p, value: e.target.value } : p)}
+                onChange={e => { if (validateHrsInput(e.target.value)) setEditingCell(p => p ? { ...p, value: e.target.value } : p); }}
                 onBlur={commitEdit}
                 onKeyDown={e => { if (e.key === "Enter") commitEdit(); if (e.key === "Escape") setEditingCell(null); }}
               />
             ) : (
-              <span className={hover} onClick={() => startEdit(node.id, "totalHours", String(node.totalHours ?? ""))}>
-                {node.totalHours ?? "—"}
+              <span className={hover} onClick={() => startEdit(node.id, "totalHours", fmtHrs(node.totalHours) === "—" ? "" : fmtHrs(node.totalHours))}>
+                {fmtHrs(node.totalHours)}
               </span>
             )}
           </div>
@@ -756,19 +811,19 @@ export function ProgrammeTab() {
             </span>
           </div>
 
-          {/* Forecast Hours */}
+          {/* Forecast Hrs */}
           <div className="w-28 shrink-0 px-2 py-1.5 text-right text-zinc-600 tabular-nums">
             {isEditing(node.id, "forecastTotalHours") ? (
-              <input autoFocus type="number"
+              <input autoFocus inputMode="decimal"
                 className="w-full rounded border border-blue-400 bg-white px-1.5 py-0.5 text-sm text-right outline-none ring-1 ring-blue-200"
                 value={editingCell!.value}
-                onChange={e => setEditingCell(p => p ? { ...p, value: e.target.value } : p)}
+                onChange={e => { if (validateHrsInput(e.target.value)) setEditingCell(p => p ? { ...p, value: e.target.value } : p); }}
                 onBlur={commitEdit}
                 onKeyDown={e => { if (e.key === "Enter") commitEdit(); if (e.key === "Escape") setEditingCell(null); }}
               />
             ) : (
-              <span className={hover} onClick={() => startEdit(node.id, "forecastTotalHours", String(node.forecastTotalHours ?? ""))}>
-                {node.forecastTotalHours ?? "—"}
+              <span className={hover} onClick={() => startEdit(node.id, "forecastTotalHours", fmtHrs(node.forecastTotalHours) === "—" ? "" : fmtHrs(node.forecastTotalHours))}>
+                {fmtHrs(node.forecastTotalHours)}
               </span>
             )}
           </div>
@@ -797,26 +852,38 @@ export function ProgrammeTab() {
             ) : null}
           </div>
         </div>
-        {!isCollapsed && node.children.map(child => renderNode(child, depth + 1))}
+        {!isCollapsed && node.children.map(child => {
+          let childPrefix: string | undefined;
+          if (child.type === "task") {
+            taskCount++;
+            if (scopeNum) childPrefix = `${scopeNum}.${taskCount}`;
+          } else if (child.type === "subtask") {
+            subtaskCount++;
+            if (prefix) childPrefix = `${prefix}.${subtaskCount}`;
+          }
+          return renderNode(child, depth + 1, childPrefix);
+        })}
       </div>
     );
   };
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Table header */}
-      <div className="flex shrink-0 items-center border-b-2 border-zinc-200 bg-zinc-50 text-xs font-medium uppercase tracking-wide text-zinc-400">
-        <div className="flex-1 px-3 py-2.5">Activity Name</div>
-        <div className="w-24 shrink-0 px-3 py-2.5 text-right">Planned Hrs</div>
-        <div className="w-28 shrink-0 px-3 py-2.5">Start</div>
-        <div className="w-28 shrink-0 px-3 py-2.5">Finish</div>
-        <div className="w-28 shrink-0 px-3 py-2.5 text-right">Forecast Hrs</div>
-        <div className="w-28 shrink-0 px-3 py-2.5">Status</div>
-      </div>
-
-      {/* Rows */}
-      <div className="flex-1 overflow-y-auto">
-        {present.map(node => renderNode(node, 0))}
+      {/* Scrollable table area */}
+      <div className="flex-1 overflow-auto">
+        <div className="min-w-[900px]">
+          {/* Sticky header */}
+          <div className="sticky top-0 z-10 flex items-center border-b-2 border-zinc-200 bg-zinc-50 text-xs font-medium uppercase tracking-wide text-zinc-400">
+            <div className="flex-1 min-w-[260px] px-3 py-2.5">Activity Name</div>
+            <div className="w-24 shrink-0 px-3 py-2.5 text-right">Planned Hrs</div>
+            <div className="w-28 shrink-0 px-3 py-2.5">Start</div>
+            <div className="w-28 shrink-0 px-3 py-2.5">Finish</div>
+            <div className="w-28 shrink-0 px-3 py-2.5 text-right">Forecast Hrs</div>
+            <div className="w-28 shrink-0 px-3 py-2.5">Status</div>
+          </div>
+          {/* Rows */}
+          {present.map(node => renderNode(node, 0))}
+        </div>
       </div>
 
       {/* Right-click context menu */}
@@ -907,21 +974,21 @@ export function ProgrammeTab() {
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="mb-1 block text-xs text-zinc-500">Start</label>
-                  <input className="w-full rounded border border-zinc-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400" value={formValues.start} onChange={e => setFormValues(p => ({ ...p, start: e.target.value }))} placeholder="dd-Mmm-yy" />
+                  <ModalDateField value={formValues.start} onChange={v => setFormValues(p => ({ ...p, start: v }))} />
                 </div>
                 <div>
                   <label className="mb-1 block text-xs text-zinc-500">Finish</label>
-                  <input className="w-full rounded border border-zinc-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400" value={formValues.finish} onChange={e => setFormValues(p => ({ ...p, finish: e.target.value }))} placeholder="dd-Mmm-yy" />
+                  <ModalDateField value={formValues.finish} onChange={v => setFormValues(p => ({ ...p, finish: v }))} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="mb-1 block text-xs text-zinc-500">Total Hours</label>
-                  <input type="number" className="w-full rounded border border-zinc-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400" value={formValues.totalHours} onChange={e => setFormValues(p => ({ ...p, totalHours: e.target.value }))} />
+                  <label className="mb-1 block text-xs text-zinc-500">Planned Hours</label>
+                  <input inputMode="decimal" className="w-full rounded border border-zinc-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400" value={formValues.totalHours} onChange={e => { if (validateHrsInput(e.target.value)) setFormValues(p => ({ ...p, totalHours: e.target.value })); }} placeholder="—" />
                 </div>
                 <div>
                   <label className="mb-1 block text-xs text-zinc-500">Forecast Hours</label>
-                  <input type="number" className="w-full rounded border border-zinc-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400" value={formValues.forecastTotalHours} onChange={e => setFormValues(p => ({ ...p, forecastTotalHours: e.target.value }))} />
+                  <input inputMode="decimal" className="w-full rounded border border-zinc-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400" value={formValues.forecastTotalHours} onChange={e => { if (validateHrsInput(e.target.value)) setFormValues(p => ({ ...p, forecastTotalHours: e.target.value })); }} placeholder="—" />
                 </div>
               </div>
               {addForm.type === "activity" && (
