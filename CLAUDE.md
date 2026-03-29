@@ -295,26 +295,44 @@ git push
 
 ---
 
-## Using Claude Code to Build Things
+## Schema Updates
 
-Open Claude Code in this project folder. Then describe what you want in plain English:
+**Migrations** change the database **structure** (tables, columns, indexes, policies). **Seed** inserts or upserts **sample rows** for dev. They are separate steps; both should match whatever URL is in `.env.local`.
 
-**Good prompts:**
+### 1. Add a migration (always a new file)
 
-- "Create a new page at /projects/1 that shows the project name, client, and fixed fee from the `projects` table (see `loadProjectById`)"
-- "Add a card component that shows a label and a value formatted as currency. Use shadcn Card."
-- "Build a line chart using Recharts that shows progressPercent and budgetConsumedPercent from project CVR data loaded from the API or database"
-- "The budget card should turn red when budgetConsumedPercent is higher than progressPercent"
+- Create a **new** SQL file under `supabase/migrations/`, with a **timestamp prefix** so order is clear, e.g. `20260330120000_add_foo_column.sql`.
+- Put only forward schema changes there. **Do not rewrite migrations that have already been applied** on shared or production databases; add a follow-up migration instead.
+- If you add columns, update app types (`src/types/…`) and any queries that read/write those columns.
 
-**Tips:**
+### 2. Update seed data (optional but common for dev)
 
-- Always mention which mock data to use
-- Reference existing files: "follow the same pattern as src/app/projects/[id]/page.tsx"
-- If something breaks, paste the error message and say "fix this"
-- Say "use shadcn" for buttons, cards, modals — it keeps the style consistent
-- After Claude makes changes, run `npm run build` to check for errors, then check the browser
+- **`supabase/seed.ts`** — orchestrates upserts (projects, engineer pool, programme nodes, scope engineers).
+- **`src/lib/programme/seedConfig.ts`** — sample project row, engineer codes, re-exports programme tree.
+- **`src/lib/programme/seedProgrammeData.ts`** — large static WBS used only by the seed script.
 
----
+Seed uses **upserts** where possible; re-running is usually safe for demo data.
+
+### 3. Apply migrations to the database you are using
+
+| Target                      | What to run                                        | Notes                                                                                                                                                                                       |
+| --------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Local Supabase (Docker)** | `npx supabase db reset --local`                    | Wipes local data, reapplies **all** migrations from `supabase/migrations/`. Use when you want a clean dev DB.                                                                               |
+| **Hosted Supabase**         | `npx supabase db push` (same as `npm run db:push`) | Applies **pending** migrations to the **linked** remote project (`npx supabase link` once per machine/repo). Does **not** apply to your Docker DB unless you use a local-specific workflow. |
+
+**Important:** `npm run db:push` talks to the **remote** project when the CLI is linked. For **local** Docker, prefer **`db reset --local`** (or another local migration command you standardise on), not `db:push`, unless you know you intend to push to remote.
+
+### 4. Seed that same database
+
+```bash
+npm run seed
+```
+
+Uses `.env.local` (then `.env`) — so it hits **whichever** Supabase URL/keys you configured. After a **local reset**, run seed again if you want the sample project and programme tree back.
+
+### 5. Commit and PR
+
+Commit the new migration SQL together with related TypeScript changes. Run `npm run build` before opening a PR.
 
 ## Troubleshooting
 
