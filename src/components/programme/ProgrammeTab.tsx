@@ -394,17 +394,15 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 // ── Engineer chip (inline beside scope name) ──────────────────────────────────
-function EngineerChip({ engineers, onClickEmpty, onHoverFilled, onLeaveFilled }: {
+function EngineerChip({ engineers, onClick }: {
   engineers: EngineerAllocation[];
-  onClickEmpty: (e: React.MouseEvent<HTMLDivElement>) => void;
-  onHoverFilled: (e: React.MouseEvent<HTMLDivElement>) => void;
-  onLeaveFilled: () => void;
+  onClick: (e: React.MouseEvent<HTMLDivElement>) => void;
 }) {
   if (engineers.length === 0) {
     return (
       <div
         className="ml-2 flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded border border-dashed border-zinc-400 text-zinc-400 hover:border-zinc-600 hover:text-zinc-600"
-        onClick={onClickEmpty}
+        onClick={onClick}
         title="Click to assign engineers"
       >
         <Plus size={10} strokeWidth={2.5} />
@@ -414,9 +412,8 @@ function EngineerChip({ engineers, onClickEmpty, onHoverFilled, onLeaveFilled }:
   return (
     <div
       className="ml-2 flex shrink-0 cursor-pointer items-center gap-0.5 rounded border border-zinc-300 bg-white px-1.5 py-0.5 text-xs hover:border-zinc-400"
-      onMouseEnter={onHoverFilled}
-      onMouseLeave={onLeaveFilled}
-      title="Hover to view/edit engineer allocation"
+      onClick={onClick}
+      title="Click to edit engineer allocation"
     >
       {engineers.map((eng, i) => (
         <span key={i}>
@@ -431,7 +428,7 @@ function EngineerChip({ engineers, onClickEmpty, onHoverFilled, onLeaveFilled }:
 // ── Engineer popup ────────────────────────────────────────────────────────────
 // pinned=true  → opened by clicking +, stays open, has Cancel/Add buttons
 // pinned=false → opened by hovering filled chip, closes on mouse-leave
-function EngineerPopup({ engineers, totalHours, forecastHours, engineerPool, rect, pinned, onChangeEngineers, onAddToPool, onClose, onMouseEnter, onMouseLeave }: {
+function EngineerPopup({ engineers, totalHours, forecastHours, engineerPool, rect, pinned, onChangeEngineers, onAddToPool, onClose }: {
   engineers: EngineerAllocation[];
   totalHours: number | null;
   forecastHours: number | null;
@@ -441,8 +438,6 @@ function EngineerPopup({ engineers, totalHours, forecastHours, engineerPool, rec
   onChangeEngineers: (engs: EngineerAllocation[]) => void;
   onAddToPool: (code: string) => void;
   onClose: () => void;
-  onMouseEnter: () => void;
-  onMouseLeave: () => void;
 }) {
   const [draft,        setDraft]        = useState<EngineerAllocation[]>(engineers);
   const [showAddInput, setShowAddInput] = useState(false);
@@ -482,8 +477,6 @@ function EngineerPopup({ engineers, totalHours, forecastHours, engineerPool, rec
       <div
         className="fixed z-[119] w-80 rounded-lg border border-zinc-200 bg-white shadow-xl"
         style={{ top, left }}
-        onMouseEnter={onMouseEnter}
-        onMouseLeave={onMouseLeave}
       >
         <div className="p-3">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Engineer Allocation</p>
@@ -546,7 +539,7 @@ function EngineerPopup({ engineers, totalHours, forecastHours, engineerPool, rec
         {pinned && (
           <div className="flex justify-end gap-2 border-t border-zinc-100 px-3 py-2.5">
             <button onClick={onClose} className="rounded px-3 py-1.5 text-sm text-zinc-500 hover:text-zinc-700">Cancel</button>
-            <button onClick={handleAdd} className="rounded bg-zinc-900 px-3 py-1.5 text-sm text-white hover:bg-zinc-700">Add</button>
+            <button onClick={handleAdd} className="rounded bg-zinc-900 px-3 py-1.5 text-sm text-white hover:bg-zinc-700">Update</button>
           </div>
         )}
       </div>
@@ -653,7 +646,6 @@ export function ProgrammeTab() {
   const [ctxMenu,       setCtxMenu]       = useState<ContextMenuState | null>(null);
   const [engineerPool,  setEngineerPool]  = useState<string[]>(DEFAULT_ENGINEER_POOL);
   const [engPopup,      setEngPopup]      = useState<{ scopeId: string; rect: { top: number; left: number; width: number; height: number }; pinned: boolean } | null>(null);
-  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const saveField = (nodeId: string, field: keyof ProgrammeNode, raw: string) => {
     let value: number | string | null = raw;
@@ -720,26 +712,10 @@ export function ProgrammeTab() {
     setCtxMenu({ nodeId: node.id, nodeType: node.type, x: e.clientX, y: e.clientY });
   };
 
-  const openEngHover = (scopeId: string, e: React.MouseEvent<HTMLDivElement>) => {
-    if (engPopup?.pinned) return; // don't override a pinned popup
-    if (hoverTimer.current) clearTimeout(hoverTimer.current);
-    const r = e.currentTarget.getBoundingClientRect();
-    setEngPopup({ scopeId, rect: { top: r.top, left: r.left, width: r.width, height: r.height }, pinned: false });
-  };
-
   const openEngPinned = (scopeId: string, e: React.MouseEvent<HTMLDivElement>) => {
-    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    e.stopPropagation();
     const r = e.currentTarget.getBoundingClientRect();
     setEngPopup({ scopeId, rect: { top: r.top, left: r.left, width: r.width, height: r.height }, pinned: true });
-  };
-
-  const closeEngDelayed = () => {
-    if (engPopup?.pinned) return;
-    hoverTimer.current = setTimeout(() => setEngPopup(null), 150);
-  };
-
-  const cancelEngClose = () => {
-    if (hoverTimer.current) clearTimeout(hoverTimer.current);
   };
 
   const updateScopeEngineers = (scopeId: string, engineers: EngineerAllocation[]) => {
@@ -792,9 +768,7 @@ export function ProgrammeTab() {
             {node.type === "scope" && (
               <EngineerChip
                 engineers={node.engineers ?? []}
-                onClickEmpty={e => openEngPinned(node.id, e)}
-                onHoverFilled={e => openEngHover(node.id, e)}
-                onLeaveFilled={closeEngDelayed}
+                onClick={e => openEngPinned(node.id, e)}
               />
             )}
           </div>
@@ -957,8 +931,6 @@ export function ProgrammeTab() {
             onChangeEngineers={engs => updateScopeEngineers(engPopup.scopeId, engs)}
             onAddToPool={addToPool}
             onClose={() => setEngPopup(null)}
-            onMouseEnter={cancelEngClose}
-            onMouseLeave={closeEngDelayed}
           />
         );
       })()}
