@@ -394,16 +394,17 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 // ── Engineer chip (inline beside scope name) ──────────────────────────────────
-function EngineerChip({ engineers, onTrigger, onMouseLeave }: {
+function EngineerChip({ engineers, onClickEmpty, onHoverFilled, onLeaveFilled }: {
   engineers: EngineerAllocation[];
-  onTrigger: (e: React.MouseEvent<HTMLDivElement>) => void;
-  onMouseLeave: () => void;
+  onClickEmpty: (e: React.MouseEvent<HTMLDivElement>) => void;
+  onHoverFilled: (e: React.MouseEvent<HTMLDivElement>) => void;
+  onLeaveFilled: () => void;
 }) {
   if (engineers.length === 0) {
     return (
       <div
         className="ml-2 flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded border border-dashed border-zinc-400 text-zinc-400 hover:border-zinc-600 hover:text-zinc-600"
-        onClick={onTrigger}
+        onClick={onClickEmpty}
         title="Click to assign engineers"
       >
         <Plus size={10} strokeWidth={2.5} />
@@ -413,8 +414,8 @@ function EngineerChip({ engineers, onTrigger, onMouseLeave }: {
   return (
     <div
       className="ml-2 flex shrink-0 cursor-pointer items-center gap-0.5 rounded border border-zinc-300 bg-white px-1.5 py-0.5 text-xs hover:border-zinc-400"
-      onMouseEnter={onTrigger}
-      onMouseLeave={onMouseLeave}
+      onMouseEnter={onHoverFilled}
+      onMouseLeave={onLeaveFilled}
       title="Hover to view/edit engineer allocation"
     >
       {engineers.map((eng, i) => (
@@ -427,34 +428,40 @@ function EngineerChip({ engineers, onTrigger, onMouseLeave }: {
   );
 }
 
-// ── Engineer popup (hover table) ──────────────────────────────────────────────
-function EngineerPopup({ engineers, totalHours, forecastHours, engineerPool, rect, onChangeEngineers, onAddToPool, onMouseEnter, onMouseLeave }: {
+// ── Engineer popup ────────────────────────────────────────────────────────────
+// pinned=true  → opened by clicking +, stays open, has Cancel/Add buttons
+// pinned=false → opened by hovering filled chip, closes on mouse-leave
+function EngineerPopup({ engineers, totalHours, forecastHours, engineerPool, rect, pinned, onChangeEngineers, onAddToPool, onClose, onMouseEnter, onMouseLeave }: {
   engineers: EngineerAllocation[];
   totalHours: number | null;
   forecastHours: number | null;
   engineerPool: string[];
   rect: { top: number; left: number; width: number; height: number };
+  pinned: boolean;
   onChangeEngineers: (engs: EngineerAllocation[]) => void;
   onAddToPool: (code: string) => void;
+  onClose: () => void;
   onMouseEnter: () => void;
   onMouseLeave: () => void;
 }) {
+  const [draft,        setDraft]        = useState<EngineerAllocation[]>(engineers);
   const [showAddInput, setShowAddInput] = useState(false);
-  const [newCode, setNewCode] = useState("");
+  const [newCode,      setNewCode]      = useState("");
 
-  const count = engineers.length || 1;
-  const autoPlanned  = totalHours    != null ? +(totalHours    / count).toFixed(1) : null;
-  const autoForecast = forecastHours != null ? +(forecastHours / count).toFixed(1) : null;
+  // keep draft in sync when hover popup updates live
+  useEffect(() => { if (!pinned) setDraft(engineers); }, [engineers, pinned]);
 
-  const changeCode = (idx: number, code: string) => {
-    if (code === "__add__") return; // handled via select onChange below
-    onChangeEngineers(engineers.map((eng, i) => i === idx ? { ...eng, code } : eng));
-  };
+  const count = draft.length || 1;
+  const autoPlanned  = totalHours    != null ? parseFloat((totalHours    / count).toFixed(2)) : null;
+  const autoForecast = forecastHours != null ? parseFloat((forecastHours / count).toFixed(2)) : null;
 
-  const remove = (idx: number) => onChangeEngineers(engineers.filter((_, i) => i !== idx));
+  const changeCode = (idx: number, code: string) =>
+    setDraft(prev => prev.map((eng, i) => i === idx ? { ...eng, code } : eng));
 
-  const addEngineer = () =>
-    onChangeEngineers([...engineers, { code: engineerPool[0] ?? "SSi", isLead: false, plannedHrs: null, forecastHrs: null }]);
+  const remove = (idx: number) => setDraft(prev => prev.filter((_, i) => i !== idx));
+
+  const addRow = () =>
+    setDraft(prev => [...prev, { code: engineerPool[0] ?? "SSi", isLead: false, plannedHrs: null, forecastHrs: null }]);
 
   const commitNewCode = () => {
     const code = newCode.trim();
@@ -464,81 +471,84 @@ function EngineerPopup({ engineers, totalHours, forecastHours, engineerPool, rec
     setShowAddInput(false);
   };
 
-  // position below chip, nudge left if near right edge
+  const handleAdd = () => { onChangeEngineers(draft); onClose(); };
+
   const top  = rect.top + rect.height + 6;
   const left = Math.min(rect.left, window.innerWidth - 360);
 
   return (
     <>
-      <div className="fixed inset-0 z-[118]" onMouseEnter={onMouseLeave} />
+      {pinned && <div className="fixed inset-0 z-[118]" onClick={onClose} />}
       <div
-        className="fixed z-[119] w-80 rounded-lg border border-zinc-200 bg-white p-3 shadow-xl"
+        className="fixed z-[119] w-80 rounded-lg border border-zinc-200 bg-white shadow-xl"
         style={{ top, left }}
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
       >
-        <p className="mb-2 text-xs font-semibold text-zinc-500 uppercase tracking-wide">Engineer Allocation</p>
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="border-b border-zinc-100 text-zinc-400">
-              <th className="pb-1.5 text-left font-medium">Engineer</th>
-              <th className="pb-1.5 pr-2 text-right font-medium">Planned Hrs</th>
-              <th className="pb-1.5 pr-2 text-right font-medium">Forecast Hrs</th>
-              <th className="pb-1.5 w-5" />
-            </tr>
-          </thead>
-          <tbody>
-            {engineers.map((eng, idx) => (
-              <tr key={idx} className="border-b border-zinc-50 last:border-0">
-                <td className="py-1.5 pr-2">
-                  <select
-                    className="w-full rounded border border-zinc-200 px-1 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-zinc-400"
-                    value={eng.code}
-                    onChange={e => {
-                      if (e.target.value === "__add__") {
-                        e.currentTarget.value = eng.code;
-                        setShowAddInput(true);
-                      } else {
-                        changeCode(idx, e.target.value);
-                      }
-                    }}
-                  >
-                    {engineerPool.map(code => <option key={code} value={code}>{code}</option>)}
-                    {!engineerPool.includes(eng.code) && <option value={eng.code}>{eng.code}</option>}
-                    <option value="__add__">＋ Add new code...</option>
-                  </select>
-                </td>
-                <td className="py-1.5 pr-2 text-right tabular-nums text-zinc-600">{autoPlanned ?? "—"}</td>
-                <td className="py-1.5 pr-2 text-right tabular-nums text-zinc-600">{autoForecast ?? "—"}</td>
-                <td className="py-1.5">
-                  <button onClick={() => remove(idx)} className="text-zinc-300 hover:text-red-500 transition-colors"><X size={11} /></button>
-                </td>
+        <div className="p-3">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Engineer Allocation</p>
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-zinc-100 text-zinc-400">
+                <th className="pb-1.5 text-left font-medium">Engineer</th>
+                <th className="pb-1.5 pr-2 text-right font-medium">Planned Hrs</th>
+                <th className="pb-1.5 pr-2 text-right font-medium">Forecast Hrs</th>
+                <th className="pb-1.5 w-5" />
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {draft.map((eng, idx) => (
+                <tr key={idx} className="border-b border-zinc-50 last:border-0">
+                  <td className="py-1.5 pr-2">
+                    <select
+                      className="w-full rounded border border-zinc-200 px-1 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-zinc-400"
+                      value={eng.code}
+                      onChange={e => {
+                        if (e.target.value === "__add__") { e.currentTarget.value = eng.code; setShowAddInput(true); }
+                        else { changeCode(idx, e.target.value); if (!pinned) onChangeEngineers(draft.map((en, i) => i === idx ? { ...en, code: e.target.value } : en)); }
+                      }}
+                    >
+                      {engineerPool.map(code => <option key={code} value={code}>{code}</option>)}
+                      {!engineerPool.includes(eng.code) && <option value={eng.code}>{eng.code}</option>}
+                      <option value="__add__">＋ Add new code...</option>
+                    </select>
+                  </td>
+                  <td className="py-1.5 pr-2 text-right tabular-nums text-zinc-600">{autoPlanned ?? "—"}</td>
+                  <td className="py-1.5 pr-2 text-right tabular-nums text-zinc-600">{autoForecast ?? "—"}</td>
+                  <td className="py-1.5">
+                    <button onClick={() => { remove(idx); if (!pinned) onChangeEngineers(draft.filter((_, i) => i !== idx)); }} className="text-zinc-300 hover:text-red-500 transition-colors"><X size={11} /></button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
 
-        <button
-          onClick={addEngineer}
-          className="mt-2 flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-700"
-        >
-          <Plus size={11} /> Add engineer
-        </button>
+          <button onClick={addRow} className="mt-2 flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-700">
+            <Plus size={11} /> Add engineer
+          </button>
 
-        {showAddInput ? (
-          <div className="mt-2 flex items-center gap-1.5 border-t border-zinc-100 pt-2">
-            <input
-              autoFocus
-              className="flex-1 rounded border border-zinc-200 px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-zinc-400"
-              placeholder="New code e.g. JDo"
-              value={newCode}
-              onChange={e => setNewCode(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter") commitNewCode(); if (e.key === "Escape") { setShowAddInput(false); setNewCode(""); }}}
-            />
-            <button onClick={commitNewCode} className="rounded bg-zinc-900 px-2 py-0.5 text-xs text-white hover:bg-zinc-700">Add</button>
-            <button onClick={() => { setShowAddInput(false); setNewCode(""); }} className="text-zinc-400 hover:text-zinc-600"><X size={11} /></button>
+          {showAddInput && (
+            <div className="mt-2 flex items-center gap-1.5 border-t border-zinc-100 pt-2">
+              <input autoFocus
+                className="flex-1 rounded border border-zinc-200 px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-zinc-400"
+                placeholder="New code e.g. JDo"
+                value={newCode}
+                onChange={e => setNewCode(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") commitNewCode(); if (e.key === "Escape") { setShowAddInput(false); setNewCode(""); } }}
+              />
+              <button onClick={commitNewCode} className="rounded bg-zinc-900 px-2 py-0.5 text-xs text-white hover:bg-zinc-700">Add</button>
+              <button onClick={() => { setShowAddInput(false); setNewCode(""); }} className="text-zinc-400 hover:text-zinc-600"><X size={11} /></button>
+            </div>
+          )}
+        </div>
+
+        {/* Footer buttons — only in pinned mode */}
+        {pinned && (
+          <div className="flex justify-end gap-2 border-t border-zinc-100 px-3 py-2.5">
+            <button onClick={onClose} className="rounded px-3 py-1.5 text-sm text-zinc-500 hover:text-zinc-700">Cancel</button>
+            <button onClick={handleAdd} className="rounded bg-zinc-900 px-3 py-1.5 text-sm text-white hover:bg-zinc-700">Add</button>
           </div>
-        ) : null}
+        )}
       </div>
     </>
   );
@@ -642,7 +652,7 @@ export function ProgrammeTab() {
   const [calendar,      setCalendar]      = useState<CalendarState | null>(null);
   const [ctxMenu,       setCtxMenu]       = useState<ContextMenuState | null>(null);
   const [engineerPool,  setEngineerPool]  = useState<string[]>(DEFAULT_ENGINEER_POOL);
-  const [engPopup,      setEngPopup]      = useState<{ scopeId: string; rect: { top: number; left: number; width: number; height: number } } | null>(null);
+  const [engPopup,      setEngPopup]      = useState<{ scopeId: string; rect: { top: number; left: number; width: number; height: number }; pinned: boolean } | null>(null);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const saveField = (nodeId: string, field: keyof ProgrammeNode, raw: string) => {
@@ -710,14 +720,22 @@ export function ProgrammeTab() {
     setCtxMenu({ nodeId: node.id, nodeType: node.type, x: e.clientX, y: e.clientY });
   };
 
-  const openEngPopup = (scopeId: string, e: React.MouseEvent<HTMLDivElement>) => {
+  const openEngHover = (scopeId: string, e: React.MouseEvent<HTMLDivElement>) => {
+    if (engPopup?.pinned) return; // don't override a pinned popup
     if (hoverTimer.current) clearTimeout(hoverTimer.current);
     const r = e.currentTarget.getBoundingClientRect();
-    setEngPopup({ scopeId, rect: { top: r.top, left: r.left, width: r.width, height: r.height } });
+    setEngPopup({ scopeId, rect: { top: r.top, left: r.left, width: r.width, height: r.height }, pinned: false });
+  };
+
+  const openEngPinned = (scopeId: string, e: React.MouseEvent<HTMLDivElement>) => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    const r = e.currentTarget.getBoundingClientRect();
+    setEngPopup({ scopeId, rect: { top: r.top, left: r.left, width: r.width, height: r.height }, pinned: true });
   };
 
   const closeEngDelayed = () => {
-    hoverTimer.current = setTimeout(() => setEngPopup(null), 200);
+    if (engPopup?.pinned) return;
+    hoverTimer.current = setTimeout(() => setEngPopup(null), 150);
   };
 
   const cancelEngClose = () => {
@@ -774,8 +792,9 @@ export function ProgrammeTab() {
             {node.type === "scope" && (
               <EngineerChip
                 engineers={node.engineers ?? []}
-                onTrigger={e => openEngPopup(node.id, e)}
-                onMouseLeave={closeEngDelayed}
+                onClickEmpty={e => openEngPinned(node.id, e)}
+                onHoverFilled={e => openEngHover(node.id, e)}
+                onLeaveFilled={closeEngDelayed}
               />
             )}
           </div>
@@ -934,8 +953,10 @@ export function ProgrammeTab() {
             forecastHours={scopeNode.forecastTotalHours}
             engineerPool={engineerPool}
             rect={engPopup.rect}
+            pinned={engPopup.pinned}
             onChangeEngineers={engs => updateScopeEngineers(engPopup.scopeId, engs)}
             onAddToPool={addToPool}
+            onClose={() => setEngPopup(null)}
             onMouseEnter={cancelEngClose}
             onMouseLeave={closeEngDelayed}
           />
