@@ -59,37 +59,117 @@ A project management platform for DSP, a tunnel engineering consultancy (~100 en
 
 ```
 src/
-├── app/                    # Pages (Next.js App Router)
-│   ├── layout.tsx          # Root layout
-│   ├── page.tsx            # Home page
-│   └── projects/
-│       └── [id]/           # Project detail pages
+├── app/                        # Pages (Next.js App Router)
+│   ├── layout.tsx              # Root layout — fonts, metadata
+│   ├── page.tsx                # Home / project list
+│   ├── globals.css             # Design system tokens (edit here, not inline)
+│   └── projects/[id]/          # Project detail page + tab shell
 ├── components/
-│   ├── ui/                 # shadcn components (button, card, etc.)
-│   ├── grid/               # AG Grid wrappers
-│   └── charts/             # Recharts wrappers
-├── types/                  # TypeScript types — the API contract
-│   ├── project.ts          # Project, Task, ProjectRate
-│   ├── timesheet.ts        # TimesheetEntry, Engineer
-│   └── api.ts              # API response shapes (ProjectCVR, etc.)
-├── mocks/                  # Mock data for development
-│   └── projects.ts         # Realistic Euston project data
-├── api/                    # Backend logic
-│   ├── routes/             # API route handlers
-│   ├── services/           # Business logic (CVR calculations, EAC)
-│   └── db/                 # Supabase queries
+│   ├── ui/                     # shadcn primitives — do not edit these
+│   ├── programme/              # Programme tab components
+│   ├── forecast/               # Demand forecast tab components
+│   ├── charts/                 # Recharts wrappers
+│   └── grid/                   # AG Grid wrappers
+├── types/                      # TypeScript types — single source of truth for data shapes
+│   ├── project.ts              # Project, Programme, Scope, Activity, ProjectRate
+│   ├── timesheet.ts            # TimesheetEntry, Engineer
+│   └── api.ts                  # API response shapes (ProjectCVR, ForecastEntry, etc.)
+├── mocks/                      # Mock data for development
+│   └── projects.ts             # Realistic Euston project data
+├── api/                        # Future: server-side logic
+│   ├── services/               # Business logic (CVR, EAC, hour rollups) — not yet in use
+│   └── db/                     # Supabase queries — not yet in use
 ├── lib/
-│   ├── supabase/           # Supabase client setup
-│   └── utils.ts            # Shared utilities
-data/                       # Real Excel/CSV files from DSP (not in src/)
-docs/                       # Design sketches, domain logic, feedback
+│   ├── supabase/               # Supabase client setup
+│   └── utils.ts                # Pure utilities: formatCurrency, formatDate, cn
+data/                           # Real Excel/CSV files from DSP (gitignored)
+docs/                           # Design sketches, domain logic, feedback
 ```
 
-## Design System
+---
+
+## Engineering Standards
+
+These rules exist so the codebase stays clean and understandable as it grows. They apply whether you're a human developer or Claude Code.
+
+---
+
+### Code quality
+
+**Keep components small.** If a component file is getting long, split it. A good rule of thumb: if it scrolls for more than a screen, it probably does too much. Ensure that before implementing a new component, you check for reusable components in codebase. If there is a similar component, use that instead of creating a new one, and abstract if necessary.
+
+**One responsibility per file.** A file either defines types, holds mock data, performs calculations, or renders UI. Not more than one. Never put hardcoded data arrays inside a component — they belong in `src/mocks/`.
+
+**Types first.** Before writing a new component or function, check `src/types/` to see if the data shape already exists. If it doesn't, define it there before writing the component. This prevents duplicate or conflicting shapes emerging in different files.
+
+**No raw hex colours.** Always use design system tokens (see Design System section). The only exception is Recharts, which requires inline colour strings — use `var(--color-chart-1)` etc.
+
+**Dates are ISO 8601 internally.** Store and pass dates as `YYYY-MM-DD` strings. Only format for display at the render layer using `formatDate()` from `src/lib/utils.ts`. Non-standard formats (like `dd-Mon-yy`) are only acceptable when importing/exporting external files.
+
+**No `any`.** TypeScript strict mode is on. If you don't know the type, look it up or define it in `src/types/`.
+
+---
+
+### Architecture
+
+**Business logic does not live in components.** Calculations like CVR, EAC, progress rollups, and hour aggregation should live in `src/api/services/` — not inside component files. Components receive computed values as props; they do not compute them.
+
+**Mock data is for development only.** Components should not import directly from `src/mocks/`. Data is passed as props from the page. Use `NEXT_PUBLIC_USE_MOCKS=true` to switch between mock and real data at the page/route level.
+
+**Default to Server Components.** Only add `"use client"` when you need browser interactivity (click handlers, useState, useEffect). Data fetching should happen server-side where possible — not in `useEffect`.
+
+---
+
+### Security (scaffolding — implement when each piece is added)
+
+These rules don't require action now, but must be followed when the relevant feature is built.
+
+**Environment variables**
+
+- `NEXT_PUBLIC_*` variables are visible in the browser — never put secrets here
+- The Supabase anon key is safe to expose (Supabase Row Level Security controls access)
+- Any service role key must be server-only, never `NEXT_PUBLIC_*`
+- Never commit `.env.local` — it is gitignored
+
+**When Supabase database tables are created**
+
+- Enable Row Level Security on every table before it goes live
+- The default policy denies all — add explicit allow policies
+- Store migration SQL in `supabase/migrations/` so it is version-controlled
+
+**When authentication is added**
+
+- Use Supabase Auth. Route protection goes in `src/middleware.ts` — not repeated in every page
+- Never trust the client for user identity or role — always verify server-side
+- Roles: `admin`, `pm`, `engineer`, `viewer` — store in Supabase, not in the JWT
+
+**When API routes are created**
+
+- All routes that mutate data require authentication
+- Validate all inputs before touching the database — never trust raw request data
+- Use parameterised queries only — never build raw SQL strings
+
+**Always**
+
+- Never use `dangerouslySetInnerHTML` — React escapes JSX output by default
+- Run `npm audit` before adding a new dependency
+
+---
+
+### Error handling (scaffolding — implement as features are built)
+
+- Every page should have an `error.tsx` alongside it (Next.js App Router pattern) so errors don't show a blank screen
+- Every async data fetch should have a loading state — show a skeleton, not nothing
+- Never expose raw error messages or stack traces to the UI — log server-side, show a calm human message to the user
+
+---
+
+### Design System
 
 All UI must follow these standards. Tokens are defined in `src/app/globals.css`.
 
-### Typography
+**Typography**
+
 - **Font**: Inter (Notion-style sans-serif)
 - **Page title**: `text-2xl font-semibold text-foreground`
 - **Section heading**: `text-sm font-semibold text-foreground`
@@ -97,7 +177,7 @@ All UI must follow these standards. Tokens are defined in `src/app/globals.css`.
 - **Body**: `text-sm text-foreground`
 - **Caption / helper**: `text-xs text-muted-foreground`
 
-### Colour tokens (use these, not raw hex)
+**Colour tokens** (use these, not raw hex)
 | Token | Value | Use |
 |---|---|---|
 | `bg-background` | #f9f9f9 | Page background |
@@ -105,39 +185,37 @@ All UI must follow these standards. Tokens are defined in `src/app/globals.css`.
 | `text-foreground` | #18181b | Primary text |
 | `text-muted-foreground` | #71717a | Secondary / label text |
 | `border-border` | #e4e4e7 | Dividers, card borders |
-| `bg-gold` / `text-gold` | **#e4a824** | Brand accent — sacred, use sparingly |
+| `bg-gold` / `text-gold` | **#e4a824** | Brand accent — sacred, never adjust |
 | `text-status-healthy` / `bg-status-healthy-bg` | green | On track |
 | `text-status-warning` / `bg-status-warning-bg` | gold | At risk |
 | `text-status-critical` / `bg-status-critical-bg` | red | Overspend / blocked |
 | `text-status-info` / `bg-status-info-bg` | blue | Progress, neutral info |
 
-### Radius
-Base is **8px**. Use `rounded-lg` for cards and panels, `rounded-md` for inputs and badges, `rounded-sm` for tight elements.
+**Radius**: Base 8px. `rounded-lg` for cards/panels, `rounded-md` for inputs/badges, `rounded-sm` for tight elements.
 
-### Elevation (shadows)
-- **Cards**: `shadow-card` — subtle lift, always used on white card surfaces against the off-white background
-- **Elevated panels / dropdowns**: `shadow-elevated`
-- **Modals / overlays**: `shadow-overlay`
+**Elevation**: Cards always use `shadow-card`. Dropdowns/popovers use `shadow-elevated`. Modals use `shadow-overlay`. Never flat white on flat white.
 
-### Spacing
-- **Page padding**: `p-6` desktop / `p-4` mobile
-- **Card internal padding**: `p-5`
-- **Section gap**: `gap-4` or `gap-6`
-- **Table row**: `py-3 px-4`
-- **Compact table row** (data-dense views): `py-2 px-4`
+**Spacing**
 
-### Chart colours (in order)
-1. Blue (`--chart-1`) — progress / forecast
-2. Green (`--chart-2`) — healthy / actuals on track
-3. Gold (`--chart-3`) — brand / budget line
-4. Red (`--chart-4`) — critical / overspend
-5. Grey (`--chart-5`) — neutral comparison
+- Page padding: `p-6` desktop / `p-4` mobile
+- Card internal padding: `p-5`
+- Section gap: `gap-4` or `gap-6`
+- Table row: `py-3 px-4` / compact: `py-2 px-4`
 
-### Rules
-- Never use raw hex colours in components — always use tokens
-- Gold (`#e4a824`) is sacred — do not adjust it for any reason
-- Cards always sit on `bg-background` with `shadow-card` — never flat white on flat white
-- Status indicators always use the four semantic tokens (healthy / warning / critical / info)
+**Chart colours** (always in this order)
+
+1. Blue `--chart-1` — progress / forecast
+2. Green `--chart-2` — healthy / on track
+3. Gold `--chart-3` — brand / budget reference
+4. Red `--chart-4` — critical / overspend
+5. Grey `--chart-5` — neutral comparison
+
+**Rules**
+
+- Never use raw hex in components — always tokens
+- Gold is sacred — never adjust `#e4a824`
+- Status indicators always use the four semantic tokens
+- Charts use `var(--color-chart-N)` for stroke/fill values
 
 ---
 
@@ -145,18 +223,21 @@ Base is **8px**. Use `rounded-lg` for cards and panels, `rounded-md` for inputs 
 
 ```bash
 npm run dev          # Start dev server → http://localhost:3000
-npm run build        # Production build (check before pushing)
-npm run lint         # Run linter
+npm run build        # Production build — run before pushing
+npm run lint         # Linter
 ```
 
 ## Environment
 
 Copy `.env.local.example` to `.env.local`:
+
 ```bash
 cp .env.local.example .env.local
 ```
 
 Set `NEXT_PUBLIC_USE_MOCKS=true` to work without Supabase.
+
+**Never commit `.env.local`.**
 
 ---
 
@@ -166,14 +247,8 @@ Set `NEXT_PUBLIC_USE_MOCKS=true` to work without Supabase.
 
 ```bash
 cd ~/Desktop/Projects/project-management
-
-# Get latest changes from Ben
 git pull
-
-# Install any new dependencies Ben may have added
 npm install
-
-# Start the dev server
 npm run dev
 ```
 
@@ -182,55 +257,36 @@ npm run dev
 Always create a branch first. Never work directly on `main`.
 
 ```bash
-# Make sure you're on main and up to date
 git checkout main
 git pull
-
-# Create your branch
 git checkout -b meryl/what-you-are-working-on
 ```
 
 Name your branches like: `meryl/budget-cards`, `meryl/task-table`, `meryl/fix-chart-label`.
 
+### Before opening a pull request
+
+```bash
+npm run build        # must pass — no type errors, no broken imports
+npm run lint         # must pass
+```
+
 ### Saving your work
 
 ```bash
-# See what you changed
 git status
-
-# Stage all your changes
 git add .
-
-# Save with a message describing what you did
 git commit -m "add budget overview cards to project page"
-
-# Push to GitHub
 git push
 ```
-
-If it's your first push on a new branch, git will tell you to run a longer command — just copy-paste what it suggests.
-
-### Creating a pull request
-
-After pushing, go to GitHub. It will show a yellow banner saying "meryl/your-branch had recent pushes — Compare & pull request". Click it.
-
-Or use the terminal:
-```bash
-gh pr create --title "Add budget overview cards" --body "Added the 4 summary cards showing fee, spent, profit, and EAC"
-```
-
-Ben will review and merge it.
 
 ### When you're done for the day
 
 ```bash
-# Save everything, even if unfinished
 git add .
 git commit -m "wip: still working on task table"
 git push
 ```
-
-`wip:` means "work in progress" — Ben will know it's not finished.
 
 ---
 
@@ -239,72 +295,56 @@ git push
 Open Claude Code in this project folder. Then describe what you want in plain English:
 
 **Good prompts:**
+
 - "Create a new page at /projects/1 that shows the project name, client, and fixed fee using data from src/mocks/projects.ts"
 - "Add a card component that shows a label and a value formatted as currency. Use shadcn Card."
 - "Build a line chart using Recharts that shows progressPercent and budgetConsumedPercent from mockCVR.weeklyTrend"
 - "The budget card should turn red when budgetConsumedPercent is higher than progressPercent"
 
 **Tips:**
+
 - Always mention which mock data to use
-- Reference existing files: "follow the same pattern as src/app/page.tsx"
+- Reference existing files: "follow the same pattern as src/app/projects/[id]/page.tsx"
 - If something breaks, paste the error message and say "fix this"
 - Say "use shadcn" for buttons, cards, modals — it keeps the style consistent
-- After Claude makes changes, check the browser to see if it looks right
+- After Claude makes changes, run `npm run build` to check for errors, then check the browser
 
 ---
 
 ## Troubleshooting
 
 ### "npm run dev" shows an error
+
 ```bash
-# Delete node_modules and reinstall
-rm -rf node_modules
-npm install
-npm run dev
+rm -rf node_modules && npm install && npm run dev
 ```
 
 ### "Your branch is behind main"
+
 ```bash
 git pull origin main
 ```
 
-If it shows merge conflicts (files with <<<<<<), ask Ben or tell Claude Code "fix the merge conflicts".
-
-### "Changes not staged for commit"
-You have unsaved changes. Either commit them or stash them:
-```bash
-# Save them
-git add .
-git commit -m "save my work"
-
-# Or temporarily stash them
-git stash           # hides your changes
-git stash pop       # brings them back
-```
-
 ### The page looks broken / blank
+
 Check the terminal where `npm run dev` is running. Copy any red error text and paste it to Claude Code.
 
 ### "I messed something up and want to start fresh"
-```bash
-# Undo all changes since your last commit (careful — this deletes your work!)
-git checkout .
 
-# Or go back to main
-git checkout main
-git pull
+```bash
+git checkout .      # undo all changes since last commit
+git checkout main && git pull
 ```
 
 ---
 
 ## Commit Message Style
 
-Keep it short and descriptive:
+Short and descriptive:
+
 ```
 add budget overview cards
 fix chart label alignment
-update task table columns
+update task table to use Scope type
 wip: working on CSV import
 ```
-
-No need for prefixes like `feat:` or `fix:` — just describe what you did.
