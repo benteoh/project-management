@@ -182,7 +182,7 @@ export function EngineerPopup({
         </div>
 
         <div
-          className={`border-border flex justify-end gap-2 border-t px-3 py-2.5${shake ? "animate-shake" : ""}`}
+          className={`border-border flex justify-end gap-2 border-t px-3 py-2.5 ${shake ? "animate-shake" : ""}`}
         >
           <button
             type="button"
