@@ -442,6 +442,12 @@ function EngineerPopup({ engineers, totalHours, forecastHours, engineerPool, rec
   const [draft,        setDraft]        = useState<EngineerAllocation[]>(engineers);
   const [showAddInput, setShowAddInput] = useState(false);
   const [newCode,      setNewCode]      = useState("");
+  const [shake,        setShake]        = useState(false);
+
+  const triggerShake = () => {
+    setShake(true);
+    setTimeout(() => setShake(false), 500);
+  };
 
   // keep draft in sync when hover popup updates live
   useEffect(() => { if (!pinned) setDraft(engineers); }, [engineers, pinned]);
@@ -473,7 +479,7 @@ function EngineerPopup({ engineers, totalHours, forecastHours, engineerPool, rec
 
   return (
     <>
-      {pinned && <div className="fixed inset-0 z-[118]" onClick={onClose} />}
+      {pinned && <div className="fixed inset-0 z-[118]" onClick={triggerShake} />}
       <div
         className="fixed z-[119] w-80 rounded-lg border border-zinc-200 bg-white shadow-xl"
         style={{ top, left }}
@@ -537,7 +543,7 @@ function EngineerPopup({ engineers, totalHours, forecastHours, engineerPool, rec
 
         {/* Footer buttons — only in pinned mode */}
         {pinned && (
-          <div className="flex justify-end gap-2 border-t border-zinc-100 px-3 py-2.5">
+          <div className={`flex justify-end gap-2 border-t border-zinc-100 px-3 py-2.5${shake ? " animate-shake" : ""}`}>
             <button onClick={onClose} className="rounded px-3 py-1.5 text-sm text-zinc-500 hover:text-zinc-700">Cancel</button>
             <button onClick={handleAdd} className="rounded bg-zinc-900 px-3 py-1.5 text-sm text-white hover:bg-zinc-700">Update</button>
           </div>

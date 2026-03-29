@@ -13,7 +13,7 @@ export default function ProjectPage() {
   const [activeTab, setActiveTab] = useState<Tab>("Programme");
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex h-screen flex-col overflow-hidden bg-background">
       {/* Header */}
       <div className="px-6 pt-6 pb-0">
         <p className="text-sm text-muted-foreground">{project.client}</p>
