@@ -47,7 +47,7 @@ export function EngineerPopup({
   const addRow = () =>
     setDraft((prev) => [
       ...prev,
-      { code: engineerPool[0] ?? "SSi", isLead: false, plannedHrs: null, forecastHrs: null },
+      { code: engineerPool[0] ?? "", isLead: false, plannedHrs: null, forecastHrs: null },
     ]);
 
   const commitNewCode = () => {
