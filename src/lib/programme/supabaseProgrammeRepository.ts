@@ -9,16 +9,19 @@ import type {
   ProgrammeRepository,
 } from "./programmeRepository";
 
-export function createSupabaseProgrammeRepository(client: SupabaseClient): ProgrammeRepository {
+export function createSupabaseProgrammeRepository(
+  client: SupabaseClient,
+  projectId: string
+): ProgrammeRepository {
   return {
     async load(): Promise<ProgrammeLoadResult> {
-      const r = await loadProgrammeFromDb(client);
+      const r = await loadProgrammeFromDb(client, projectId);
       if ("error" in r) return { ok: false, error: r.error };
       return { ok: true, tree: r.tree, engineerPool: r.engineerPool };
     },
 
     async save(tree: ProgrammeNode[]): Promise<MutationResult> {
-      const err = await saveProgrammeToDb(client, tree);
+      const err = await saveProgrammeToDb(client, projectId, tree);
       if (err) return { ok: false, error: err };
       return { ok: true };
     },

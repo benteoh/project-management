@@ -1,6 +1,9 @@
 import type { ProgrammeNode } from "@/components/programme/types";
 
-/** Static tree used only by `npm run seed` to populate Supabase — not loaded by the app. */
+/**
+ * Static WBS for the sample project (`SEED_PROJECT_ID` in `seedConfig.ts`).
+ * Used only by `npm run seed` — the app loads the tree from Supabase.
+ */
 export const seedProgrammeData: ProgrammeNode[] = [
   {
     id: "s9",

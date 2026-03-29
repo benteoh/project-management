@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 
 import { ProgrammeTab } from "@/components/programme/ProgrammeTab";
 import type { ProgrammeNode } from "@/components/programme/types";
 import { formatDate } from "@/lib/utils";
 import type { Project } from "@/types/project";
+
+import { addEngineerToPoolAction, saveProgrammeAction } from "./actions";
 
 const TABS = ["Programme", "Forecast"] as const;
 type Tab = (typeof TABS)[number];
@@ -15,23 +17,26 @@ function formatProjectStatus(status: Project["status"]): string {
 }
 
 export default function ProjectPageClient({
+  projectId,
   project,
   projectLoadError,
   initialProgrammeTree,
   initialEngineerPool,
   programmeLoadError,
-  saveProgramme,
-  addEngineerToPool,
 }: {
+  projectId: string;
   project: Project | null;
   projectLoadError: string | null;
   initialProgrammeTree: ProgrammeNode[];
   initialEngineerPool: string[];
   programmeLoadError: string | null;
-  saveProgramme: (tree: ProgrammeNode[]) => Promise<{ ok: true } | { ok: false; error: string }>;
-  addEngineerToPool: (code: string) => Promise<{ ok: true } | { ok: false; error: string }>;
 }) {
   const [activeTab, setActiveTab] = useState<Tab>("Programme");
+
+  const saveProgramme = useCallback(
+    (tree: ProgrammeNode[]) => saveProgrammeAction(projectId, tree),
+    [projectId]
+  );
 
   return (
     <div className="bg-background flex h-screen flex-col overflow-hidden">
@@ -88,7 +93,7 @@ export default function ProjectPageClient({
             initialEngineerPool={initialEngineerPool}
             loadError={programmeLoadError}
             saveProgramme={saveProgramme}
-            addEngineerToPool={addEngineerToPool}
+            addEngineerToPool={addEngineerToPoolAction}
           />
         )}
         {activeTab === "Forecast" && <div className="flex-1" />}

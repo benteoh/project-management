@@ -1,29 +1,33 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { ProgrammeNode } from "@/components/programme/types";
-import {
-  buildTreeFromRows,
-  collectScopeIds,
-  flattenTree,
-  type ProgrammeNodeRow,
-  type ScopeEngineerRow,
-} from "./programmeTree";
+import type { ProgrammeNodeDbRow, ScopeEngineerDbRow } from "@/types/programme";
+
+import { buildTreeFromRows, collectScopeIds, flattenTree } from "./programmeTree";
 
 export async function loadProgrammeFromDb(
-  client: SupabaseClient
+  client: SupabaseClient,
+  projectId: string
 ): Promise<{ tree: ProgrammeNode[]; engineerPool: string[] } | { error: string }> {
-  const [nodesRes, poolRes, engRes] = await Promise.all([
-    client.from("programme_nodes").select("*"),
+  const [nodesRes, poolRes] = await Promise.all([
+    client.from("programme_nodes").select("*").eq("project_id", projectId),
     client.from("engineer_pool").select("code").eq("is_active", true),
-    client.from("scope_engineers").select("*"),
   ]);
 
   if (nodesRes.error) return { error: nodesRes.error.message };
   if (poolRes.error) return { error: poolRes.error.message };
+
+  const rows = (nodesRes.data ?? []) as ProgrammeNodeDbRow[];
+  const scopeIds = rows.filter((r) => r.type === "scope").map((r) => r.id);
+
+  const engRes =
+    scopeIds.length === 0
+      ? { data: [] as ScopeEngineerDbRow[], error: null }
+      : await client.from("scope_engineers").select("*").in("scope_id", scopeIds);
+
   if (engRes.error) return { error: engRes.error.message };
 
-  const rows = (nodesRes.data ?? []) as ProgrammeNodeRow[];
-  const engineerRows = (engRes.data ?? []) as ScopeEngineerRow[];
+  const engineerRows = (engRes.data ?? []) as ScopeEngineerDbRow[];
   const tree = buildTreeFromRows(rows, engineerRows);
   const engineerPool = (poolRes.data ?? []).map((r) => r.code as string).sort();
 
@@ -32,9 +36,10 @@ export async function loadProgrammeFromDb(
 
 export async function saveProgrammeToDb(
   client: SupabaseClient,
+  projectId: string,
   tree: ProgrammeNode[]
 ): Promise<string | null> {
-  const { nodeRows, engineerRows } = flattenTree(tree);
+  const { nodeRows, engineerRows } = flattenTree(tree, projectId);
   const newIds = new Set(nodeRows.map((r) => r.id));
   const scopeIds = collectScopeIds(tree);
 
@@ -56,7 +61,10 @@ export async function saveProgrammeToDb(
     if (insEngErr) return insEngErr.message;
   }
 
-  const { data: existing, error: selErr } = await client.from("programme_nodes").select("id");
+  const { data: existing, error: selErr } = await client
+    .from("programme_nodes")
+    .select("id")
+    .eq("project_id", projectId);
   if (selErr) return selErr.message;
 
   const toDelete = (existing ?? []).map((r) => r.id as string).filter((id) => !newIds.has(id));

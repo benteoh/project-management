@@ -4,7 +4,6 @@ import { loadProjectById } from "@/lib/projects/projectDb";
 import { createSupabaseProgrammeRepository } from "@/lib/programme/supabaseProgrammeRepository";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-import { addEngineerToPoolAction, saveProgrammeAction } from "./actions";
 import ProjectPageClient from "./project-page-client";
 
 type Props = { params: Promise<{ id: string }> };
@@ -21,7 +20,7 @@ export default async function ProjectPage({ params }: Props) {
     const client = createServerSupabaseClient();
     const [projectRes, programmeResult] = await Promise.all([
       loadProjectById(client, id),
-      createSupabaseProgrammeRepository(client).load(),
+      createSupabaseProgrammeRepository(client, id).load(),
     ]);
 
     if ("project" in projectRes) {
@@ -44,13 +43,12 @@ export default async function ProjectPage({ params }: Props) {
 
   return (
     <ProjectPageClient
+      projectId={id}
       project={project}
       projectLoadError={projectLoadError}
       initialProgrammeTree={initialProgrammeTree}
       initialEngineerPool={initialEngineerPool}
       programmeLoadError={programmeLoadError}
-      saveProgramme={saveProgrammeAction}
-      addEngineerToPool={addEngineerToPoolAction}
     />
   );
 }

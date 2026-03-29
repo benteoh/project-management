@@ -1,12 +1,27 @@
+export type ProjectStatus = "active" | "complete" | "bid" | "on_hold";
+
 export interface Project {
   id: string;
   name: string;
   client: string;
   office: string;
-  status: "active" | "complete" | "bid" | "on_hold";
+  status: ProjectStatus;
   fixedFee: number;
   startDate: string;
   endDate: string;
+}
+
+/** Row shape for `public.projects` (Supabase). */
+export interface ProjectDbRow {
+  id: string;
+  name: string;
+  client: string;
+  office: string;
+  status: ProjectStatus;
+  fixed_fee: number;
+  start_date: string;
+  end_date: string;
+  updated_at?: string;
 }
 
 /**
@@ -16,6 +31,9 @@ export interface Project {
  * Hierarchy: Programme → Scope → Activity
  *
  * A Programme belongs to a Project (1:1).
+ *
+ * Note: the interactive WBS lives in `programme_nodes` (`ProgrammeNodeDbRow` in
+ * `src/types/programme.ts`), keyed by `project_id` — there is no separate `programmes` table yet.
  */
 export interface Programme {
   id: string;

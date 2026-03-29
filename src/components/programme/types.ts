@@ -14,6 +14,10 @@ export interface EngineerAllocation {
   forecastHrs: number | null;
 }
 
+/**
+ * Interactive WBS node. Persisted to `programme_nodes`; `project_id` comes from the project route
+ * on load/save (not stored on this object).
+ */
 export interface ProgrammeNode {
   id: string;
   activityId?: string;

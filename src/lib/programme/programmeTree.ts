@@ -1,38 +1,18 @@
 import type { ProgrammeNode } from "@/components/programme/types";
-
-export type ProgrammeNodeRow = {
-  id: string;
-  activity_id: string | null;
-  name: string;
-  type: ProgrammeNode["type"];
-  total_hours: number | null;
-  start_date: string | null;
-  finish_date: string | null;
-  forecast_total_hours: number | null;
-  status: string;
-  parent_id: string | null;
-  position: number;
-};
-
-export type ScopeEngineerRow = {
-  scope_id: string;
-  engineer_code: string;
-  is_lead: boolean;
-  planned_hrs: number | null;
-  forecast_hrs: number | null;
-  position: number;
-};
+import type { ProgrammeNodeDbRow, ScopeEngineerDbRow } from "@/types/programme";
 
 export function flattenTree(
   nodes: ProgrammeNode[],
+  projectId: string,
   parentId: string | null = null
-): { nodeRows: ProgrammeNodeRow[]; engineerRows: ScopeEngineerRow[] } {
-  const nodeRows: ProgrammeNodeRow[] = [];
-  const engineerRows: ScopeEngineerRow[] = [];
+): { nodeRows: ProgrammeNodeDbRow[]; engineerRows: ScopeEngineerDbRow[] } {
+  const nodeRows: ProgrammeNodeDbRow[] = [];
+  const engineerRows: ScopeEngineerDbRow[] = [];
 
   nodes.forEach((node, position) => {
     nodeRows.push({
       id: node.id,
+      project_id: projectId,
       activity_id: node.activityId ?? null,
       name: node.name,
       type: node.type,
@@ -59,7 +39,7 @@ export function flattenTree(
     }
 
     if (node.children.length > 0) {
-      const nested = flattenTree(node.children, node.id);
+      const nested = flattenTree(node.children, projectId, node.id);
       nodeRows.push(...nested.nodeRows);
       engineerRows.push(...nested.engineerRows);
     }
@@ -81,8 +61,8 @@ export function collectScopeIds(nodes: ProgrammeNode[]): string[] {
 }
 
 export function buildTreeFromRows(
-  rows: ProgrammeNodeRow[],
-  engineerRows: ScopeEngineerRow[]
+  rows: ProgrammeNodeDbRow[],
+  engineerRows: ScopeEngineerDbRow[]
 ): ProgrammeNode[] {
   const byId = new Map<string, ProgrammeNode>();
 
@@ -115,7 +95,7 @@ export function buildTreeFromRows(
     byId.set(r.id, node);
   }
 
-  const childrenByParent = new Map<string | null, ProgrammeNodeRow[]>();
+  const childrenByParent = new Map<string | null, ProgrammeNodeDbRow[]>();
   for (const r of rows) {
     const p = r.parent_id;
     if (!childrenByParent.has(p)) childrenByParent.set(p, []);
