@@ -74,13 +74,13 @@ src/
 │   ├── project.ts              # Project, Programme, Scope, Activity, ProjectRate
 │   ├── timesheet.ts            # TimesheetEntry, Engineer
 │   └── api.ts                  # API response shapes (ProjectCVR, ForecastEntry, etc.)
-├── mocks/                      # Mock data for development
-│   └── projects.ts             # Realistic Euston project data
 ├── api/                        # Future: server-side logic
 │   ├── services/               # Business logic (CVR, EAC, hour rollups) — not yet in use
 │   └── db/                     # Supabase queries — not yet in use
 ├── lib/
-│   ├── supabase/               # Supabase client setup
+│   ├── programme/              # Programme repository, DB helpers, seed tree
+│   ├── projects/               # Project header load (`projectDb.ts`)
+│   ├── supabase/               # Supabase client setup + env resolution
 │   └── utils.ts                # Pure utilities: formatCurrency, formatDate, cn
 data/                           # Real Excel/CSV files from DSP (gitignored)
 docs/                           # Design sketches, domain logic, feedback
@@ -98,7 +98,7 @@ These rules exist so the codebase stays clean and understandable as it grows. Th
 
 **Keep components small.** If a component file is getting long, split it. A good rule of thumb: if it scrolls for more than a screen, it probably does too much. Ensure that before implementing a new component, you check for reusable components in codebase. If there is a similar component, use that instead of creating a new one, and abstract if necessary.
 
-**One responsibility per file.** A file either defines types, holds mock data, performs calculations, or renders UI. Not more than one. Never put hardcoded data arrays inside a component — they belong in `src/mocks/`.
+**One responsibility per file.** A file either defines types, holds seed/fixture data (e.g. `supabase/seed.ts`, `seedProgrammeData.ts`), performs calculations, or renders UI. Not more than one. Never put large hardcoded data arrays inside a component.
 
 **Types first.** Before writing a new component or function, check `src/types/` to see if the data shape already exists. If it doesn't, define it there before writing the component. This prevents duplicate or conflicting shapes emerging in different files.
 
@@ -114,7 +114,7 @@ These rules exist so the codebase stays clean and understandable as it grows. Th
 
 **Business logic does not live in components.** Calculations like CVR, EAC, progress rollups, and hour aggregation should live in `src/api/services/` — not inside component files. Components receive computed values as props; they do not compute them.
 
-**Mock data is for development only.** Components should not import directly from `src/mocks/`. Data is passed as props from the page. Use `NEXT_PUBLIC_USE_MOCKS=true` to switch between mock and real data at the page/route level.
+**Project and programme data come from Supabase.** The project page loads the project row (`projects` table), programme tree, and engineer pool on the server; components receive data and persistence callbacks as props — they do not call Supabase directly.
 
 **Default to Server Components.** Only add `"use client"` when you need browser interactivity (click handlers, useState, useEffect). Data fetching should happen server-side where possible — not in `useEffect`.
 
@@ -235,7 +235,12 @@ Copy `.env.local.example` to `.env.local`:
 cp .env.local.example .env.local
 ```
 
-Set `NEXT_PUBLIC_USE_MOCKS=true` to work without Supabase.
+Configure Supabase in `.env.local` (see `.env.local.example`):
+
+- **Hosted**: `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` from the project dashboard.
+- **Local (CLI)**: `npm run db:start`, then `npm run db:status` for the API URL and anon key. You can set `NEXT_PUBLIC_SUPABASE_USE_LOCAL=true` and only the anon key; the API URL defaults to `http://127.0.0.1:54321` (see `supabase/config.toml`). Apply migrations (`npm run db:push` or reset) and seed (`npm run seed`) against the same target as in `.env.local`.
+
+Without valid credentials, the programme tab shows a load error and an empty tree.
 
 **Never commit `.env.local`.**
 
@@ -296,9 +301,9 @@ Open Claude Code in this project folder. Then describe what you want in plain En
 
 **Good prompts:**
 
-- "Create a new page at /projects/1 that shows the project name, client, and fixed fee using data from src/mocks/projects.ts"
+- "Create a new page at /projects/1 that shows the project name, client, and fixed fee from the `projects` table (see `loadProjectById`)"
 - "Add a card component that shows a label and a value formatted as currency. Use shadcn Card."
-- "Build a line chart using Recharts that shows progressPercent and budgetConsumedPercent from mockCVR.weeklyTrend"
+- "Build a line chart using Recharts that shows progressPercent and budgetConsumedPercent from project CVR data loaded from the API or database"
 - "The budget card should turn red when budgetConsumedPercent is higher than progressPercent"
 
 **Tips:**

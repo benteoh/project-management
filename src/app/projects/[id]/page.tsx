@@ -1,54 +1,56 @@
-"use client";
+import type { ProgrammeNode } from "@/components/programme/types";
+import type { Project } from "@/types/project";
+import { loadProjectById } from "@/lib/projects/projectDb";
+import { createSupabaseProgrammeRepository } from "@/lib/programme/supabaseProgrammeRepository";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-import { useState } from "react";
-import { mockProject } from "@/mocks/projects";
-import { formatDate } from "@/lib/utils";
-import { ProgrammeTab } from "@/components/programme/ProgrammeTab";
+import { addEngineerToPoolAction, saveProgrammeAction } from "./actions";
+import ProjectPageClient from "./project-page-client";
 
-const TABS = ["Programme", "Forecast"] as const;
-type Tab = (typeof TABS)[number];
+type Props = { params: Promise<{ id: string }> };
 
-export default function ProjectPage() {
-  const project = mockProject;
-  const [activeTab, setActiveTab] = useState<Tab>("Programme");
+export default async function ProjectPage({ params }: Props) {
+  const { id } = await params;
+  let programmeLoadError: string | null = null;
+  let projectLoadError: string | null = null;
+  let project: Project | null = null;
+  let initialProgrammeTree: ProgrammeNode[] = [];
+  let initialEngineerPool: string[] = [];
+
+  try {
+    const client = createServerSupabaseClient();
+    const [projectRes, programmeResult] = await Promise.all([
+      loadProjectById(client, id),
+      createSupabaseProgrammeRepository(client).load(),
+    ]);
+
+    if ("project" in projectRes) {
+      project = projectRes.project;
+    } else {
+      projectLoadError = projectRes.error;
+    }
+
+    if (programmeResult.ok) {
+      initialProgrammeTree = programmeResult.tree;
+      initialEngineerPool = programmeResult.engineerPool;
+    } else {
+      programmeLoadError = programmeResult.error;
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Failed to load";
+    projectLoadError = projectLoadError ?? msg;
+    programmeLoadError = programmeLoadError ?? msg;
+  }
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-background">
-      {/* Header */}
-      <div className="px-6 pt-6 pb-0">
-        <p className="text-sm text-muted-foreground">{project.client}</p>
-        <h1 className="text-2xl font-semibold text-foreground">{project.name}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {formatDate(project.startDate)} – {formatDate(project.endDate)} ·{" "}
-          {project.office} · {project.status}
-        </p>
-
-        {/* Tabs */}
-        <div className="mt-5 flex items-end gap-0.5 border-b border-border">
-          {TABS.map((tab) => {
-            const isActive = tab === activeTab;
-            return (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`px-6 py-2.5 text-sm font-medium transition-colors focus:outline-none ${
-                  isActive
-                    ? "relative z-10 -mb-px rounded-t-lg border-l border-r border-t border-border bg-card text-foreground"
-                    : "rounded-t-lg text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {tab}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Tab content */}
-      <div className="mx-6 flex flex-1 flex-col border-x border-b border-border bg-card overflow-hidden">
-        {activeTab === "Programme" && <ProgrammeTab />}
-        {activeTab === "Forecast" && <div className="flex-1" />}
-      </div>
-    </div>
+    <ProjectPageClient
+      project={project}
+      projectLoadError={projectLoadError}
+      initialProgrammeTree={initialProgrammeTree}
+      initialEngineerPool={initialEngineerPool}
+      programmeLoadError={programmeLoadError}
+      saveProgramme={saveProgrammeAction}
+      addEngineerToPool={addEngineerToPoolAction}
+    />
   );
 }

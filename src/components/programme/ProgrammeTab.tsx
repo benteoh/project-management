@@ -2,12 +2,6 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 
-import { supabase } from "@/lib/supabase/client";
-import {
-  fetchProgrammeFromSupabase,
-  syncProgrammeToSupabase,
-  upsertEngineerPoolCode,
-} from "@/lib/programme/programmeSupabase";
 import {
   ProgrammeNode,
   EditableField,
@@ -25,16 +19,28 @@ import { NodeContextMenu } from "./NodeContextMenu";
 import { AddNodeModal } from "./AddNodeModal";
 import { EngineerPopup } from "./EngineerPopup";
 
-const useMocks = process.env.NEXT_PUBLIC_USE_MOCKS === "true";
+export type ProgrammeTabProps = {
+  initialTree: ProgrammeNode[];
+  initialEngineerPool: string[];
+  /** Remote load failed (Supabase error, missing env, etc.) */
+  loadError: string | null;
+  saveProgramme: (tree: ProgrammeNode[]) => Promise<{ ok: true } | { ok: false; error: string }>;
+  addEngineerToPool: (code: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+};
 
-export function ProgrammeTab() {
+export function ProgrammeTab({
+  initialTree,
+  initialEngineerPool,
+  loadError: initialLoadError,
+  saveProgramme,
+  addEngineerToPool,
+}: ProgrammeTabProps) {
   const histRef = useRef<{ stack: ProgrammeNode[][]; idx: number }>({
-    stack: [[]],
+    stack: [initialTree],
     idx: 0,
   });
-  const [present, setPresent] = useState<ProgrammeNode[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [present, setPresent] = useState<ProgrammeNode[]>(initialTree);
+  const [engineerPool, setEngineerPool] = useState<string[]>(initialEngineerPool);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -43,18 +49,19 @@ export function ProgrammeTab() {
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
   const [calendar, setCalendar] = useState<CalendarState | null>(null);
   const [ctxMenu, setCtxMenu] = useState<ContextMenuState | null>(null);
-  const [engineerPool, setEngineerPool] = useState<string[]>([]);
   const [engPopup, setEngPopup] = useState<{
     scopeId: string;
     rect: { top: number; left: number; width: number; height: number };
   } | null>(null);
 
-  const persist = useCallback(async (tree: ProgrammeNode[]) => {
-    if (useMocks) return;
-    const err = await syncProgrammeToSupabase(supabase, tree);
-    if (err) setSaveError(err);
-    else setSaveError(null);
-  }, []);
+  const persist = useCallback(
+    async (tree: ProgrammeNode[]) => {
+      const r = await saveProgramme(tree);
+      if (!r.ok) setSaveError(r.error);
+      else setSaveError(null);
+    },
+    [saveProgramme]
+  );
 
   const commit = useCallback(
     (next: ProgrammeNode[]) => {
@@ -85,34 +92,6 @@ export function ProgrammeTab() {
     setPresent(next);
     void persist(next);
   }, [persist]);
-
-  useEffect(() => {
-    if (useMocks) {
-      setLoading(false);
-      setLoadError(
-        "Programme is loaded from Supabase only. Set NEXT_PUBLIC_USE_MOCKS=false and configure your Supabase URL and anon key."
-      );
-      return;
-    }
-
-    let cancelled = false;
-    (async () => {
-      const result = await fetchProgrammeFromSupabase(supabase);
-      if (cancelled) return;
-      if ("error" in result) {
-        setLoadError(result.error);
-        setLoading(false);
-        return;
-      }
-      histRef.current = { stack: [result.tree], idx: 0 };
-      setPresent(result.tree);
-      setEngineerPool(result.engineerPool);
-      setLoading(false);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -225,11 +204,9 @@ export function ProgrammeTab() {
   };
 
   const addToPool = (code: string) => {
-    if (!useMocks) {
-      void upsertEngineerPoolCode(supabase, code).then((err) => {
-        if (err) setSaveError(err);
-      });
-    }
+    void addEngineerToPool(code).then((r) => {
+      if (!r.ok) setSaveError(r.error);
+    });
     setEngineerPool((prev) => [...prev, code].sort());
   };
 
@@ -244,19 +221,19 @@ export function ProgrammeTab() {
     onOpenCal: openCal,
     onSaveField: saveField,
     onContextMenu: openCtxMenu,
-    onOpenEngPinned: useMocks ? undefined : openEngPinned,
+    onOpenEngPinned: openEngPinned,
   };
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      {loadError && (
+      {initialLoadError && (
         <div className="border-border bg-status-critical-bg text-status-critical shrink-0 border-b px-4 py-2 text-sm">
-          {loadError}
+          {initialLoadError}
         </div>
       )}
       {saveError && (
         <div className="border-border bg-status-warning-bg text-status-warning shrink-0 border-b px-4 py-2 text-sm">
-          Could not save to Supabase: {saveError}
+          Could not save: {saveError}
         </div>
       )}
 
@@ -270,13 +247,9 @@ export function ProgrammeTab() {
       </div>
 
       <div className="relative flex-1 overflow-y-auto">
-        {loading && (
-          <div className="bg-card/80 text-muted-foreground absolute inset-0 z-20 flex items-center justify-center text-sm">
-            Loading programme…
-          </div>
-        )}
-        {!loading &&
-          present.map((node) => <ProgrammeRow key={node.id} node={node} depth={0} {...rowProps} />)}
+        {present.map((node) => (
+          <ProgrammeRow key={node.id} node={node} depth={0} {...rowProps} />
+        ))}
       </div>
 
       {ctxMenu && (

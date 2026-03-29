@@ -9,7 +9,7 @@ import {
   type ScopeEngineerRow,
 } from "./programmeTree";
 
-export async function fetchProgrammeFromSupabase(
+export async function loadProgrammeFromDb(
   client: SupabaseClient
 ): Promise<{ tree: ProgrammeNode[]; engineerPool: string[] } | { error: string }> {
   const [nodesRes, poolRes, engRes] = await Promise.all([
@@ -30,7 +30,7 @@ export async function fetchProgrammeFromSupabase(
   return { tree, engineerPool };
 }
 
-export async function syncProgrammeToSupabase(
+export async function saveProgrammeToDb(
   client: SupabaseClient,
   tree: ProgrammeNode[]
 ): Promise<string | null> {
@@ -69,7 +69,7 @@ export async function syncProgrammeToSupabase(
   return null;
 }
 
-export async function upsertEngineerPoolCode(
+export async function upsertEngineerPoolCodeInDb(
   client: SupabaseClient,
   code: string
 ): Promise<string | null> {
