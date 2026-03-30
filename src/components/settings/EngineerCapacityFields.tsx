@@ -1,5 +1,7 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 import { InlineEditableNumber } from "@/components/ui/InlineEditableNumber";
 import {
   CAPACITY_MAX_DAY,
@@ -17,30 +19,46 @@ function formatHourDisplay(value: number | null, placeholder: string): string {
   return String(value);
 }
 
+type CapacitySectionProps = { children: ReactNode };
+
+function CapacitySection({ children }: CapacitySectionProps) {
+  return (
+    <div className="border-border mt-4 border-t pt-4">
+      <p className="text-muted-foreground mb-1 text-xs font-medium tracking-wide uppercase">
+        Capacity (hours)
+      </p>
+      {children}
+    </div>
+  );
+}
+
+export type EngineerCapacityFieldsProps =
+  | {
+      readOnly: true;
+      capacityPerWeek: number | null;
+      capacityDays: EngineerCapacityDays;
+      disabled?: boolean;
+    }
+  | {
+      readOnly?: false;
+      capacityPerWeek: number | null;
+      capacityDays: EngineerCapacityDays;
+      disabled?: boolean;
+      onCapacityCommit: (
+        capacityPerWeek: number | null,
+        capacityDays: EngineerCapacityDays
+      ) => void;
+    };
+
 /**
  * Shared week + Mon–Fri capacity controls (settings add form and engineer rows).
  * Keeps layout and sync rules identical everywhere.
  */
-export function EngineerCapacityFields({
-  capacityPerWeek,
-  capacityDays,
-  disabled = false,
-  readOnly = false,
-  onCapacityCommit,
-}: {
-  capacityPerWeek: number | null;
-  capacityDays: EngineerCapacityDays;
-  disabled?: boolean;
-  /** Static display — same grid as edit, no inputs. */
-  readOnly?: boolean;
-  onCapacityCommit?: (capacityPerWeek: number | null, capacityDays: EngineerCapacityDays) => void;
-}) {
-  if (readOnly) {
+export function EngineerCapacityFields(props: EngineerCapacityFieldsProps) {
+  if (props.readOnly === true) {
+    const { capacityPerWeek, capacityDays } = props;
     return (
-      <div className="border-border mt-4 border-t pt-4">
-        <p className="text-muted-foreground mb-1 text-xs font-medium tracking-wide uppercase">
-          Capacity (hours)
-        </p>
+      <CapacitySection>
         <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
           <div className="w-[4.5rem] shrink-0">
             <span className="text-muted-foreground mb-0.5 block text-[10px] font-medium tracking-wide uppercase">
@@ -65,19 +83,14 @@ export function EngineerCapacityFields({
             </div>
           </div>
         </div>
-      </div>
+      </CapacitySection>
     );
   }
 
-  if (!onCapacityCommit) {
-    return null;
-  }
+  const { capacityPerWeek, capacityDays, disabled = false, onCapacityCommit } = props;
 
   return (
-    <div className="border-border mt-4 border-t pt-4">
-      <p className="text-muted-foreground mb-1 text-xs font-medium tracking-wide uppercase">
-        Capacity (hours)
-      </p>
+    <CapacitySection>
       <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
         <div className="w-[4.5rem] shrink-0">
           <span className="text-muted-foreground mb-0.5 block text-[10px] font-medium tracking-wide uppercase">
@@ -125,6 +138,6 @@ export function EngineerCapacityFields({
           </div>
         </div>
       </div>
-    </div>
+    </CapacitySection>
   );
 }
