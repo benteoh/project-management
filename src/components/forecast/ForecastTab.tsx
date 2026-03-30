@@ -162,7 +162,7 @@ export function ForecastTab({ projectId, initialEngineerPool, programmeTree }: F
     };
   }, [projectId]);
 
-  const dailyDates = generateDailyDates(startDate, END_DATE);
+  const dailyDates = useMemo(() => generateDailyDates(startDate, END_DATE), [startDate]);
 
   // All rows before filtering
   const allRows = useMemo(
