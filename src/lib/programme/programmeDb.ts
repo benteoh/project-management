@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { ProgrammeNode } from "@/components/programme/types";
-import type { ProgrammeNodeDbRow, ScopeEngineerDbRow } from "@/types/programme";
+import type { ProgrammeNodeDbRow } from "@/types/programme-node";
+import type { ScopeEngineerDbRow } from "@/types/scope-engineer";
 
 import { buildTreeFromRows, collectScopeIds, flattenTree } from "./programmeTree";
 

@@ -65,7 +65,7 @@ src/
 │   ├── globals.css             # Design system tokens (edit here, not inline)
 │   └── projects/[id]/          # Project detail page + tab shell
 ├── components/
-│   ├── ui/                     # shadcn primitives — do not edit these
+│   ├── ui/                     # shared primitives
 │   ├── programme/              # Programme tab components
 │   ├── forecast/               # Demand forecast tab components
 │   ├── charts/                 # Recharts wrappers
@@ -73,7 +73,6 @@ src/
 ├── types/                      # TypeScript types — single source of truth for data shapes
 │   ├── project.ts              # Project, Programme, Scope, Activity, ProjectRate
 │   ├── timesheet.ts            # TimesheetEntry, Engineer
-│   └── api.ts                  # API response shapes (ProjectCVR, ForecastEntry, etc.)
 ├── api/                        # Future: server-side logic
 │   ├── services/               # Business logic (CVR, EAC, hour rollups) — not yet in use
 │   └── db/                     # Supabase queries — not yet in use
@@ -82,8 +81,6 @@ src/
 │   ├── projects/               # Project header load (`projectDb.ts`)
 │   ├── supabase/               # Supabase client setup + env resolution
 │   └── utils.ts                # Pure utilities: formatCurrency, formatDate, cn
-data/                           # Real Excel/CSV files from DSP (gitignored)
-docs/                           # Design sketches, domain logic, feedback
 ```
 
 ---
@@ -101,6 +98,8 @@ These rules exist so the codebase stays clean and understandable as it grows. Th
 **One responsibility per file.** A file either defines types, holds seed/fixture data (e.g. `supabase/seed.ts`, `seedProgrammeData.ts`), performs calculations, or renders UI. Not more than one. Never put large hardcoded data arrays inside a component.
 
 **Types first.** Before writing a new component or function, check `src/types/` to see if the data shape already exists. If it doesn't, define it there before writing the component. This prevents duplicate or conflicting shapes emerging in different files.
+
+**Separate domain vs database types.** When data comes from Supabase, define two explicit shapes where needed: a domain/app type (camelCase, e.g. `Project`) and a DB row type (snake_case, suffixed `DbRow`, e.g. `ProjectDbRow`). Perform mapping at repository/DB boundary functions (e.g. `rowToProject`) so DB naming never leaks into UI/business code.
 
 **No raw hex colours.** Always use design system tokens (see Design System section). The only exception is Recharts, which requires inline colour strings — use `var(--color-chart-1)` etc.
 

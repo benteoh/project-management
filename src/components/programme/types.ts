@@ -1,11 +1,6 @@
-// ProgrammeNode is a UI view model for the programme tree.
-// It is NOT the same as the domain types in src/types/project.ts (Scope, Activity).
-// Domain types are flat; this tree model nests children for the interactive WBS grid.
-// Data is loaded and persisted via Supabase (`programme_nodes`, `scope_engineers`, `engineer_pool`).
+import type { ActivityStatus, ProgrammeNodeType } from "@/types/programme-node";
 
-export type NodeType = "scope" | "task" | "subtask" | "activity";
-
-export type ActivityStatus = "Not Started" | "In Progress" | "Completed" | "";
+export type NodeType = ProgrammeNodeType;
 
 export interface EngineerAllocation {
   code: string;

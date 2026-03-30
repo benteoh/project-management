@@ -1,13 +1,14 @@
 import type { ProgrammeNode } from "@/components/programme/types";
-import type { ProgrammeNodeDbRow, ScopeEngineerDbRow } from "@/types/programme";
+import type { ProgrammeNodeDbRow } from "@/types/programme-node";
+import type { ScopeEngineerDbRow, ScopeEngineerInsertRow } from "@/types/scope-engineer";
 
 export function flattenTree(
   nodes: ProgrammeNode[],
   projectId: string,
   parentId: string | null = null
-): { nodeRows: ProgrammeNodeDbRow[]; engineerRows: ScopeEngineerDbRow[] } {
+): { nodeRows: ProgrammeNodeDbRow[]; engineerRows: ScopeEngineerInsertRow[] } {
   const nodeRows: ProgrammeNodeDbRow[] = [];
-  const engineerRows: ScopeEngineerDbRow[] = [];
+  const engineerRows: ScopeEngineerInsertRow[] = [];
 
   nodes.forEach((node, position) => {
     nodeRows.push({
@@ -76,7 +77,7 @@ export function buildTreeFromRows(
       start: r.start_date ?? "",
       finish: r.finish_date ?? "",
       forecastTotalHours: r.forecast_total_hours !== null ? Number(r.forecast_total_hours) : null,
-      status: r.status as ProgrammeNode["status"],
+      status: r.status,
       children: [],
     };
 
