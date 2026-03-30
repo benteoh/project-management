@@ -1,4 +1,6 @@
 import { ChevronRight, ChevronDown } from "lucide-react";
+import type { EngineerPoolEntry } from "@/types/engineer-pool";
+
 import { ProgrammeNode, EditableField, EditingCell } from "./types";
 import { StatusBadge } from "./StatusBadge";
 import { EngineerChip } from "./EngineerChip";
@@ -7,6 +9,7 @@ import { getScopeNumberFromName } from "./treeUtils";
 interface ProgrammeRowProps {
   node: ProgrammeNode;
   depth: number;
+  engineerPool: EngineerPoolEntry[];
   /** e.g. "11.2" for tasks/subtasks under numbered scopes */
   namePrefix?: string;
   collapsed: Set<string>;
@@ -41,6 +44,7 @@ const HOVER_CLS = "cursor-pointer rounded px-0.5 py-0.5 hover:bg-black/[.06]";
 export function ProgrammeRow({
   node,
   depth,
+  engineerPool,
   namePrefix,
   collapsed,
   editingCell,
@@ -135,6 +139,7 @@ export function ProgrammeRow({
           {node.type === "scope" && onOpenEngPinned && (
             <EngineerChip
               engineers={node.engineers ?? []}
+              engineerPool={engineerPool}
               onClick={(e) => onOpenEngPinned(node.id, e)}
             />
           )}
@@ -243,6 +248,7 @@ export function ProgrammeRow({
                 key={child.id}
                 node={child}
                 depth={depth + 1}
+                engineerPool={engineerPool}
                 namePrefix={childNamePrefix}
                 collapsed={collapsed}
                 editingCell={editingCell}

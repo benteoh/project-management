@@ -30,7 +30,7 @@ export function flattenTree(
       node.engineers.forEach((eng, i) => {
         engineerRows.push({
           scope_id: node.id,
-          engineer_code: eng.code,
+          engineer_id: eng.engineerId,
           is_lead: eng.isLead,
           planned_hrs: eng.plannedHrs,
           forecast_hrs: eng.forecastHrs,
@@ -86,7 +86,7 @@ export function buildTreeFromRows(
         .filter((e) => e.scope_id === r.id)
         .sort((a, b) => a.position - b.position);
       node.engineers = eng.map((e) => ({
-        code: e.engineer_code,
+        engineerId: e.engineer_id,
         isLead: e.is_lead,
         plannedHrs: e.planned_hrs !== null ? Number(e.planned_hrs) : null,
         forecastHrs: e.forecast_hrs !== null ? Number(e.forecast_hrs) : null,

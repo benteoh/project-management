@@ -5,6 +5,7 @@ import { useCallback, useState } from "react";
 import { ProgrammeTab } from "@/components/programme/ProgrammeTab";
 import type { ProgrammeNode } from "@/components/programme/types";
 import { formatDate } from "@/lib/utils";
+import type { EngineerPoolEntry } from "@/types/engineer-pool";
 import type { Project } from "@/types/project";
 
 import { addEngineerToPoolAction, saveProgrammeAction } from "./actions";
@@ -28,7 +29,7 @@ export default function ProjectPageClient({
   project: Project | null;
   projectLoadError: string | null;
   initialProgrammeTree: ProgrammeNode[];
-  initialEngineerPool: string[];
+  initialEngineerPool: EngineerPoolEntry[];
   programmeLoadError: string | null;
 }) {
   const [activeTab, setActiveTab] = useState<Tab>("Programme");

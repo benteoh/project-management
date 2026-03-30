@@ -1,4 +1,5 @@
 import type { ProgrammeNode } from "@/components/programme/types";
+import type { EngineerPoolEntry } from "@/types/engineer-pool";
 import type { Project } from "@/types/project";
 import { loadProjectById } from "@/lib/projects/projectDb";
 import { createSupabaseProgrammeRepository } from "@/lib/programme/supabaseProgrammeRepository";
@@ -14,7 +15,7 @@ export default async function ProjectPage({ params }: Props) {
   let projectLoadError: string | null = null;
   let project: Project | null = null;
   let initialProgrammeTree: ProgrammeNode[] = [];
-  let initialEngineerPool: string[] = [];
+  let initialEngineerPool: EngineerPoolEntry[] = [];
 
   try {
     const client = createServerSupabaseClient();

@@ -1,9 +1,10 @@
 import type { ActivityStatus, ProgrammeNodeType } from "@/types/programme-node";
 
+export type { ActivityStatus };
 export type NodeType = ProgrammeNodeType;
 
 export interface EngineerAllocation {
-  code: string;
+  engineerId: string;
   isLead: boolean;
   plannedHrs: number | null;
   forecastHrs: number | null;

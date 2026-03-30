@@ -1,6 +1,6 @@
 import type { ProjectUpsertRow } from "@/types/project";
 
-import { seedProgrammeData } from "./seedProgrammeData";
+import { buildProgrammeNodesFromSeed, seedProgrammeData } from "./seedProgrammeData";
 
 /** Primary key for the sample project (`/projects/1`, seed WBS). */
 export const SEED_PROJECT_ID = "1" as const;
@@ -46,5 +46,5 @@ export const SEED_ENGINEER_CODES = [
   "TSc",
 ].sort() as readonly string[];
 
-/** WBS tree for {@link SEED_PROJECT_ID} — persisted to `programme_nodes` with that `project_id`. */
-export { seedProgrammeData };
+/** Raw WBS (codes in scope engineers); use {@link buildProgrammeNodesFromSeed} after pool seed. */
+export { buildProgrammeNodesFromSeed, seedProgrammeData };

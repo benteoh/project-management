@@ -2,13 +2,21 @@
 
 import { Plus } from "lucide-react";
 
+import type { EngineerPoolEntry } from "@/types/engineer-pool";
+
 import type { EngineerAllocation } from "./types";
+
+function codeForEngineer(pool: EngineerPoolEntry[], engineerId: string): string {
+  return pool.find((p) => p.id === engineerId)?.code ?? engineerId;
+}
 
 export function EngineerChip({
   engineers,
+  engineerPool,
   onClick,
 }: {
   engineers: EngineerAllocation[];
+  engineerPool: EngineerPoolEntry[];
   onClick: (e: React.MouseEvent<HTMLDivElement>) => void;
 }) {
   if (engineers.length === 0) {
@@ -29,10 +37,10 @@ export function EngineerChip({
       title="Click to edit engineer allocation"
     >
       {engineers.map((eng, i) => (
-        <span key={i}>
+        <span key={eng.engineerId}>
           {i > 0 && <span className="text-border mx-0.5">,</span>}
           <span className={eng.isLead ? "text-foreground font-bold" : "text-muted-foreground"}>
-            {eng.code}
+            {codeForEngineer(engineerPool, eng.engineerId)}
           </span>
         </span>
       ))}

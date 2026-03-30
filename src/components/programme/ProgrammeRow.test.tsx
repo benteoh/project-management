@@ -20,6 +20,7 @@ const node: ProgrammeNode = {
 
 const baseProps = {
   depth: 0,
+  engineerPool: [] as { id: string; code: string }[],
   collapsed: new Set<string>(),
   editingCell: null,
   onToggleCollapse: vi.fn(),

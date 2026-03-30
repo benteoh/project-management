@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { randomUUID } from "node:crypto";
 
 import type { ProgrammeNode } from "@/components/programme/types";
+import type { EngineerPoolEntry } from "@/types/engineer-pool";
 import type { ProgrammeNodeDbRow } from "@/types/programme-node";
 import type { ScopeEngineerDbRow } from "@/types/scope-engineer";
 
@@ -9,10 +11,10 @@ import { buildTreeFromRows, collectScopeIds, flattenTree } from "./programmeTree
 export async function loadProgrammeFromDb(
   client: SupabaseClient,
   projectId: string
-): Promise<{ tree: ProgrammeNode[]; engineerPool: string[] } | { error: string }> {
+): Promise<{ tree: ProgrammeNode[]; engineerPool: EngineerPoolEntry[] } | { error: string }> {
   const [nodesRes, poolRes] = await Promise.all([
     client.from("programme_nodes").select("*").eq("project_id", projectId),
-    client.from("engineer_pool").select("code").eq("is_active", true),
+    client.from("engineer_pool").select("id, code").eq("is_active", true),
   ]);
 
   if (nodesRes.error) return { error: nodesRes.error.message };
@@ -30,7 +32,9 @@ export async function loadProgrammeFromDb(
 
   const engineerRows = (engRes.data ?? []) as ScopeEngineerDbRow[];
   const tree = buildTreeFromRows(rows, engineerRows);
-  const engineerPool = (poolRes.data ?? []).map((r) => r.code as string).sort();
+  const engineerPool = (poolRes.data ?? [])
+    .map((r) => ({ id: r.id as string, code: r.code as string }))
+    .sort((a, b) => a.code.localeCompare(b.code));
 
   return { tree, engineerPool };
 }
@@ -82,8 +86,18 @@ export async function upsertEngineerPoolCodeInDb(
   client: SupabaseClient,
   code: string
 ): Promise<string | null> {
-  const { error } = await client
-    .from("engineer_pool")
-    .upsert({ code, is_active: true }, { onConflict: "code" });
+  const normalizedCode = code.trim();
+  if (!normalizedCode) return "Engineer code is required.";
+
+  const { error } = await client.from("engineer_pool").upsert(
+    {
+      id: randomUUID(),
+      code: normalizedCode,
+      first_name: normalizedCode,
+      last_name: "",
+      is_active: true,
+    },
+    { onConflict: "code", ignoreDuplicates: true }
+  );
   return error?.message ?? null;
 }

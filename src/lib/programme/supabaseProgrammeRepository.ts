@@ -2,8 +2,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { ProgrammeNode } from "@/components/programme/types";
 
+import { getEngineerByCodeFromDb } from "@/lib/engineers/engineerDb";
+
 import { loadProgrammeFromDb, saveProgrammeToDb, upsertEngineerPoolCodeInDb } from "./programmeDb";
 import type {
+  AddEngineerToPoolResult,
   MutationResult,
   ProgrammeLoadResult,
   ProgrammeRepository,
@@ -26,10 +29,12 @@ export function createSupabaseProgrammeRepository(
       return { ok: true };
     },
 
-    async addEngineerToPool(code: string): Promise<MutationResult> {
+    async addEngineerToPool(code: string): Promise<AddEngineerToPoolResult> {
       const err = await upsertEngineerPoolCodeInDb(client, code.trim());
       if (err) return { ok: false, error: err };
-      return { ok: true };
+      const eng = await getEngineerByCodeFromDb(client, code.trim());
+      if ("error" in eng) return { ok: false, error: eng.error };
+      return { ok: true, engineer: eng.engineer };
     },
   };
 }

@@ -1,17 +1,25 @@
 import type { EngineerAllocation, ProgrammeNode } from "@/components/programme/types";
 
-const e = (code: string, isLead = false): EngineerAllocation => ({
+type SeedAlloc = { code: string; isLead: boolean; plannedHrs: null; forecastHrs: null };
+
+const e = (code: string, isLead = false): SeedAlloc => ({
   code,
   isLead,
   plannedHrs: null,
   forecastHrs: null,
 });
 
+export type SeedProgrammeNode = Omit<ProgrammeNode, "children" | "engineers"> & {
+  children: SeedProgrammeNode[];
+  engineers?: SeedAlloc[];
+};
+
 /**
  * Static WBS for the sample project (`SEED_PROJECT_ID` in `seedConfig.ts`).
+ * Engineer rows use codes; `buildProgrammeNodesFromSeed` maps codes to `engineer_pool.id`.
  * Used only by `npm run seed` — the app loads the tree from Supabase.
  */
-export const seedProgrammeData: ProgrammeNode[] = [
+export const seedProgrammeData: SeedProgrammeNode[] = [
   {
     id: "s11",
     name: "11. CGMM - Early Design Workstream",
@@ -1510,3 +1518,28 @@ export const seedProgrammeData: ProgrammeNode[] = [
     ],
   },
 ];
+
+export function buildProgrammeNodesFromSeed(codeToId: Map<string, string>): ProgrammeNode[] {
+  function mapAlloc(a: SeedAlloc): EngineerAllocation {
+    const engineerId = codeToId.get(a.code);
+    if (!engineerId) {
+      throw new Error(`Seed data references unknown engineer code: ${a.code}`);
+    }
+    return {
+      engineerId,
+      isLead: a.isLead,
+      plannedHrs: a.plannedHrs,
+      forecastHrs: a.forecastHrs,
+    };
+  }
+
+  function mapNode(n: SeedProgrammeNode): ProgrammeNode {
+    return {
+      ...n,
+      engineers: n.engineers?.map(mapAlloc),
+      children: n.children.map(mapNode),
+    };
+  }
+
+  return seedProgrammeData.map(mapNode);
+}
