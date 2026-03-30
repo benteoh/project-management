@@ -1,5 +1,8 @@
 export type ProjectStatus = "active" | "complete" | "bid" | "on_hold";
 
+/** Shared project primitives + domain and DB contracts. */
+
+/** App/domain shape used by pages and components (camelCase). */
 export interface Project {
   id: string;
   name: string;
@@ -11,7 +14,7 @@ export interface Project {
   endDate: string;
 }
 
-/** Row shape for `public.projects` (Supabase). */
+/** Raw row shape for `public.projects` (snake_case from Supabase). */
 export interface ProjectDbRow {
   id: string;
   name: string;
@@ -24,76 +27,14 @@ export interface ProjectDbRow {
   updated_at?: string;
 }
 
-/**
- * Programme: the entire scoping of a project.
- * Contains scopes, which contain activities.
- *
- * Hierarchy: Programme → Scope → Activity
- *
- * A Programme belongs to a Project (1:1).
- *
- * Note: the interactive WBS lives in `programme_nodes` (`ProgrammeNodeDbRow` in
- * `src/types/programme.ts`), keyed by `project_id` — there is no separate `programmes` table yet.
- */
-export interface Programme {
+/** Insert/upsert payload shape for `public.projects`. */
+export interface ProjectUpsertRow {
   id: string;
-  projectId: string;
   name: string;
-  description: string | null;
-}
-
-/**
- * Scope: a high-level breakdown item within a programme.
- * e.g. "Network Rail Boiler Room", "Endwalls Design"
- *
- * Has a total duration split across engineers.
- */
-export interface Scope {
-  id: string;
-  programmeId: string;
-  title: string;
-  startDate: string;
-  endDate: string;
-  estimatedHours: number;
-  actualHours: number;
-  progress: number; // 0-100
-  sortOrder: number;
-  status: "not_started" | "in_progress" | "complete";
-}
-
-/**
- * Activity: a task or piece of work within a scope.
- * e.g. "Removal of infill panels", "Understand existing structure"
- *
- * The lowest level of breakdown. Engineers log time against activities.
- */
-export interface Activity {
-  id: string;
-  scopeId: string;
-  title: string;
-  startDate: string;
-  endDate: string;
-  estimatedHours: number;
-  actualHours: number;
-  progress: number; // 0-100
-  isComplete: boolean;
-  sortOrder: number;
-  activityType:
-    | "concept_design"
-    | "detailed_design"
-    | "technical_review"
-    | "cad"
-    | "workshop"
-    | "report"
-    | "site_visit"
-    | "other";
-  complexity: "simple" | "standard" | "complex";
-}
-
-export interface ProjectRate {
-  id: string;
-  projectId: string;
-  role: string;
-  engineerId: string | null;
-  ratePerHour: number;
+  client: string;
+  office: string;
+  status: ProjectStatus;
+  fixed_fee: number;
+  start_date: string;
+  end_date: string;
 }

@@ -1,4 +1,4 @@
-import type { ProjectDbRow } from "@/types/project";
+import type { ProjectUpsertRow } from "@/types/project";
 
 import { seedProgrammeData } from "./seedProgrammeData";
 
@@ -6,7 +6,7 @@ import { seedProgrammeData } from "./seedProgrammeData";
 export const SEED_PROJECT_ID = "1" as const;
 
 /** Sample project row for `public.projects`. */
-export const seedProjectRow: ProjectDbRow = {
+export const seedProjectRow: ProjectUpsertRow = {
   id: SEED_PROJECT_ID,
   name: "Euston Underground",
   client: "HS2 Ltd",
