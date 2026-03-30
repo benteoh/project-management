@@ -2,7 +2,9 @@
 
 import { randomUUID } from "node:crypto";
 
+import { reconcileCapacityForSave } from "@/lib/engineers/engineerCapacity";
 import {
+  allocateUniqueEngineerCodeInDb,
   createEngineerInDb,
   deleteEngineerInDb,
   listEngineersFromDb,
@@ -24,10 +26,6 @@ function capacityToDb(c: EngineerCapacityPayload) {
   };
 }
 
-function normalizeCode(code: string): string {
-  return code.trim();
-}
-
 function normalizeName(name: string): string {
   return name.trim();
 }
@@ -40,27 +38,33 @@ export async function loadEngineersAction(): Promise<EngineersResult> {
 
 export async function createEngineerAction(
   input: {
-    code: string;
     firstName: string;
     lastName: string;
     isActive: boolean;
   } & EngineerCapacityPayload
 ): Promise<EngineersResult> {
-  const code = normalizeCode(input.code);
   const firstName = normalizeName(input.firstName);
   const lastName = normalizeName(input.lastName);
-  if (!code || !firstName || !lastName) {
-    return { ok: false, error: "Code, first name, and last name are required." };
+  if (!firstName || !lastName) {
+    return { ok: false, error: "First name and last name are required." };
   }
 
   const client = createServerSupabaseClient();
+  const allocated = await allocateUniqueEngineerCodeInDb(client, firstName, lastName);
+  if ("error" in allocated) return { ok: false, error: allocated.error };
+
+  const cap = reconcileCapacityForSave(input.capacityPerWeek, input.capacityDays);
+
   const createRes = await createEngineerInDb(client, {
     id: randomUUID(),
-    code,
+    code: allocated.code,
     first_name: firstName,
     last_name: lastName,
     is_active: input.isActive,
-    ...capacityToDb(input),
+    ...capacityToDb({
+      capacityPerWeek: cap.capacityPerWeek,
+      capacityDays: cap.capacityDays,
+    }),
   });
   if ("error" in createRes) return { ok: false, error: createRes.error };
   return loadEngineersAction();
@@ -69,26 +73,34 @@ export async function createEngineerAction(
 export async function updateEngineerAction(
   input: {
     id: string;
-    code: string;
     firstName: string;
     lastName: string;
     isActive: boolean;
   } & EngineerCapacityPayload
 ): Promise<EngineersResult> {
-  const code = normalizeCode(input.code);
   const firstName = normalizeName(input.firstName);
   const lastName = normalizeName(input.lastName);
-  if (!input.id || !code || !firstName || !lastName) {
-    return { ok: false, error: "Engineer id, code, first name, and last name are required." };
+  if (!input.id || !firstName || !lastName) {
+    return { ok: false, error: "Engineer id, first name, and last name are required." };
   }
 
   const client = createServerSupabaseClient();
+  const allocated = await allocateUniqueEngineerCodeInDb(client, firstName, lastName, {
+    excludeEngineerId: input.id,
+  });
+  if ("error" in allocated) return { ok: false, error: allocated.error };
+
+  const cap = reconcileCapacityForSave(input.capacityPerWeek, input.capacityDays);
+
   const updateRes = await updateEngineerInDb(client, input.id, {
-    code,
+    code: allocated.code,
     first_name: firstName,
     last_name: lastName,
     is_active: input.isActive,
-    ...capacityToDb(input),
+    ...capacityToDb({
+      capacityPerWeek: cap.capacityPerWeek,
+      capacityDays: cap.capacityDays,
+    }),
   });
   if ("error" in updateRes) return { ok: false, error: updateRes.error };
   return loadEngineersAction();

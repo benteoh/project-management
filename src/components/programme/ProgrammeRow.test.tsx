@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
+import type { EngineerPoolEntry } from "@/types/engineer-pool";
+
 import { ProgrammeRow } from "./ProgrammeRow";
 import { ProgrammeNode } from "./types";
 
@@ -20,7 +22,7 @@ const node: ProgrammeNode = {
 
 const baseProps = {
   depth: 0,
-  engineerPool: [] as { id: string; code: string }[],
+  engineerPool: [] as EngineerPoolEntry[],
   collapsed: new Set<string>(),
   editingCell: null,
   onToggleCollapse: vi.fn(),

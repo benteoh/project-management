@@ -1,12 +1,13 @@
 "use client";
 
-import { Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-import { InlineEditableNumber } from "@/components/ui/InlineEditableNumber";
-import { InlineEditableText } from "@/components/ui/InlineEditableText";
+import { SUBTLE_FORM_INPUT_CLASS } from "@/components/ui/InlineEditableText";
+import { cn } from "@/lib/utils";
+import { cloneCapacityDays } from "@/lib/engineers/engineerCapacity";
 import type { Engineer, EngineerCapacityDays } from "@/types/engineer-pool";
 
+import { EngineerCapacityFields } from "./EngineerCapacityFields";
 import type { EngineerUpdatePayload } from "./types";
 
 function numEq(a: number | null, b: number | null): boolean {
@@ -22,169 +23,240 @@ function capacityDaysEq(a: EngineerCapacityDays, b: EngineerCapacityDays): boole
   return true;
 }
 
-const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri"] as const;
-
 function cloneDays(d: EngineerCapacityDays): EngineerCapacityDays {
-  return [d[0], d[1], d[2], d[3], d[4]];
+  return cloneCapacityDays(d);
+}
+
+type Draft = Omit<EngineerUpdatePayload, "id">;
+
+function engineerToDraft(e: Engineer): Draft {
+  return {
+    firstName: e.firstName,
+    lastName: e.lastName,
+    isActive: e.isActive,
+    capacityPerWeek: e.capacityPerWeek,
+    capacityDays: cloneDays(e.capacityDays),
+  };
+}
+
+function payloadDirty(engineer: Engineer, payload: EngineerUpdatePayload): boolean {
+  return !(
+    payload.firstName === engineer.firstName &&
+    payload.lastName === engineer.lastName &&
+    payload.isActive === engineer.isActive &&
+    numEq(payload.capacityPerWeek, engineer.capacityPerWeek) &&
+    capacityDaysEq(payload.capacityDays, engineer.capacityDays)
+  );
 }
 
 export function EngineerRow({
   engineer,
   isPending,
   onUpdate,
-  onDelete,
 }: {
   engineer: Engineer;
   isPending: boolean;
   onUpdate: (payload: EngineerUpdatePayload) => void;
-  onDelete: (id: string) => void;
 }) {
-  const [code, setCode] = useState(engineer.code);
-  const [firstName, setFirstName] = useState(engineer.firstName);
-  const [lastName, setLastName] = useState(engineer.lastName);
-  const [isActive, setIsActive] = useState(engineer.isActive);
-  const [capacityPerWeek, setCapacityPerWeek] = useState(engineer.capacityPerWeek);
-  const [capacityDays, setCapacityDays] = useState<EngineerCapacityDays>(() =>
-    cloneDays(engineer.capacityDays)
-  );
+  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState<Draft>(() => engineerToDraft(engineer));
 
-  useEffect(() => {
-    setCode(engineer.code);
-    setFirstName(engineer.firstName);
-    setLastName(engineer.lastName);
-    setIsActive(engineer.isActive);
-    setCapacityPerWeek(engineer.capacityPerWeek);
-    setCapacityDays(cloneDays(engineer.capacityDays));
+  const startEdit = useCallback(() => {
+    setDraft(engineerToDraft(engineer));
+    setIsEditing(true);
   }, [engineer]);
 
-  const toPayload = (): EngineerUpdatePayload => ({
-    id: engineer.id,
-    code,
-    firstName,
-    lastName,
-    isActive,
-    capacityPerWeek,
-    capacityDays: cloneDays(capacityDays),
-  });
+  const cancelEdit = useCallback(() => {
+    setDraft(engineerToDraft(engineer));
+    setIsEditing(false);
+  }, [engineer]);
 
-  const saveIfChanged = (payload: EngineerUpdatePayload) => {
-    if (
-      payload.code === engineer.code &&
-      payload.firstName === engineer.firstName &&
-      payload.lastName === engineer.lastName &&
-      payload.isActive === engineer.isActive &&
-      numEq(payload.capacityPerWeek, engineer.capacityPerWeek) &&
-      capacityDaysEq(payload.capacityDays, engineer.capacityDays)
-    ) {
-      return;
+  const toPayload = useCallback(
+    (d: Draft): EngineerUpdatePayload => ({
+      id: engineer.id,
+      firstName: d.firstName,
+      lastName: d.lastName,
+      isActive: d.isActive,
+      capacityPerWeek: d.capacityPerWeek,
+      capacityDays: cloneDays(d.capacityDays),
+    }),
+    [engineer.id]
+  );
+
+  const saveEdit = useCallback(() => {
+    const payload = toPayload(draft);
+    if (payloadDirty(engineer, payload)) {
+      onUpdate(payload);
     }
-    onUpdate(payload);
-  };
+    setIsEditing(false);
+  }, [draft, engineer, onUpdate, toPayload]);
 
-  return (
-    <div className="border-border bg-card/40 shadow-card rounded-lg border p-4">
-      <div className="flex flex-wrap gap-x-8 gap-y-5">
-        <InlineEditableText
-          label="Code"
-          value={code}
-          disabled={isPending}
-          placeholder="Code"
-          className="min-w-[min(100%,10rem)] flex-[1_1_160px]"
-          onCommit={(next) => {
-            setCode(next);
-            saveIfChanged({ ...toPayload(), code: next });
-          }}
-        />
-        <InlineEditableText
-          label="First name"
-          value={firstName}
-          disabled={isPending}
-          placeholder="First name"
-          className="min-w-[min(100%,10rem)] flex-[1_1_180px]"
-          onCommit={(next) => {
-            setFirstName(next);
-            saveIfChanged({ ...toPayload(), firstName: next });
-          }}
-        />
-        <InlineEditableText
-          label="Last name"
-          value={lastName}
-          disabled={isPending}
-          placeholder="Last name"
-          className="min-w-[min(100%,10rem)] flex-[1_1_180px]"
-          onCommit={(next) => {
-            setLastName(next);
-            saveIfChanged({ ...toPayload(), lastName: next });
-          }}
-        />
-      </div>
+  useEffect(() => {
+    if (!isEditing) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        cancelEdit();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isEditing, cancelEdit]);
 
-      <div className="border-border mt-5 border-t pt-5">
-        <p className="text-muted-foreground mb-3 text-xs font-medium tracking-wide uppercase">
-          Capacity (hours)
+  const nameBlock = (opts: { label: string; value: string; onChange?: (v: string) => void }) => (
+    <div className="min-w-[min(100%,10rem)] flex-[1_1_180px]">
+      <span className="text-muted-foreground mb-1 block text-xs font-medium tracking-wide uppercase">
+        {opts.label}
+      </span>
+      {opts.onChange ? (
+        <input
+          type="text"
+          className={SUBTLE_FORM_INPUT_CLASS}
+          value={opts.value}
+          disabled={isPending}
+          onChange={(e) => opts.onChange!(e.target.value)}
+          aria-label={opts.label}
+        />
+      ) : (
+        <p
+          className={cn(
+            "px-2 py-1.5 text-sm",
+            opts.value.trim() ? "text-foreground" : "text-muted-foreground"
+          )}
+        >
+          {opts.value.trim() || "—"}
         </p>
-        <div className="flex flex-wrap items-end gap-x-6 gap-y-4">
-          <InlineEditableNumber
-            label="Per week"
-            value={capacityPerWeek}
-            disabled={isPending}
-            placeholder="—"
-            className="min-w-[min(100%,7rem)] flex-[0_1_120px]"
-            onCommit={(next) => {
-              setCapacityPerWeek(next);
-              saveIfChanged({ ...toPayload(), capacityPerWeek: next });
-            }}
-          />
-          <div className="min-w-0 flex-[1_1_280px]">
-            <span className="text-muted-foreground mb-1 block text-xs font-medium tracking-wide uppercase">
-              Per weekday
+      )}
+    </div>
+  );
+
+  if (!isEditing) {
+    return (
+      <div
+        role="button"
+        tabIndex={0}
+        aria-label={`Edit engineer ${engineer.firstName} ${engineer.lastName}`}
+        className={cn(
+          "border-border bg-card/40 shadow-card rounded-lg border p-4 text-left transition-colors",
+          "hover:bg-card/70 focus-visible:ring-ring/40 cursor-pointer focus-visible:ring-2 focus-visible:outline-none"
+        )}
+        onClick={startEdit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            startEdit();
+          }
+        }}
+      >
+        <div className="flex flex-wrap items-start gap-x-6 gap-y-4">
+          <div className="w-[3.25rem] shrink-0">
+            <span className="text-muted-foreground mb-0.5 block text-[10px] font-medium tracking-wide uppercase">
+              Code
             </span>
-            <div className="flex flex-wrap gap-2">
-              {WEEKDAY_LABELS.map((day, i) => (
-                <InlineEditableNumber
-                  key={day}
-                  label={day}
-                  value={capacityDays[i]}
-                  disabled={isPending}
-                  placeholder="—"
-                  className="min-w-[3.25rem] flex-1 basis-[3.25rem]"
-                  onCommit={(next) => {
-                    const nextDays: EngineerCapacityDays = cloneDays(capacityDays);
-                    nextDays[i] = next;
-                    setCapacityDays(nextDays);
-                    saveIfChanged({ ...toPayload(), capacityDays: nextDays });
-                  }}
-                />
-              ))}
-            </div>
+            <p
+              className="text-foreground truncate px-0 py-0.5 text-xs leading-tight tabular-nums"
+              title={`${engineer.code} — derived from name; not editable`}
+            >
+              {engineer.code}
+            </p>
           </div>
+          {nameBlock({
+            label: "First name",
+            value: engineer.firstName,
+          })}
+          {nameBlock({
+            label: "Last name",
+            value: engineer.lastName,
+          })}
+        </div>
+
+        <EngineerCapacityFields
+          readOnly
+          capacityPerWeek={engineer.capacityPerWeek}
+          capacityDays={engineer.capacityDays}
+        />
+
+        <div className="border-border mt-4 flex flex-wrap items-center gap-3 border-t pt-4">
+          <span className="text-muted-foreground text-sm">
+            {engineer.isActive ? (
+              <span className="text-foreground">Active</span>
+            ) : (
+              <span>Inactive</span>
+            )}
+          </span>
         </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="border-border bg-card shadow-card ring-ring/20 rounded-lg border p-4 ring-1">
+      <div className="flex flex-wrap items-start gap-x-6 gap-y-4">
+        <div className="w-[3.25rem] shrink-0">
+          <span className="text-muted-foreground mb-0.5 block text-[10px] font-medium tracking-wide uppercase">
+            Code
+          </span>
+          <p
+            className="text-foreground truncate px-0 py-0.5 text-xs leading-tight tabular-nums"
+            title={`${engineer.code} — derived from name; not editable`}
+          >
+            {engineer.code}
+          </p>
+        </div>
+        {nameBlock({
+          label: "First name",
+          value: draft.firstName,
+          onChange: (v) => setDraft((d) => ({ ...d, firstName: v })),
+        })}
+        {nameBlock({
+          label: "Last name",
+          value: draft.lastName,
+          onChange: (v) => setDraft((d) => ({ ...d, lastName: v })),
+        })}
+      </div>
+
+      <EngineerCapacityFields
+        capacityPerWeek={draft.capacityPerWeek}
+        capacityDays={draft.capacityDays}
+        disabled={isPending}
+        onCapacityCommit={(capacityPerWeek, capacityDays) =>
+          setDraft((d) => ({
+            ...d,
+            capacityPerWeek,
+            capacityDays: cloneDays(capacityDays),
+          }))
+        }
+      />
 
       <div className="border-border mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
         <label className="text-muted-foreground flex cursor-pointer items-center gap-2 text-sm">
           <input
             type="checkbox"
             className="border-border rounded"
-            checked={isActive}
+            checked={draft.isActive}
             disabled={isPending}
-            onChange={(e) => {
-              const next = e.target.checked;
-              setIsActive(next);
-              saveIfChanged({ ...toPayload(), isActive: next });
-            }}
+            onChange={(e) => setDraft((d) => ({ ...d, isActive: e.target.checked }))}
           />
           Active
         </label>
-        <button
-          type="button"
-          disabled={isPending}
-          onClick={() => onDelete(engineer.id)}
-          className="text-status-critical border-border hover:bg-status-critical-bg inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium disabled:opacity-60"
-        >
-          <Trash2 size={14} strokeWidth={2} aria-hidden />
-          Remove
-        </button>
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={cancelEdit}
+            className="text-muted-foreground hover:text-foreground rounded-md px-2 py-1.5 text-sm disabled:opacity-60"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={saveEdit}
+            className="bg-primary text-primary-foreground rounded-md px-4 py-2 text-sm font-medium disabled:opacity-60"
+          >
+            Save
+          </button>
+        </div>
       </div>
     </div>
   );

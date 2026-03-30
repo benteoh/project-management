@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { deriveEngineerCodeBase } from "@/lib/engineers/engineerCode";
 import type {
   Engineer,
   EngineerCapacityDays,
@@ -50,6 +51,36 @@ export async function listEngineersFromDb(
 
   if (error) return { error: error.message };
   return { engineers: ((data ?? []) as EngineerDbRow[]).map(rowToEngineer) };
+}
+
+/**
+ * Picks a unique `engineer_pool.code`: base from names, then `base1`, `base2`, … if needed.
+ */
+export async function allocateUniqueEngineerCodeInDb(
+  client: SupabaseClient,
+  firstName: string,
+  lastName: string,
+  options?: { excludeEngineerId?: string }
+): Promise<{ code: string } | { error: string }> {
+  const base = deriveEngineerCodeBase(firstName, lastName);
+
+  const { data, error } = await client.from("engineer_pool").select("id, code");
+  if (error) return { error: error.message };
+
+  const taken = new Set(
+    (data ?? [])
+      .filter((r: { id: string }) => r.id !== options?.excludeEngineerId)
+      .map((r: { code: string }) => r.code)
+  );
+
+  if (!taken.has(base)) return { code: base };
+
+  for (let n = 1; n < 10_000; n++) {
+    const candidate = `${base}${n}`;
+    if (!taken.has(candidate)) return { code: candidate };
+  }
+
+  return { error: "Could not allocate a unique engineer code." };
 }
 
 export async function getEngineerByCodeFromDb(
