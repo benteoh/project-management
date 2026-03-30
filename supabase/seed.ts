@@ -9,18 +9,16 @@ import { fileURLToPath } from "node:url";
 
 import { createClient } from "@supabase/supabase-js";
 
+import { weeklyHoursToFiveDays } from "../src/lib/engineers/engineerCapacity";
+import { deriveEngineerCodeBase } from "../src/lib/engineers/engineerCode";
 import { flattenTree } from "../src/lib/programme/programmeTree";
 import {
   buildProgrammeNodesFromSeed,
-  SEED_ENGINEER_CODES,
+  SEED_ENGINEER_ROWS,
   SEED_PROJECT_ID,
   seedProjectRow,
 } from "../src/lib/programme/seedConfig";
 import { resolveSupabaseEnvConfig } from "../src/lib/supabase/resolve-config";
-import {
-  DEFAULT_CAPACITY_PER_WEEK,
-  DEFAULT_ENGINEER_CAPACITY_DAYS,
-} from "../src/types/engineer-pool";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 config({ path: resolve(__dirname, "..", ".env.local"), quiet: true });
@@ -38,28 +36,36 @@ async function seed() {
   if (projectErr) throw new Error(`projects: ${projectErr.message}`);
   console.log("✓ project");
 
-  const { error: poolErr } = await supabase.from("engineer_pool").upsert(
-    [...SEED_ENGINEER_CODES].map((code) => ({
-      id: randomUUID(),
-      code,
-      first_name: code,
-      last_name: "",
-      is_active: true,
-      capacity_per_week: DEFAULT_CAPACITY_PER_WEEK,
-      capacity_days: [...DEFAULT_ENGINEER_CAPACITY_DAYS],
-    })),
-    { onConflict: "code" }
-  );
-  if (poolErr) throw new Error(`engineer_pool: ${poolErr.message}`);
-  console.log(`✓ ${SEED_ENGINEER_CODES.length} engineers`);
-
-  const { data: poolRows, error: poolSelectErr } = await supabase
+  const { data: existingPool, error: existingPoolErr } = await supabase
     .from("engineer_pool")
     .select("id, code");
-  if (poolSelectErr) throw new Error(`engineer_pool select: ${poolSelectErr.message}`);
-  const codeToId = new Map(
-    (poolRows ?? []).map((r: { id: string; code: string }) => [r.code, r.id])
+  if (existingPoolErr) throw new Error(`engineer_pool select: ${existingPoolErr.message}`);
+  const codeToExistingId = new Map(
+    (existingPool ?? []).map((r: { id: string; code: string }) => [r.code, r.id])
   );
+
+  const poolUpsertRows = SEED_ENGINEER_ROWS.map((row) => {
+    const code = deriveEngineerCodeBase(row.firstName, row.lastName);
+    const days = weeklyHoursToFiveDays(row.capacityPerWeek);
+    const id = codeToExistingId.get(code) ?? randomUUID();
+    return {
+      id,
+      code,
+      first_name: row.firstName,
+      last_name: row.lastName,
+      is_active: true,
+      capacity_per_week: row.capacityPerWeek,
+      capacity_days: [...days] as number[],
+    };
+  });
+
+  const { error: poolErr } = await supabase
+    .from("engineer_pool")
+    .upsert(poolUpsertRows, { onConflict: "code" });
+  if (poolErr) throw new Error(`engineer_pool: ${poolErr.message}`);
+  console.log(`✓ ${SEED_ENGINEER_ROWS.length} engineers`);
+
+  const codeToId = new Map(poolUpsertRows.map((r) => [r.code, r.id]));
   const programmeNodes = buildProgrammeNodesFromSeed(codeToId);
 
   const { nodeRows, engineerRows } = flattenTree(programmeNodes, SEED_PROJECT_ID);
