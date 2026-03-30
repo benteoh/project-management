@@ -1,6 +1,9 @@
 import type { ProjectUpsertRow } from "@/types/project";
 
+import { SEED_ENGINEER_ROWS } from "./seedEngineers";
 import { buildProgrammeNodesFromSeed, seedProgrammeData } from "./seedProgrammeData";
+
+export { SEED_ENGINEER_ROWS };
 
 /** Primary key for the sample project (`/projects/1`, seed WBS). */
 export const SEED_PROJECT_ID = "1" as const;
@@ -16,35 +19,6 @@ export const seedProjectRow: ProjectUpsertRow = {
   start_date: "2025-01-06",
   end_date: "2026-06-30",
 };
-
-/** Engineer codes inserted into `public.engineer_pool` by `npm run seed`. */
-export const SEED_ENGINEER_CODES = [
-  "AFe",
-  "AGa",
-  "AMa",
-  "AMo",
-  "ANa",
-  "ANi",
-  "ARa",
-  "ATa",
-  "BHa",
-  "BLy",
-  "DMo",
-  "EBa",
-  "JCh",
-  "JWr",
-  "KLa",
-  "KOl",
-  "LCh",
-  "MDe",
-  "MWo",
-  "PHa",
-  "ROl",
-  "SFl",
-  "SSi",
-  "TRe",
-  "TSc",
-].sort() as readonly string[];
 
 /** Raw WBS (codes in scope engineers); use {@link buildProgrammeNodesFromSeed} after pool seed. */
 export { buildProgrammeNodesFromSeed, seedProgrammeData };

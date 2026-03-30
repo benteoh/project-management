@@ -765,7 +765,7 @@ export const seedProgrammeData: SeedProgrammeNode[] = [
     finish: "12-Jun-26",
     forecastTotalHours: null,
     status: "",
-    engineers: [e("ANa", true), e("PHa"), e("ANi"), e("DMo"), e("JWr"), e("AGa")],
+    engineers: [e("ANa", true), e("PHa"), e("ANi"), e("DMo"), e("JWr"), e("APe")],
     children: [
       {
         id: "a4170",
