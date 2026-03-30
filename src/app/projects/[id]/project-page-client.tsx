@@ -7,6 +7,8 @@ import type { ProgrammeNode } from "@/components/programme/types";
 import { formatDate } from "@/lib/utils";
 import type { Project } from "@/types/project";
 
+import { ForecastTab } from "@/components/forecast/ForecastTab";
+
 import { addEngineerToPoolAction, saveProgrammeAction } from "./actions";
 
 const TABS = ["Programme", "Forecast"] as const;
@@ -96,7 +98,13 @@ export default function ProjectPageClient({
             addEngineerToPool={addEngineerToPoolAction}
           />
         )}
-        {activeTab === "Forecast" && <div className="flex-1" />}
+        {activeTab === "Forecast" && (
+          <ForecastTab
+            projectId={projectId}
+            initialEngineerPool={initialEngineerPool}
+            programmeTree={initialProgrammeTree}
+          />
+        )}
       </div>
     </div>
   );
