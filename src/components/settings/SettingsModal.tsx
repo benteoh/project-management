@@ -1,28 +1,27 @@
 "use client";
 
-import { useState } from "react";
-
 import type { SettingsTabId } from "./types";
 
 export function SettingsModal({
-  initialTab,
+  activeTab,
+  onTabChange,
   onClose,
   children,
 }: {
-  initialTab: SettingsTabId;
+  activeTab: SettingsTabId;
+  onTabChange: (tab: SettingsTabId) => void;
   onClose: () => void;
   children: React.ReactNode;
 }) {
-  const [activeTab] = useState<SettingsTabId>(initialTab);
-
   return (
     <>
       <div className="fixed inset-0 z-50 bg-black/30" onClick={onClose} />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="border-border bg-card shadow-overlay flex h-[80vh] w-full max-w-4xl rounded-lg border">
+        <div className="border-border bg-card shadow-overlay flex h-[min(92vh,900px)] w-full max-w-6xl rounded-lg border">
           <aside className="border-border w-44 border-r p-3">
             <button
               type="button"
+              onClick={() => onTabChange("engineers")}
               className={`w-full rounded-md px-3 py-2 text-left text-sm font-medium ${
                 activeTab === "engineers"
                   ? "bg-muted text-foreground"
@@ -30,6 +29,17 @@ export function SettingsModal({
               }`}
             >
               Engineers
+            </button>
+            <button
+              type="button"
+              onClick={() => onTabChange("projects")}
+              className={`mt-1 w-full rounded-md px-3 py-2 text-left text-sm font-medium ${
+                activeTab === "projects"
+                  ? "bg-muted text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Projects
             </button>
           </aside>
 
@@ -45,9 +55,7 @@ export function SettingsModal({
               </button>
             </div>
 
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-4">
-              {activeTab === "engineers" && children}
-            </div>
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-4">{children}</div>
           </section>
         </div>
       </div>

@@ -2,7 +2,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 
 import type { ProgrammeNode } from "@/components/programme/types";
-import type { EngineerPoolEntry } from "@/types/engineer-pool";
+import {
+  DEFAULT_CAPACITY_PER_WEEK,
+  DEFAULT_ENGINEER_CAPACITY_DAYS,
+  type EngineerPoolEntry,
+} from "@/types/engineer-pool";
 import type { ProgrammeNodeDbRow } from "@/types/programme-node";
 import type { ScopeEngineerDbRow } from "@/types/scope-engineer";
 
@@ -96,6 +100,8 @@ export async function upsertEngineerPoolCodeInDb(
       first_name: normalizedCode,
       last_name: "",
       is_active: true,
+      capacity_per_week: DEFAULT_CAPACITY_PER_WEEK,
+      capacity_days: [...DEFAULT_ENGINEER_CAPACITY_DAYS],
     },
     { onConflict: "code", ignoreDuplicates: true }
   );

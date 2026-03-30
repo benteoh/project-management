@@ -2,10 +2,30 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type {
   Engineer,
+  EngineerCapacityDays,
   EngineerDbRow,
   EngineerInsertRow,
   EngineerUpdateRow,
 } from "@/types/engineer-pool";
+
+function numOrNull(v: unknown): number | null {
+  if (v === null || v === undefined) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+function parseCapacityDays(raw: EngineerDbRow["capacity_days"]): EngineerCapacityDays {
+  if (raw === null || !Array.isArray(raw)) {
+    return [null, null, null, null, null];
+  }
+  return [
+    numOrNull(raw[0]),
+    numOrNull(raw[1]),
+    numOrNull(raw[2]),
+    numOrNull(raw[3]),
+    numOrNull(raw[4]),
+  ];
+}
 
 function rowToEngineer(r: EngineerDbRow): Engineer {
   return {
@@ -14,6 +34,8 @@ function rowToEngineer(r: EngineerDbRow): Engineer {
     firstName: r.first_name,
     lastName: r.last_name,
     isActive: r.is_active,
+    capacityPerWeek: numOrNull(r.capacity_per_week),
+    capacityDays: parseCapacityDays(r.capacity_days),
   };
 }
 

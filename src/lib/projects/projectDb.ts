@@ -15,6 +15,17 @@ function rowToProject(r: ProjectDbRow): Project {
   };
 }
 
+export async function listProjectsFromDb(
+  client: SupabaseClient
+): Promise<{ projects: Project[] } | { error: string }> {
+  const { data, error } = await client
+    .from("projects")
+    .select("*")
+    .order("name", { ascending: true });
+  if (error) return { error: error.message };
+  return { projects: (data as ProjectDbRow[]).map(rowToProject) };
+}
+
 export async function loadProjectById(
   client: SupabaseClient,
   id: string

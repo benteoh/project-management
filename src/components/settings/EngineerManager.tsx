@@ -2,8 +2,11 @@
 
 import { useState } from "react";
 
+import { SUBTLE_FORM_INPUT_CLASS } from "@/components/ui/InlineEditableText";
+
 import { EngineerRow } from "./EngineerRow";
 import { Field } from "./Field";
+import { DEFAULT_ENGINEER_CAPACITY } from "./types";
 import { useEngineerManager } from "./useEngineerManager";
 
 export function EngineerManager() {
@@ -15,7 +18,7 @@ export function EngineerManager() {
   const [isActive, setIsActive] = useState(true);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-6">
       <p className="text-muted-foreground shrink-0 text-xs">Manage engineer records.</p>
       {vm.isLoading && vm.sortedEngineers.length === 0 && (
         <p className="text-muted-foreground text-sm">Loading engineers…</p>
@@ -27,10 +30,16 @@ export function EngineerManager() {
       )}
 
       <form
-        className="border-border bg-background grid grid-cols-5 items-end gap-2 rounded-lg border p-3"
+        className="border-border bg-background flex flex-wrap items-end gap-x-4 gap-y-3 rounded-lg border p-4"
         onSubmit={(e) => {
           e.preventDefault();
-          vm.create({ code, firstName, lastName, isActive });
+          vm.create({
+            code,
+            firstName,
+            lastName,
+            isActive,
+            ...DEFAULT_ENGINEER_CAPACITY,
+          });
           setCode("");
           setFirstName("");
           setLastName("");
@@ -39,7 +48,7 @@ export function EngineerManager() {
       >
         <Field label="Code">
           <input
-            className="border-border bg-card w-full rounded-md border px-2 py-1.5 text-sm"
+            className={SUBTLE_FORM_INPUT_CLASS}
             value={code}
             onChange={(e) => setCode(e.target.value)}
             placeholder="JDo"
@@ -47,7 +56,7 @@ export function EngineerManager() {
         </Field>
         <Field label="First name">
           <input
-            className="border-border bg-card w-full rounded-md border px-2 py-1.5 text-sm"
+            className={SUBTLE_FORM_INPUT_CLASS}
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
             placeholder="John"
@@ -55,7 +64,7 @@ export function EngineerManager() {
         </Field>
         <Field label="Last name">
           <input
-            className="border-border bg-card w-full rounded-md border px-2 py-1.5 text-sm"
+            className={SUBTLE_FORM_INPUT_CLASS}
             value={lastName}
             onChange={(e) => setLastName(e.target.value)}
             placeholder="Doe"
@@ -64,6 +73,7 @@ export function EngineerManager() {
         <label className="text-muted-foreground flex items-center gap-2 text-sm">
           <input
             type="checkbox"
+            className="border-border rounded"
             checked={isActive}
             onChange={(e) => setIsActive(e.target.checked)}
           />
@@ -72,34 +82,25 @@ export function EngineerManager() {
         <button
           type="submit"
           disabled={vm.isPending}
-          className="bg-primary text-primary-foreground rounded-md px-3 py-2 text-sm disabled:opacity-60"
+          className="bg-primary text-primary-foreground rounded-md px-4 py-2 text-sm font-medium disabled:opacity-60"
         >
           Add engineer
         </button>
       </form>
 
-      <div className="border-border flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border">
-        <div className="border-border bg-muted grid grid-cols-[1.2fr_1.4fr_1.4fr_0.8fr_120px] gap-2 border-b px-3 py-2 text-xs font-semibold tracking-wide uppercase">
-          <span>Code</span>
-          <span>First Name</span>
-          <span>Last Name</span>
-          <span>Active</span>
-          <span>Actions</span>
-        </div>
-        <div className="min-h-0 flex-1 overflow-auto">
-          {vm.sortedEngineers.map((engineer) => (
-            <EngineerRow
-              key={engineer.id}
-              engineer={engineer}
-              isPending={vm.isPending}
-              onUpdate={vm.update}
-              onDelete={vm.remove}
-            />
-          ))}
-          {!vm.isLoading && vm.sortedEngineers.length === 0 && (
-            <p className="text-muted-foreground p-4 text-sm">No engineers yet.</p>
-          )}
-        </div>
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto">
+        {vm.sortedEngineers.map((engineer) => (
+          <EngineerRow
+            key={engineer.id}
+            engineer={engineer}
+            isPending={vm.isPending}
+            onUpdate={vm.update}
+            onDelete={vm.remove}
+          />
+        ))}
+        {!vm.isLoading && vm.sortedEngineers.length === 0 && (
+          <p className="text-muted-foreground py-6 text-center text-sm">No engineers yet.</p>
+        )}
       </div>
     </div>
   );
