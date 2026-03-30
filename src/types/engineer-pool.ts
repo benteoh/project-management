@@ -24,10 +24,11 @@ export interface Engineer {
   capacityDays: EngineerCapacityDays;
 }
 
-/** Minimal entry for programme pickers (stable id + short code label). */
+/** Programme / grid: pool row with weekly capacity (forecasts, etc.). */
 export interface EngineerPoolEntry {
   id: string;
   code: string;
+  capacityPerWeek: number | null;
 }
 
 /** Raw row shape for `public.engineer_pool` (snake_case from Supabase). */

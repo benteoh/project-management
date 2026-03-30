@@ -17,7 +17,6 @@ export const DEFAULT_ENGINEER_CAPACITY: EngineerCapacityPayload = {
 };
 
 export type EngineerCreatePayload = {
-  code: string;
   firstName: string;
   lastName: string;
   isActive: boolean;

@@ -2,12 +2,20 @@
 
 import { Plus } from "lucide-react";
 
+import { cn } from "@/lib/utils";
 import type { EngineerPoolEntry } from "@/types/engineer-pool";
 
 import type { EngineerAllocation } from "./types";
 
+function poolEntryForEngineer(
+  pool: EngineerPoolEntry[],
+  engineerId: string
+): EngineerPoolEntry | undefined {
+  return pool.find((p) => p.id === engineerId);
+}
+
 function codeForEngineer(pool: EngineerPoolEntry[], engineerId: string): string {
-  return pool.find((p) => p.id === engineerId)?.code ?? engineerId;
+  return poolEntryForEngineer(pool, engineerId)?.code ?? engineerId;
 }
 
 export function EngineerChip({
@@ -39,7 +47,7 @@ export function EngineerChip({
       {engineers.map((eng, i) => (
         <span key={eng.engineerId}>
           {i > 0 && <span className="text-border mx-0.5">,</span>}
-          <span className={eng.isLead ? "text-foreground font-bold" : "text-muted-foreground"}>
+          <span className={cn(eng.isLead ? "text-foreground font-bold" : "text-muted-foreground")}>
             {codeForEngineer(engineerPool, eng.engineerId)}
           </span>
         </span>

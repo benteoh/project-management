@@ -7,8 +7,14 @@ import { cn } from "@/lib/utils";
 const DISPLAY_SURFACE =
   "w-full min-w-0 rounded-md border border-transparent bg-transparent px-2 py-1.5 text-left text-sm text-foreground tabular-nums transition-colors hover:border-border hover:bg-muted/50 focus-visible:border-ring focus-visible:bg-card focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/40";
 
+const DISPLAY_SURFACE_COMPACT =
+  "w-full min-w-0 rounded-md border border-transparent bg-transparent px-1 py-0.5 text-left text-xs text-foreground tabular-nums transition-colors hover:border-border hover:bg-muted/50 focus-visible:border-ring focus-visible:bg-card focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/40";
+
 const EDIT_SURFACE =
   "w-full min-w-0 rounded-md border border-ring bg-card px-2 py-1.5 text-sm text-foreground tabular-nums outline-none ring-1 ring-ring/20";
+
+const EDIT_SURFACE_COMPACT =
+  "w-full min-w-0 rounded-md border border-ring bg-card px-1 py-0.5 text-xs text-foreground tabular-nums outline-none ring-1 ring-ring/20";
 
 function formatDisplay(value: number | null): string {
   if (value === null || Number.isNaN(value)) return "";
@@ -33,6 +39,8 @@ export type InlineEditableNumberProps = {
   min?: number;
   max?: number;
   step?: number | string;
+  /** Tighter padding and text for dense grids (e.g. capacity weekday row). */
+  compact?: boolean;
 };
 
 /** Same interaction model as {@link InlineEditableText}, for numeric hours. */
@@ -47,9 +55,15 @@ export function InlineEditableNumber({
   min = 0,
   max,
   step = 0.5,
+  compact = false,
 }: InlineEditableNumberProps) {
   const genId = useId();
   const id = idProp ?? `inline-num-${genId}`;
+  const displaySurface = compact ? DISPLAY_SURFACE_COMPACT : DISPLAY_SURFACE;
+  const editSurface = compact ? EDIT_SURFACE_COMPACT : EDIT_SURFACE;
+  const labelClass = compact
+    ? "text-muted-foreground mb-0.5 block text-[10px] font-medium uppercase tracking-wide"
+    : "text-muted-foreground mb-1 block text-xs font-medium tracking-wide uppercase";
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(() => formatDisplay(value));
 
@@ -79,12 +93,13 @@ export function InlineEditableNumber({
   if (disabled) {
     return (
       <div className={cn("min-w-0", className)}>
-        {label && (
-          <span className="text-muted-foreground mb-1 block text-xs font-medium tracking-wide uppercase">
-            {label}
-          </span>
-        )}
-        <p className="text-muted-foreground px-2 py-1.5 text-sm tabular-nums">
+        {label && <span className={labelClass}>{label}</span>}
+        <p
+          className={cn(
+            "text-muted-foreground tabular-nums",
+            compact ? "px-1 py-0.5 text-xs" : "px-2 py-1.5 text-sm"
+          )}
+        >
           {value !== null ? formatDisplay(value) : placeholder}
         </p>
       </div>
@@ -95,10 +110,7 @@ export function InlineEditableNumber({
     return (
       <div className={cn("min-w-0", className)}>
         {label && (
-          <label
-            htmlFor={id}
-            className="text-muted-foreground mb-1 block text-xs font-medium tracking-wide uppercase"
-          >
+          <label htmlFor={id} className={labelClass}>
             {label}
           </label>
         )}
@@ -109,7 +121,7 @@ export function InlineEditableNumber({
           min={min}
           max={max}
           step={step}
-          className={EDIT_SURFACE}
+          className={editSurface}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onBlur={commit}
@@ -130,14 +142,11 @@ export function InlineEditableNumber({
   return (
     <div className={cn("min-w-0", className)}>
       {label && (
-        <span
-          id={`${id}-label`}
-          className="text-muted-foreground mb-1 block text-xs font-medium tracking-wide uppercase"
-        >
+        <span id={`${id}-label`} className={labelClass}>
           {label}
         </span>
       )}
-      <button type="button" id={id} className={DISPLAY_SURFACE} onClick={() => setEditing(true)}>
+      <button type="button" id={id} className={displaySurface} onClick={() => setEditing(true)}>
         <span className={value !== null ? "text-foreground" : "text-muted-foreground"}>
           {value !== null ? formatDisplay(value) : placeholder}
         </span>

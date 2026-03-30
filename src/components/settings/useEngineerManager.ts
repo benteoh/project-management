@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 
 import {
   createEngineerAction,
-  deleteEngineerAction,
   loadEngineersAction,
   updateEngineerAction,
 } from "@/app/settings/actions";
@@ -46,27 +45,20 @@ export function useEngineerManager() {
     });
   };
 
-  const create = (payload: EngineerCreatePayload) => {
-    runMutation(async () => {
-      const res = await createEngineerAction(payload);
-      if (!res.ok) return setError(res.error);
-      setEngineers(res.engineers);
-      setError(null);
-    });
+  const create = async (payload: EngineerCreatePayload): Promise<boolean> => {
+    const res = await createEngineerAction(payload);
+    if (!res.ok) {
+      setError(res.error);
+      return false;
+    }
+    setEngineers(res.engineers);
+    setError(null);
+    return true;
   };
 
   const update = (payload: EngineerUpdatePayload) => {
     runMutation(async () => {
       const res = await updateEngineerAction(payload);
-      if (!res.ok) return setError(res.error);
-      setEngineers(res.engineers);
-      setError(null);
-    });
-  };
-
-  const remove = (id: string) => {
-    runMutation(async () => {
-      const res = await deleteEngineerAction(id);
       if (!res.ok) return setError(res.error);
       setEngineers(res.engineers);
       setError(null);
@@ -80,6 +72,5 @@ export function useEngineerManager() {
     error,
     create,
     update,
-    remove,
   } as const;
 }

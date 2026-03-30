@@ -23,6 +23,8 @@ export type InlineEditableTextProps = {
   /** Shown above the control (caption style). */
   label?: string;
   className?: string;
+  /** Applied to the visible value (display, edit input, disabled text). */
+  valueClassName?: string;
   /** For input id / aria */
   id?: string;
 };
@@ -38,6 +40,7 @@ export function InlineEditableText({
   placeholder = "—",
   label,
   className,
+  valueClassName,
   id: idProp,
 }: InlineEditableTextProps) {
   const genId = useId();
@@ -73,7 +76,9 @@ export function InlineEditableText({
             {label}
           </label>
         )}
-        <p className="text-muted-foreground px-2 py-1.5 text-sm">{value || placeholder}</p>
+        <p className={cn("text-muted-foreground px-2 py-1.5 text-sm", valueClassName)}>
+          {value || placeholder}
+        </p>
       </div>
     );
   }
@@ -92,7 +97,7 @@ export function InlineEditableText({
         <input
           id={id}
           autoFocus
-          className={EDIT_SURFACE}
+          className={cn(EDIT_SURFACE, valueClassName)}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onBlur={commit}
@@ -127,7 +132,7 @@ export function InlineEditableText({
         className={DISPLAY_SURFACE}
         onClick={() => setEditing(true)}
       >
-        <span className={value ? "text-foreground" : "text-muted-foreground"}>
+        <span className={cn(value ? "text-foreground" : "text-muted-foreground", valueClassName)}>
           {value || placeholder}
         </span>
       </button>

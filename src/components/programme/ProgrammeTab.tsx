@@ -214,9 +214,14 @@ export function ProgrammeTab({
       }
       setEngineerPool((prev) => {
         const next = prev.filter((p) => p.id !== r.engineer.id);
-        return [...next, { id: r.engineer.id, code: r.engineer.code }].sort((a, b) =>
-          a.code.localeCompare(b.code)
-        );
+        return [
+          ...next,
+          {
+            id: r.engineer.id,
+            code: r.engineer.code,
+            capacityPerWeek: r.engineer.capacityPerWeek,
+          },
+        ].sort((a, b) => a.code.localeCompare(b.code));
       });
     });
   };
