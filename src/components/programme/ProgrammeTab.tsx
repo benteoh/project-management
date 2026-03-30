@@ -18,14 +18,17 @@ import { ProgrammeRow } from "./ProgrammeRow";
 import { NodeContextMenu } from "./NodeContextMenu";
 import { AddNodeModal } from "./AddNodeModal";
 import { EngineerPopup } from "./EngineerPopup";
+import type { Engineer, EngineerPoolEntry } from "@/types/engineer-pool";
 
 export type ProgrammeTabProps = {
   initialTree: ProgrammeNode[];
-  initialEngineerPool: string[];
+  initialEngineerPool: EngineerPoolEntry[];
   /** Remote load failed (Supabase error, missing env, etc.) */
   loadError: string | null;
   saveProgramme: (tree: ProgrammeNode[]) => Promise<{ ok: true } | { ok: false; error: string }>;
-  addEngineerToPool: (code: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+  addEngineerToPool: (
+    code: string
+  ) => Promise<{ ok: true; engineer: Engineer } | { ok: false; error: string }>;
 };
 
 export function ProgrammeTab({
@@ -40,7 +43,7 @@ export function ProgrammeTab({
     idx: 0,
   });
   const [present, setPresent] = useState<ProgrammeNode[]>(initialTree);
-  const [engineerPool, setEngineerPool] = useState<string[]>(initialEngineerPool);
+  const [engineerPool, setEngineerPool] = useState<EngineerPoolEntry[]>(initialEngineerPool);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -205,9 +208,17 @@ export function ProgrammeTab({
 
   const addToPool = (code: string) => {
     void addEngineerToPool(code).then((r) => {
-      if (!r.ok) setSaveError(r.error);
+      if (!r.ok) {
+        setSaveError(r.error);
+        return;
+      }
+      setEngineerPool((prev) => {
+        const next = prev.filter((p) => p.id !== r.engineer.id);
+        return [...next, { id: r.engineer.id, code: r.engineer.code }].sort((a, b) =>
+          a.code.localeCompare(b.code)
+        );
+      });
     });
-    setEngineerPool((prev) => [...prev, code].sort());
   };
 
   const rowProps = {
@@ -248,7 +259,13 @@ export function ProgrammeTab({
 
       <div className="relative flex-1 overflow-y-auto">
         {present.map((node) => (
-          <ProgrammeRow key={node.id} node={node} depth={0} {...rowProps} />
+          <ProgrammeRow
+            key={node.id}
+            node={node}
+            depth={0}
+            engineerPool={engineerPool}
+            {...rowProps}
+          />
         ))}
       </div>
 

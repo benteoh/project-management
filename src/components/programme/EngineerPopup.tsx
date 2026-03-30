@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { Plus, X } from "lucide-react";
 
+import type { EngineerPoolEntry } from "@/types/engineer-pool";
+
 import type { EngineerAllocation } from "./types";
 
 export function EngineerPopup({
@@ -18,7 +20,7 @@ export function EngineerPopup({
   engineers: EngineerAllocation[];
   totalHours: number | null;
   forecastHours: number | null;
-  engineerPool: string[];
+  engineerPool: EngineerPoolEntry[];
   rect: { top: number; left: number; width: number; height: number };
   onChangeEngineers: (engs: EngineerAllocation[]) => void;
   onAddToPool: (code: string) => void;
@@ -39,15 +41,20 @@ export function EngineerPopup({
   const autoForecast =
     forecastHours != null ? parseFloat((forecastHours / count).toFixed(2)) : null;
 
-  const changeCode = (idx: number, code: string) =>
-    setDraft((prev) => prev.map((eng, i) => (i === idx ? { ...eng, code } : eng)));
+  const changeEngineerId = (idx: number, engineerId: string) =>
+    setDraft((prev) => prev.map((eng, i) => (i === idx ? { ...eng, engineerId } : eng)));
 
   const remove = (idx: number) => setDraft((prev) => prev.filter((_, i) => i !== idx));
 
   const addRow = () =>
     setDraft((prev) => [
       ...prev,
-      { code: engineerPool[0] ?? "", isLead: false, plannedHrs: null, forecastHrs: null },
+      {
+        engineerId: engineerPool[0]?.id ?? "",
+        isLead: false,
+        plannedHrs: null,
+        forecastHrs: null,
+      },
     ]);
 
   const commitNewCode = () => {
@@ -95,23 +102,23 @@ export function EngineerPopup({
                   <td className="py-1.5 pr-2">
                     <select
                       className="border-border bg-background focus:ring-ring w-full rounded border px-1 py-0.5 text-xs focus:ring-1 focus:outline-none"
-                      value={eng.code}
+                      value={eng.engineerId}
                       onChange={(e) => {
                         if (e.target.value === "__add__") {
-                          e.currentTarget.value = eng.code;
+                          e.currentTarget.value = eng.engineerId;
                           setShowAddInput(true);
                         } else {
-                          changeCode(idx, e.target.value);
+                          changeEngineerId(idx, e.target.value);
                         }
                       }}
                     >
-                      {engineerPool.map((code) => (
-                        <option key={code} value={code}>
-                          {code}
+                      {engineerPool.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.code}
                         </option>
                       ))}
-                      {!engineerPool.includes(eng.code) && (
-                        <option value={eng.code}>{eng.code}</option>
+                      {!engineerPool.some((p) => p.id === eng.engineerId) && eng.engineerId && (
+                        <option value={eng.engineerId}>{eng.engineerId}</option>
                       )}
                       <option value="__add__">＋ Add new code...</option>
                     </select>

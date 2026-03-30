@@ -13,6 +13,7 @@
     "db:status": "npx supabase status",
     "db:link": "npx supabase link",
     "db:push": "npx supabase db push",
+    "db:reset": "npx supabase db reset",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
