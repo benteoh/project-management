@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
 import type { ProgrammeNode } from "@/components/programme/types";
 import type { ProgrammeNodeDbRow } from "@/types/programme";
+import type { EngineerPoolEntry } from "@/types/engineer-pool";
 import { ColumnFilter } from "./ColumnFilter";
 import { cn } from "@/lib/utils";
 
@@ -81,13 +82,13 @@ const DATE_COL_W = "w-8";
 
 export type ForecastTabProps = {
   projectId: string;
-  initialEngineerPool: string[];
+  initialEngineerPool: EngineerPoolEntry[];
   programmeTree: ProgrammeNode[];
 };
 
 export function ForecastTab({ projectId, initialEngineerPool, programmeTree }: ForecastTabProps) {
   const [startDate, setStartDate] = useState<string>(computeStartDate);
-  const [engineers, setEngineers] = useState<string[]>(initialEngineerPool);
+  const [engineers, setEngineers] = useState<EngineerPoolEntry[]>(initialEngineerPool);
   const [scopes, setScopes] = useState<ScopeItem[]>(() => scopesFromTree(programmeTree));
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -121,9 +122,23 @@ export function ForecastTab({ projectId, initialEngineerPool, programmeTree }: F
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "engineer_pool" },
         (payload) => {
-          const row = payload.new as { code: string; is_active: boolean };
+          const row = payload.new as {
+            id: string;
+            code: string;
+            is_active: boolean;
+            capacity_per_week: number | null;
+          };
           if (row.is_active) {
-            setEngineers((prev) => (prev.includes(row.code) ? prev : [...prev, row.code].sort()));
+            const entry: EngineerPoolEntry = {
+              id: row.id,
+              code: row.code,
+              capacityPerWeek: row.capacity_per_week,
+            };
+            setEngineers((prev) =>
+              prev.some((e) => e.id === entry.id)
+                ? prev
+                : [...prev, entry].sort((a, b) => a.code.localeCompare(b.code))
+            );
           }
         }
       )
@@ -167,7 +182,7 @@ export function ForecastTab({ projectId, initialEngineerPool, programmeTree }: F
 
   // All rows before filtering
   const allRows = useMemo(
-    () => scopes.flatMap((scope) => engineers.map((code) => ({ scope, code }))),
+    () => scopes.flatMap((scope) => engineers.map((engineer) => ({ scope, engineer }))),
     [scopes, engineers]
   );
 
@@ -175,16 +190,16 @@ export function ForecastTab({ projectId, initialEngineerPool, programmeTree }: F
   const filteredRows = useMemo(
     () =>
       allRows.filter(
-        ({ scope, code }) =>
+        ({ scope, engineer }) =>
           (scopeFilter === null || scopeFilter.has(scope.label)) &&
-          (personFilter === null || personFilter.has(code))
+          (personFilter === null || personFilter.has(engineer.code))
       ),
     [allRows, scopeFilter, personFilter]
   );
 
   // Unique option lists for each filter dropdown
   const scopeOptions = useMemo(() => [...new Set(scopes.map((s) => s.label))], [scopes]);
-  const personOptions = useMemo(() => engineers, [engineers]);
+  const personOptions = useMemo(() => engineers.map((e) => e.code), [engineers]);
 
   function openFilterFor(column: "scope" | "person", e: React.MouseEvent<HTMLButtonElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -266,8 +281,8 @@ export function ForecastTab({ projectId, initialEngineerPool, programmeTree }: F
           </div>
 
           {/* ── Data rows: one per scope × engineer (filtered) ── */}
-          {filteredRows.map(({ scope, code }, idx) => (
-            <div key={`${scope.id}-${code}`} className="border-border flex border-b">
+          {filteredRows.map(({ scope, engineer }, idx) => (
+            <div key={`${scope.id}-${engineer.id}`} className="border-border flex border-b">
               <div className={`border-border ${NO_COL_W} shrink-0 border-r px-3 py-2`}>
                 <span className="text-muted-foreground text-sm">{idx + 1}</span>
               </div>
@@ -275,7 +290,7 @@ export function ForecastTab({ projectId, initialEngineerPool, programmeTree }: F
                 <span className="text-foreground text-sm">{scope.label}</span>
               </div>
               <div className={`border-border ${SUMMARY_COL_W} shrink-0 border-r px-4 py-2`}>
-                <span className="text-foreground text-sm font-medium">{code}</span>
+                <span className="text-foreground text-sm font-medium">{engineer.code}</span>
               </div>
               <div className={`border-border ${SUMMARY_COL_W} shrink-0 border-r px-4 py-2`} />
               <div className={`border-border ${SUMMARY_COL_W} shrink-0 border-r px-4 py-2`} />
