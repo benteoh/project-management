@@ -3,51 +3,17 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { SUBTLE_FORM_INPUT_CLASS } from "@/components/ui/InlineEditableText";
-import { cn } from "@/lib/utils";
 import { cloneCapacityDays } from "@/lib/engineers/engineerCapacity";
-import type { Engineer, EngineerCapacityDays } from "@/types/engineer-pool";
+import {
+  engineerEditableFieldsEqual,
+  engineerToEditableFields,
+  type EngineerEditableFields,
+} from "@/lib/engineers/engineerPayload";
+import { cn } from "@/lib/utils";
+import type { Engineer } from "@/types/engineer-pool";
 
 import { EngineerCapacityFields } from "./EngineerCapacityFields";
 import type { EngineerUpdatePayload } from "./types";
-
-function numEq(a: number | null, b: number | null): boolean {
-  if (a === null && b === null) return true;
-  if (a === null || b === null) return false;
-  return Math.abs(a - b) < 1e-9;
-}
-
-function capacityDaysEq(a: EngineerCapacityDays, b: EngineerCapacityDays): boolean {
-  for (let i = 0; i < 5; i++) {
-    if (!numEq(a[i], b[i])) return false;
-  }
-  return true;
-}
-
-function cloneDays(d: EngineerCapacityDays): EngineerCapacityDays {
-  return cloneCapacityDays(d);
-}
-
-type Draft = Omit<EngineerUpdatePayload, "id">;
-
-function engineerToDraft(e: Engineer): Draft {
-  return {
-    firstName: e.firstName,
-    lastName: e.lastName,
-    isActive: e.isActive,
-    capacityPerWeek: e.capacityPerWeek,
-    capacityDays: cloneDays(e.capacityDays),
-  };
-}
-
-function payloadDirty(engineer: Engineer, payload: EngineerUpdatePayload): boolean {
-  return !(
-    payload.firstName === engineer.firstName &&
-    payload.lastName === engineer.lastName &&
-    payload.isActive === engineer.isActive &&
-    numEq(payload.capacityPerWeek, engineer.capacityPerWeek) &&
-    capacityDaysEq(payload.capacityDays, engineer.capacityDays)
-  );
-}
 
 export function EngineerRow({
   engineer,
@@ -59,33 +25,35 @@ export function EngineerRow({
   onUpdate: (payload: EngineerUpdatePayload) => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
-  const [draft, setDraft] = useState<Draft>(() => engineerToDraft(engineer));
+  const [draft, setDraft] = useState<EngineerEditableFields>(() =>
+    engineerToEditableFields(engineer)
+  );
 
   const startEdit = useCallback(() => {
-    setDraft(engineerToDraft(engineer));
+    setDraft(engineerToEditableFields(engineer));
     setIsEditing(true);
   }, [engineer]);
 
   const cancelEdit = useCallback(() => {
-    setDraft(engineerToDraft(engineer));
+    setDraft(engineerToEditableFields(engineer));
     setIsEditing(false);
   }, [engineer]);
 
   const toPayload = useCallback(
-    (d: Draft): EngineerUpdatePayload => ({
+    (d: EngineerEditableFields): EngineerUpdatePayload => ({
       id: engineer.id,
       firstName: d.firstName,
       lastName: d.lastName,
       isActive: d.isActive,
       capacityPerWeek: d.capacityPerWeek,
-      capacityDays: cloneDays(d.capacityDays),
+      capacityDays: cloneCapacityDays(d.capacityDays),
     }),
     [engineer.id]
   );
 
   const saveEdit = useCallback(() => {
     const payload = toPayload(draft);
-    if (payloadDirty(engineer, payload)) {
+    if (!engineerEditableFieldsEqual(engineer, payload)) {
       onUpdate(payload);
     }
     setIsEditing(false);
@@ -103,32 +71,35 @@ export function EngineerRow({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [isEditing, cancelEdit]);
 
-  const nameBlock = (opts: { label: string; value: string; onChange?: (v: string) => void }) => (
-    <div className="min-w-[min(100%,10rem)] flex-[1_1_180px]">
-      <span className="text-muted-foreground mb-1 block text-xs font-medium tracking-wide uppercase">
-        {opts.label}
-      </span>
-      {opts.onChange ? (
-        <input
-          type="text"
-          className={SUBTLE_FORM_INPUT_CLASS}
-          value={opts.value}
-          disabled={isPending}
-          onChange={(e) => opts.onChange!(e.target.value)}
-          aria-label={opts.label}
-        />
-      ) : (
-        <p
-          className={cn(
-            "px-2 py-1.5 text-sm",
-            opts.value.trim() ? "text-foreground" : "text-muted-foreground"
-          )}
-        >
-          {opts.value.trim() || "—"}
-        </p>
-      )}
-    </div>
-  );
+  const nameBlock = (opts: { label: string; value: string; onChange?: (v: string) => void }) => {
+    const onValueChange = opts.onChange;
+    return (
+      <div className="min-w-[min(100%,10rem)] flex-[1_1_180px]">
+        <span className="text-muted-foreground mb-1 block text-xs font-medium tracking-wide uppercase">
+          {opts.label}
+        </span>
+        {onValueChange ? (
+          <input
+            type="text"
+            className={SUBTLE_FORM_INPUT_CLASS}
+            value={opts.value}
+            disabled={isPending}
+            onChange={(e) => onValueChange(e.target.value)}
+            aria-label={opts.label}
+          />
+        ) : (
+          <p
+            className={cn(
+              "px-2 py-1.5 text-sm",
+              opts.value.trim() ? "text-foreground" : "text-muted-foreground"
+            )}
+          >
+            {opts.value.trim() || "—"}
+          </p>
+        )}
+      </div>
+    );
+  };
 
   if (!isEditing) {
     return (
@@ -223,7 +194,7 @@ export function EngineerRow({
           setDraft((d) => ({
             ...d,
             capacityPerWeek,
-            capacityDays: cloneDays(capacityDays),
+            capacityDays: cloneCapacityDays(capacityDays),
           }))
         }
       />
