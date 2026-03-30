@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase/client";
 import type { ProgrammeNode } from "@/components/programme/types";
 import type { ProgrammeNodeDbRow } from "@/types/programme";
 import { ColumnFilter } from "./ColumnFilter";
+import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -214,7 +215,10 @@ export function ForecastTab({ projectId, initialEngineerPool, programmeTree }: F
               return (
                 <div
                   key={label}
-                  className={`border-border flex ${SUMMARY_COL_W} shrink-0 items-center justify-between px-4 py-3${i < SUMMARY_LABELS.length - 1 ? "border-r" : ""}`}
+                  className={cn(
+                    `border-border flex ${SUMMARY_COL_W} shrink-0 items-center justify-between px-4 py-3`,
+                    i < SUMMARY_LABELS.length - 1 && "border-r"
+                  )}
                 >
                   <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
                     {label}
@@ -245,7 +249,10 @@ export function ForecastTab({ projectId, initialEngineerPool, programmeTree }: F
               return (
                 <div
                   key={date.toISOString()}
-                  className={`border-border flex ${DATE_COL_W} shrink-0 items-center justify-center border-r py-2${isWeekend ? "bg-muted" : ""}`}
+                  className={cn(
+                    `border-border flex ${DATE_COL_W} shrink-0 items-center justify-center border-r py-2`,
+                    isWeekend && "bg-muted"
+                  )}
                 >
                   <span
                     className="text-muted-foreground text-xs"
@@ -279,7 +286,10 @@ export function ForecastTab({ projectId, initialEngineerPool, programmeTree }: F
                 return (
                   <div
                     key={date.toISOString()}
-                    className={`border-border ${DATE_COL_W} shrink-0 border-r${isWeekend ? "bg-muted" : ""}`}
+                    className={cn(
+                      `border-border ${DATE_COL_W} shrink-0 border-r`,
+                      isWeekend && "bg-muted"
+                    )}
                   />
                 );
               })}
