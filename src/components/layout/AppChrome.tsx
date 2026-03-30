@@ -3,12 +3,13 @@
 import { useState } from "react";
 
 import { EngineerManager } from "@/components/settings/EngineerManager";
+import { ProjectSettingsSection } from "@/components/settings/ProjectSettingsSection";
 import { SettingsModal } from "@/components/settings/SettingsModal";
 import type { SettingsTabId } from "@/components/settings/types";
 
 export function AppChrome({ children }: { children: React.ReactNode }) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [activeTab] = useState<SettingsTabId>("engineers");
+  const [settingsTab, setSettingsTab] = useState<SettingsTabId>("engineers");
 
   return (
     <div className="bg-background flex min-h-screen flex-col">
@@ -28,8 +29,15 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
       <div className="flex flex-1 flex-col">{children}</div>
 
       {isSettingsOpen && (
-        <SettingsModal initialTab={activeTab} onClose={() => setIsSettingsOpen(false)}>
-          <EngineerManager />
+        <SettingsModal
+          activeTab={settingsTab}
+          onTabChange={setSettingsTab}
+          onClose={() => {
+            setIsSettingsOpen(false);
+            setSettingsTab("engineers");
+          }}
+        >
+          {settingsTab === "engineers" ? <EngineerManager /> : <ProjectSettingsSection />}
         </SettingsModal>
       )}
     </div>

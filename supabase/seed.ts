@@ -17,6 +17,10 @@ import {
   seedProjectRow,
 } from "../src/lib/programme/seedConfig";
 import { resolveSupabaseEnvConfig } from "../src/lib/supabase/resolve-config";
+import {
+  DEFAULT_CAPACITY_PER_WEEK,
+  DEFAULT_ENGINEER_CAPACITY_DAYS,
+} from "../src/types/engineer-pool";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 config({ path: resolve(__dirname, "..", ".env.local"), quiet: true });
@@ -41,6 +45,8 @@ async function seed() {
       first_name: code,
       last_name: "",
       is_active: true,
+      capacity_per_week: DEFAULT_CAPACITY_PER_WEEK,
+      capacity_days: [...DEFAULT_ENGINEER_CAPACITY_DAYS],
     })),
     { onConflict: "code" }
   );
