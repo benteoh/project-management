@@ -1,0 +1,52 @@
+import type { ForecastProgrammeNode, ScopeItem } from "./types";
+
+export function cleanScopeLabel(name: string): string {
+  return name
+    .replace(/[^a-zA-Z\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(" ")
+    .slice(0, 3)
+    .join(" ");
+}
+
+export function scopesFromTree(tree: ForecastProgrammeNode[]): ScopeItem[] {
+  return tree
+    .filter((n) => n.type === "scope")
+    .map((n) => ({ id: n.id, label: cleanScopeLabel(n.name) }));
+}
+
+export function toISODate(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+export function computeStartDate(): string {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dayOfWeek = today.getDay();
+  const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - daysToMonday);
+  return toISODate(monday);
+}
+
+export function msUntilNextSaturdayMidnight(): number {
+  const now = new Date();
+  const dayOfWeek = now.getDay();
+  const daysUntilSat = dayOfWeek === 6 ? 7 : 6 - dayOfWeek;
+  const nextSat = new Date(now);
+  nextSat.setDate(now.getDate() + daysUntilSat);
+  nextSat.setHours(0, 0, 0, 0);
+  return nextSat.getTime() - now.getTime();
+}
+
+export function generateDailyDates(startIso: string, endIso: string): Date[] {
+  const dates: Date[] = [];
+  const current = new Date(startIso);
+  const end = new Date(endIso);
+  while (current <= end) {
+    dates.push(new Date(current));
+    current.setDate(current.getDate() + 1);
+  }
+  return dates;
+}

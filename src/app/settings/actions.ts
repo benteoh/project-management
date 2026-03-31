@@ -31,7 +31,7 @@ function normalizeName(name: string): string {
 }
 
 export async function loadEngineersAction(): Promise<EngineersResult> {
-  const r = await listEngineersFromDb(createServerSupabaseClient());
+  const r = await listEngineersFromDb(await createServerSupabaseClient());
   if ("error" in r) return { ok: false, error: r.error };
   return { ok: true, engineers: r.engineers };
 }
@@ -49,7 +49,7 @@ export async function createEngineerAction(
     return { ok: false, error: "First name and last name are required." };
   }
 
-  const client = createServerSupabaseClient();
+  const client = await createServerSupabaseClient();
   const allocated = await allocateUniqueEngineerCodeInDb(client, firstName, lastName);
   if ("error" in allocated) return { ok: false, error: allocated.error };
 
@@ -84,7 +84,7 @@ export async function updateEngineerAction(
     return { ok: false, error: "Engineer id, first name, and last name are required." };
   }
 
-  const client = createServerSupabaseClient();
+  const client = await createServerSupabaseClient();
   const allocated = await allocateUniqueEngineerCodeInDb(client, firstName, lastName, {
     excludeEngineerId: input.id,
   });
@@ -109,7 +109,7 @@ export async function updateEngineerAction(
 export async function deleteEngineerAction(id: string): Promise<EngineersResult> {
   if (!id) return { ok: false, error: "Engineer id is required." };
 
-  const client = createServerSupabaseClient();
+  const client = await createServerSupabaseClient();
   const delRes = await deleteEngineerInDb(client, id);
   if ("error" in delRes) return { ok: false, error: delRes.error };
   return loadEngineersAction();
@@ -118,7 +118,7 @@ export async function deleteEngineerAction(id: string): Promise<EngineersResult>
 type ProjectsListResult = { ok: true; projects: Project[] } | { ok: false; error: string };
 
 export async function loadProjectsForSettingsAction(): Promise<ProjectsListResult> {
-  const r = await listProjectsFromDb(createServerSupabaseClient());
+  const r = await listProjectsFromDb(await createServerSupabaseClient());
   if ("error" in r) return { ok: false, error: r.error };
   return { ok: true, projects: r.projects };
 }
@@ -129,7 +129,7 @@ type ProjectSettingsResult =
 
 export async function loadProjectForSettingsAction(id: string): Promise<ProjectSettingsResult> {
   if (!id) return { ok: false, error: "Project id is required." };
-  const r = await loadProjectById(createServerSupabaseClient(), id);
+  const r = await loadProjectById(await createServerSupabaseClient(), id);
   if ("error" in r) return { ok: false, error: r.error, notFound: r.notFound };
   return { ok: true, project: r.project };
 }

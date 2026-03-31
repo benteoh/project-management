@@ -7,12 +7,12 @@ import { createSupabaseProgrammeRepository } from "@/lib/programme/supabaseProgr
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export async function saveProgrammeAction(projectId: string, tree: ProgrammeNode[]) {
-  const repo = createSupabaseProgrammeRepository(createServerSupabaseClient(), projectId);
+  const repo = createSupabaseProgrammeRepository(await createServerSupabaseClient(), projectId);
   return repo.save(tree);
 }
 
 export async function addEngineerToPoolAction(code: string) {
-  const client = createServerSupabaseClient();
+  const client = await createServerSupabaseClient();
   const err = await upsertEngineerPoolCodeInDb(client, code.trim());
   if (err) return { ok: false as const, error: err };
   const eng = await getEngineerByCodeFromDb(client, code.trim());

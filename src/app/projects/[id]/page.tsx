@@ -18,7 +18,7 @@ export default async function ProjectPage({ params }: Props) {
   let initialEngineerPool: EngineerPoolEntry[] = [];
 
   try {
-    const client = createServerSupabaseClient();
+    const client = await createServerSupabaseClient();
     const [projectRes, programmeResult] = await Promise.all([
       loadProjectById(client, id),
       createSupabaseProgrammeRepository(client, id).load(),

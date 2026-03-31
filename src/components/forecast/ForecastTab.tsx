@@ -1,80 +1,28 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { supabase } from "@/lib/supabase/client";
-import type { ProgrammeNode } from "@/components/programme/types";
 import type { ProgrammeNodeDbRow } from "@/types/programme";
 import type { EngineerPoolEntry } from "@/types/engineer-pool";
+
 import { ColumnFilter } from "./ColumnFilter";
-import { cn } from "@/lib/utils";
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function cleanScopeLabel(name: string): string {
-  return name
-    .replace(/[^a-zA-Z\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .split(" ")
-    .slice(0, 3)
-    .join(" ");
-}
-
-type ScopeItem = { id: string; label: string };
-
-function scopesFromTree(tree: ProgrammeNode[]): ScopeItem[] {
-  return tree
-    .filter((n) => n.type === "scope")
-    .map((n) => ({ id: n.id, label: cleanScopeLabel(n.name) }));
-}
-
-function toISODate(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
-function computeStartDate(): string {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const dayOfWeek = today.getDay();
-  const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-  const monday = new Date(today);
-  monday.setDate(today.getDate() - daysToMonday);
-  return toISODate(monday);
-}
-
-function msUntilNextSaturdayMidnight(): number {
-  const now = new Date();
-  const dayOfWeek = now.getDay();
-  const daysUntilSat = dayOfWeek === 6 ? 7 : 6 - dayOfWeek;
-  const nextSat = new Date(now);
-  nextSat.setDate(now.getDate() + daysUntilSat);
-  nextSat.setHours(0, 0, 0, 0);
-  return nextSat.getTime() - now.getTime();
-}
-
-function generateDailyDates(startIso: string, endIso: string): Date[] {
-  const dates: Date[] = [];
-  const current = new Date(startIso);
-  const end = new Date(endIso);
-  while (current <= end) {
-    dates.push(new Date(current));
-    current.setDate(current.getDate() + 1);
-  }
-  return dates;
-}
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-const SUMMARY_LABELS = ["Scope", "Person", "Hour Rate", "Total Hours", "Total Spent"] as const;
-const END_DATE = "2027-04-30";
-const NO_COL_W = "w-12";
-const SUMMARY_COL_W = "w-36";
-const DATE_COL_W = "w-8";
+import { END_DATE } from "./constants";
+import { ForecastGridHeader } from "./ForecastGridHeader";
+import { ForecastGridRow } from "./ForecastGridRow";
+import type {
+  ForecastFilterColumn,
+  ForecastGridRow as ForecastGridRowType,
+  ForecastProgrammeNode,
+  ScopeItem,
+} from "./types";
+import {
+  cleanScopeLabel,
+  computeStartDate,
+  generateDailyDates,
+  msUntilNextSaturdayMidnight,
+  scopesFromTree,
+} from "./utils";
 
 // ---------------------------------------------------------------------------
 // Component
@@ -83,7 +31,7 @@ const DATE_COL_W = "w-8";
 export type ForecastTabProps = {
   projectId: string;
   initialEngineerPool: EngineerPoolEntry[];
-  programmeTree: ProgrammeNode[];
+  programmeTree: ForecastProgrammeNode[];
 };
 
 export function ForecastTab({ projectId, initialEngineerPool, programmeTree }: ForecastTabProps) {
@@ -96,7 +44,7 @@ export function ForecastTab({ projectId, initialEngineerPool, programmeTree }: F
   const [scopeFilter, setScopeFilter] = useState<Set<string> | null>(null);
   const [personFilter, setPersonFilter] = useState<Set<string> | null>(null);
   const [openFilter, setOpenFilter] = useState<{
-    column: "scope" | "person";
+    column: ForecastFilterColumn;
     rect: DOMRect;
   } | null>(null);
 
@@ -181,7 +129,7 @@ export function ForecastTab({ projectId, initialEngineerPool, programmeTree }: F
   const dailyDates = useMemo(() => generateDailyDates(startDate, END_DATE), [startDate]);
 
   // All rows before filtering
-  const allRows = useMemo(
+  const allRows = useMemo<ForecastGridRowType[]>(
     () => scopes.flatMap((scope) => engineers.map((engineer) => ({ scope, engineer }))),
     [scopes, engineers]
   );
@@ -200,8 +148,16 @@ export function ForecastTab({ projectId, initialEngineerPool, programmeTree }: F
   // Unique option lists for each filter dropdown
   const scopeOptions = useMemo(() => [...new Set(scopes.map((s) => s.label))], [scopes]);
   const personOptions = useMemo(() => engineers.map((e) => e.code), [engineers]);
+  const scopeFilterSignature = useMemo(() => {
+    const selected = scopeFilter ? [...scopeFilter].sort().join("|") : "all";
+    return `${scopeOptions.join("|")}::${selected}`;
+  }, [scopeOptions, scopeFilter]);
+  const personFilterSignature = useMemo(() => {
+    const selected = personFilter ? [...personFilter].sort().join("|") : "all";
+    return `${personOptions.join("|")}::${selected}`;
+  }, [personOptions, personFilter]);
 
-  function openFilterFor(column: "scope" | "person", e: React.MouseEvent<HTMLButtonElement>) {
+  function openFilterFor(column: ForecastFilterColumn, e: MouseEvent<HTMLButtonElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
     setOpenFilter({ column, rect });
   }
@@ -210,105 +166,20 @@ export function ForecastTab({ projectId, initialEngineerPool, programmeTree }: F
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="overflow-x-auto">
         <div className="min-w-max">
-          {/* ── Header row ── */}
-          <div className="border-border flex border-b">
-            <div
-              className={`border-border flex ${NO_COL_W} shrink-0 items-center border-r px-3 py-3`}
-            >
-              <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                No.
-              </span>
-            </div>
+          <ForecastGridHeader
+            dailyDates={dailyDates}
+            scopeFilterActive={scopeFilter !== null}
+            personFilterActive={personFilter !== null}
+            onOpenFilter={openFilterFor}
+          />
 
-            {SUMMARY_LABELS.map((label, i) => {
-              const isFilterable = label === "Scope" || label === "Person";
-              const column = label === "Scope" ? "scope" : "person";
-              const isActive =
-                (label === "Scope" && scopeFilter !== null) ||
-                (label === "Person" && personFilter !== null);
-
-              return (
-                <div
-                  key={label}
-                  className={cn(
-                    `border-border flex ${SUMMARY_COL_W} shrink-0 items-center justify-between px-4 py-3`,
-                    i < SUMMARY_LABELS.length - 1 && "border-r"
-                  )}
-                >
-                  <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                    {label}
-                  </span>
-                  {isFilterable && (
-                    <button
-                      type="button"
-                      onClick={(e) => openFilterFor(column, e)}
-                      title={`Filter ${label}`}
-                      className={`ml-1 rounded p-0.5 transition-colors ${isActive ? "text-gold" : "text-muted-foreground hover:text-foreground"}`}
-                    >
-                      {/* Funnel icon */}
-                      <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-                        <path d="M1 2h10L7 6.5V11L5 10V6.5L1 2z" />
-                      </svg>
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-
-            {dailyDates.map((date: Date) => {
-              const dow = date.getDay();
-              const isWeekend = dow === 0 || dow === 6;
-              const dd = String(date.getDate()).padStart(2, "0");
-              const mm = String(date.getMonth() + 1).padStart(2, "0");
-              const yyyy = date.getFullYear();
-              return (
-                <div
-                  key={date.toISOString()}
-                  className={cn(
-                    `border-border flex ${DATE_COL_W} shrink-0 items-center justify-center border-r py-2`,
-                    isWeekend && "bg-muted"
-                  )}
-                >
-                  <span
-                    className="text-muted-foreground text-xs"
-                    style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}
-                  >
-                    {dd}/{mm}/{yyyy}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* ── Data rows: one per scope × engineer (filtered) ── */}
-          {filteredRows.map(({ scope, engineer }, idx) => (
-            <div key={`${scope.id}-${engineer.id}`} className="border-border flex border-b">
-              <div className={`border-border ${NO_COL_W} shrink-0 border-r px-3 py-2`}>
-                <span className="text-muted-foreground text-sm">{idx + 1}</span>
-              </div>
-              <div className={`border-border ${SUMMARY_COL_W} shrink-0 border-r px-4 py-2`}>
-                <span className="text-foreground text-sm">{scope.label}</span>
-              </div>
-              <div className={`border-border ${SUMMARY_COL_W} shrink-0 border-r px-4 py-2`}>
-                <span className="text-foreground text-sm font-medium">{engineer.code}</span>
-              </div>
-              <div className={`border-border ${SUMMARY_COL_W} shrink-0 border-r px-4 py-2`} />
-              <div className={`border-border ${SUMMARY_COL_W} shrink-0 border-r px-4 py-2`} />
-              <div className={`${SUMMARY_COL_W} shrink-0 px-4 py-2`} />
-              {dailyDates.map((date: Date) => {
-                const dow = date.getDay();
-                const isWeekend = dow === 0 || dow === 6;
-                return (
-                  <div
-                    key={date.toISOString()}
-                    className={cn(
-                      `border-border ${DATE_COL_W} shrink-0 border-r`,
-                      isWeekend && "bg-muted"
-                    )}
-                  />
-                );
-              })}
-            </div>
+          {filteredRows.map((row, idx) => (
+            <ForecastGridRow
+              key={`${row.scope.id}-${row.engineer.id}`}
+              row={row}
+              index={idx}
+              dailyDates={dailyDates}
+            />
           ))}
         </div>
       </div>
@@ -316,6 +187,7 @@ export function ForecastTab({ projectId, initialEngineerPool, programmeTree }: F
       {/* ── Filter dropdown (portaled) ── */}
       {openFilter && (
         <ColumnFilter
+          key={openFilter.column === "scope" ? scopeFilterSignature : personFilterSignature}
           options={openFilter.column === "scope" ? scopeOptions : personOptions}
           selected={openFilter.column === "scope" ? scopeFilter : personFilter}
           anchorRect={openFilter.rect}

@@ -22,7 +22,10 @@ export type ProjectEngineersView = {
 
 type ViewResult = { ok: true; view: ProjectEngineersView } | { ok: false; error: string };
 
-async function loadView(client: ReturnType<typeof createServerSupabaseClient>, projectId: string) {
+async function loadView(
+  client: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  projectId: string
+) {
   const [listed, pool] = await Promise.all([
     listProjectEngineersForProjectFromDb(client, projectId),
     listEngineersFromDb(client),
@@ -53,7 +56,7 @@ async function loadView(client: ReturnType<typeof createServerSupabaseClient>, p
 
 export async function loadProjectEngineersAction(projectId: string): Promise<ViewResult> {
   if (!projectId) return { ok: false, error: "Project id is required." };
-  const client = createServerSupabaseClient();
+  const client = await createServerSupabaseClient();
   return loadView(client, projectId);
 }
 
@@ -75,7 +78,7 @@ export async function setProjectEngineerRateSlotAction(
     return { ok: false, error: "Rate slot must be A through E." };
   }
 
-  const client = createServerSupabaseClient();
+  const client = await createServerSupabaseClient();
   const up = await updateProjectEngineerRateSlotInDb(
     client,
     projectId,
@@ -96,7 +99,7 @@ export async function addProjectEngineerAction(
     return { ok: false, error: "Project and engineer are required." };
   }
 
-  const client = createServerSupabaseClient();
+  const client = await createServerSupabaseClient();
   const add = await insertProjectEngineerInDb(client, projectId, engineerId);
   if ("error" in add) {
     if (add.error.includes("duplicate") || add.error.includes("unique")) {
@@ -116,7 +119,7 @@ export async function removeProjectEngineerAction(
     return { ok: false, error: "Project and assignment are required." };
   }
 
-  const client = createServerSupabaseClient();
+  const client = await createServerSupabaseClient();
   const del = await deleteProjectEngineerInDb(client, projectId, assignmentId);
   if ("error" in del) return { ok: false, error: del.error };
 
@@ -126,7 +129,7 @@ export async function removeProjectEngineerAction(
 export async function addAllEngineersToProjectAction(projectId: string): Promise<ViewResult> {
   if (!projectId) return { ok: false, error: "Project id is required." };
 
-  const client = createServerSupabaseClient();
+  const client = await createServerSupabaseClient();
   const add = await addAllActiveEngineersToProjectInDb(client, projectId);
   if ("error" in add) return { ok: false, error: add.error };
 
