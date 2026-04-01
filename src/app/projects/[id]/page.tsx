@@ -1,6 +1,7 @@
 import type { ProgrammeNode } from "@/components/programme/types";
 import type { EngineerPoolEntry } from "@/types/engineer-pool";
 import type { Project } from "@/types/project";
+import { getBankHolidays } from "@/lib/bank-holidays/bankHolidays";
 import { loadProjectById } from "@/lib/projects/projectDb";
 import { createSupabaseProgrammeRepository } from "@/lib/programme/supabaseProgrammeRepository";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -17,12 +18,16 @@ export default async function ProjectPage({ params }: Props) {
   let initialProgrammeTree: ProgrammeNode[] = [];
   let initialEngineerPool: EngineerPoolEntry[] = [];
 
+  let bankHolidays: string[] = [];
+
   try {
     const client = await createServerSupabaseClient();
-    const [projectRes, programmeResult] = await Promise.all([
+    const [projectRes, programmeResult, holidays] = await Promise.all([
       loadProjectById(client, id),
       createSupabaseProgrammeRepository(client, id).load(),
+      getBankHolidays(),
     ]);
+    bankHolidays = holidays;
 
     if ("project" in projectRes) {
       project = projectRes.project;
@@ -50,6 +55,7 @@ export default async function ProjectPage({ params }: Props) {
       initialProgrammeTree={initialProgrammeTree}
       initialEngineerPool={initialEngineerPool}
       programmeLoadError={programmeLoadError}
+      bankHolidays={bankHolidays}
     />
   );
 }

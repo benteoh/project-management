@@ -32,9 +32,15 @@ export type ForecastTabProps = {
   projectId: string;
   initialEngineerPool: EngineerPoolEntry[];
   programmeTree: ForecastProgrammeNode[];
+  bankHolidays: string[];
 };
 
-export function ForecastTab({ projectId, initialEngineerPool, programmeTree }: ForecastTabProps) {
+export function ForecastTab({
+  projectId,
+  initialEngineerPool,
+  programmeTree,
+  bankHolidays: bankHolidayDates,
+}: ForecastTabProps) {
   const [startDate, setStartDate] = useState<string>(computeStartDate);
   const [engineers, setEngineers] = useState<EngineerPoolEntry[]>(initialEngineerPool);
   const [scopes, setScopes] = useState<ScopeItem[]>(() => scopesFromTree(programmeTree));
@@ -130,6 +136,8 @@ export function ForecastTab({ projectId, initialEngineerPool, programmeTree }: F
 
   const dailyDates = useMemo(() => generateDailyDates(startDate, END_DATE), [startDate]);
 
+  const bankHolidays = useMemo(() => new Set(bankHolidayDates), [bankHolidayDates]);
+
   // All rows before filtering
   const allRows = useMemo<ForecastGridRowType[]>(
     () => scopes.flatMap((scope) => engineers.map((engineer) => ({ scope, engineer }))),
@@ -170,6 +178,7 @@ export function ForecastTab({ projectId, initialEngineerPool, programmeTree }: F
         <div className="min-w-max">
           <ForecastGridHeader
             dailyDates={dailyDates}
+            bankHolidays={bankHolidays}
             scopeFilterActive={scopeFilter !== null}
             personFilterActive={personFilter !== null}
             onOpenFilter={openFilterFor}
@@ -181,6 +190,7 @@ export function ForecastTab({ projectId, initialEngineerPool, programmeTree }: F
               row={row}
               index={idx}
               dailyDates={dailyDates}
+              bankHolidays={bankHolidays}
             />
           ))}
         </div>
