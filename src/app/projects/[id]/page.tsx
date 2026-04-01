@@ -1,7 +1,7 @@
 import type { ProgrammeNode } from "@/components/programme/types";
 import type { EngineerPoolEntry } from "@/types/engineer-pool";
 import type { Project } from "@/types/project";
-import { getBankHolidays } from "@/lib/bank-holidays/service";
+import { getBankHolidays } from "@/lib/bank-holidays/bankHolidays";
 import { loadProjectById } from "@/lib/projects/projectDb";
 import { createSupabaseProgrammeRepository } from "@/lib/programme/supabaseProgrammeRepository";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
