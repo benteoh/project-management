@@ -3,7 +3,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { deriveEngineerCodeBase } from "@/lib/engineers/engineerCode";
 import type {
   Engineer,
-  EngineerCapacityDays,
   EngineerDbRow,
   EngineerInsertRow,
   EngineerUpdateRow,
@@ -15,19 +14,6 @@ function numOrNull(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function parseCapacityDays(raw: EngineerDbRow["capacity_days"]): EngineerCapacityDays {
-  if (raw === null || !Array.isArray(raw)) {
-    return [null, null, null, null, null];
-  }
-  return [
-    numOrNull(raw[0]),
-    numOrNull(raw[1]),
-    numOrNull(raw[2]),
-    numOrNull(raw[3]),
-    numOrNull(raw[4]),
-  ];
-}
-
 function rowToEngineer(r: EngineerDbRow): Engineer {
   return {
     id: r.id,
@@ -35,8 +21,8 @@ function rowToEngineer(r: EngineerDbRow): Engineer {
     firstName: r.first_name,
     lastName: r.last_name,
     isActive: r.is_active,
-    capacityPerWeek: numOrNull(r.capacity_per_week),
-    capacityDays: parseCapacityDays(r.capacity_days),
+    maxDailyHours: numOrNull(r.max_daily_hours),
+    maxWeeklyHours: numOrNull(r.max_weekly_hours),
   };
 }
 

@@ -2,18 +2,18 @@
 
 import { useCallback, useMemo, useState } from "react";
 
+import { ForecastTab } from "@/components/forecast/ForecastTab";
 import { ProgrammeTab } from "@/components/programme/ProgrammeTab";
+import type { ProgrammeNode } from "@/components/programme/types";
 import {
   type ActivityFilterKey,
   ProjectActivityStateWidget,
 } from "@/components/project/ProjectActivityStateWidget";
-import type { ProgrammeNode } from "@/components/programme/types";
+import { useViewportFitsProjectWorkspace } from "@/hooks/useViewportFitsProjectWorkspace";
 import { buildActivityStateBuckets } from "@/lib/programme/activityStateSummary";
 import { formatDate } from "@/lib/utils";
 import type { EngineerPoolEntry } from "@/types/engineer-pool";
 import type { Project } from "@/types/project";
-
-import { ForecastTab } from "@/components/forecast/ForecastTab";
 
 import { saveProgrammeAction } from "./actions";
 
@@ -63,16 +63,30 @@ export default function ProjectPageClient({
     [projectId]
   );
 
+  const viewportFits = useViewportFitsProjectWorkspace();
+
+  if (!viewportFits) {
+    return (
+      <div className="bg-background text-foreground flex min-h-0 flex-1 flex-col items-center justify-center px-6 py-10 text-center">
+        <p className="text-sm font-semibold">This window is too small</p>
+        <p className="text-muted-foreground mt-2 max-w-sm text-sm">
+          The project workspace needs a larger display. Please widen your browser or use a bigger
+          screen to view the programme and forecast.
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div className="bg-background flex h-screen flex-col overflow-hidden">
-      <div className="px-6 pt-6 pb-0">
+    <div className="bg-background flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="shrink-0 px-6 pt-6 pb-0">
         {projectLoadError && (
           <div className="border-border bg-status-critical-bg text-status-critical mb-3 rounded-lg border px-4 py-2 text-sm">
             {projectLoadError}
           </div>
         )}
         {project ? (
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex w-full min-w-0 items-start justify-between gap-4">
             <div>
               <p className="text-muted-foreground text-sm">{project.client}</p>
               <h1 className="text-foreground text-2xl font-semibold">{project.name}</h1>
@@ -103,7 +117,7 @@ export default function ProjectPageClient({
           )
         )}
 
-        <div className="border-border mt-5 flex items-end gap-0.5 border-b">
+        <div className="border-border mt-5 flex w-full items-end justify-start gap-4 border-b">
           {TABS.map((tab) => {
             const isActive = tab === activeTab;
             return (
@@ -124,9 +138,11 @@ export default function ProjectPageClient({
         </div>
       </div>
 
-      <div className="border-border bg-card mx-6 flex flex-1 flex-col overflow-hidden border-x border-b">
+      <div className="border-border bg-card mx-6 flex min-h-0 flex-1 flex-col overflow-hidden border-x border-b">
         {activeTab === "Programme" && (
           <ProgrammeTab
+            key={projectId}
+            projectId={projectId}
             initialTree={programmeTree}
             initialEngineerPool={engineerPool}
             loadError={programmeLoadError}

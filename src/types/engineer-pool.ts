@@ -1,17 +1,6 @@
-/** Mon–Fri daily capacity hours (index 0 = Monday … 4 = Friday). */
-export type EngineerCapacityDays = [
-  number | null,
-  number | null,
-  number | null,
-  number | null,
-  number | null,
-];
-
-/** Default Mon–Fri capacity (hours per day). */
-export const DEFAULT_ENGINEER_CAPACITY_DAYS: EngineerCapacityDays = [8, 8, 8, 8, 8];
-
-/** Default total hours per week (aligned with {@link DEFAULT_ENGINEER_CAPACITY_DAYS}). */
-export const DEFAULT_CAPACITY_PER_WEEK = 40;
+/** Default caps: max hours per day / per week (Mon–Fri working week). */
+export const DEFAULT_MAX_DAILY_HOURS = 8;
+export const DEFAULT_MAX_WEEKLY_HOURS = 40;
 
 /** App/domain shape for engineer records (camelCase). */
 export interface Engineer {
@@ -20,17 +9,16 @@ export interface Engineer {
   firstName: string;
   lastName: string;
   isActive: boolean;
-  capacityPerWeek: number | null;
-  capacityDays: EngineerCapacityDays;
+  maxDailyHours: number | null;
+  maxWeeklyHours: number | null;
 }
 
-/** Programme / grid: pool row with weekly capacity (forecasts, etc.). */
+/** Programme / grid: pool row (identity + labels for pickers). */
 export interface EngineerPoolEntry {
   id: string;
   code: string;
   firstName?: string;
   lastName?: string;
-  capacityPerWeek: number | null;
 }
 
 /** Raw row shape for `public.engineer_pool` (snake_case from Supabase). */
@@ -40,8 +28,8 @@ export interface EngineerDbRow {
   first_name: string;
   last_name: string;
   is_active: boolean;
-  capacity_per_week: number | null;
-  capacity_days: number[] | null;
+  max_daily_hours: number | null;
+  max_weekly_hours: number | null;
   updated_at?: string;
 }
 
@@ -52,8 +40,8 @@ export interface EngineerInsertRow {
   first_name: string;
   last_name: string;
   is_active: boolean;
-  capacity_per_week?: number | null;
-  capacity_days?: (number | null)[] | null;
+  max_daily_hours?: number | null;
+  max_weekly_hours?: number | null;
 }
 
 /** Update payload shape for `public.engineer_pool`. */
@@ -62,6 +50,6 @@ export interface EngineerUpdateRow {
   first_name?: string;
   last_name?: string;
   is_active?: boolean;
-  capacity_per_week?: number | null;
-  capacity_days?: (number | null)[] | null;
+  max_daily_hours?: number | null;
+  max_weekly_hours?: number | null;
 }

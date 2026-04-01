@@ -1,5 +1,7 @@
 import type { EngineerAllocation, ProgrammeNode } from "@/components/programme/types";
 
+import { rollupTotalHoursInTree } from "./totalHoursRollup";
+
 type SeedAlloc = { code: string; isLead: boolean; plannedHrs: null; forecastHrs: null };
 
 const e = (code: string, isLead = false): SeedAlloc => ({
@@ -1541,5 +1543,5 @@ export function buildProgrammeNodesFromSeed(codeToId: Map<string, string>): Prog
     };
   }
 
-  return seedProgrammeData.map(mapNode);
+  return rollupTotalHoursInTree(seedProgrammeData.map(mapNode));
 }

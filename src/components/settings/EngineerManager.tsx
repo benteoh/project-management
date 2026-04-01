@@ -3,19 +3,14 @@
 import { useMemo, useState } from "react";
 
 import { deriveEngineerCodeBase } from "@/lib/engineers/engineerCode";
-import { cloneCapacityDays, reconcileCapacityForSave } from "@/lib/engineers/engineerCapacity";
+import { reconcileEngineerCapacityForSave } from "@/lib/engineers/engineerCapacity";
 import { SUBTLE_FORM_INPUT_CLASS } from "@/components/ui/InlineEditableText";
-import type { EngineerCapacityDays } from "@/types/engineer-pool";
 
 import { EngineerCapacityFields } from "./EngineerCapacityFields";
 import { EngineerRow } from "./EngineerRow";
 import { Field } from "./Field";
 import { DEFAULT_ENGINEER_CAPACITY } from "./types";
 import { useEngineerManager } from "./useEngineerManager";
-
-function cloneDays(d: EngineerCapacityDays): EngineerCapacityDays {
-  return cloneCapacityDays(d);
-}
 
 export function EngineerManager() {
   const vm = useEngineerManager();
@@ -25,11 +20,11 @@ export function EngineerManager() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [isActive, setIsActive] = useState(true);
-  const [capacityPerWeek, setCapacityPerWeek] = useState<number | null>(
-    DEFAULT_ENGINEER_CAPACITY.capacityPerWeek
+  const [maxDailyHours, setMaxDailyHours] = useState<number | null>(
+    DEFAULT_ENGINEER_CAPACITY.maxDailyHours
   );
-  const [capacityDays, setCapacityDays] = useState<EngineerCapacityDays>(() =>
-    cloneDays(DEFAULT_ENGINEER_CAPACITY.capacityDays)
+  const [maxWeeklyHours, setMaxWeeklyHours] = useState<number | null>(
+    DEFAULT_ENGINEER_CAPACITY.maxWeeklyHours
   );
 
   const codePreview = useMemo(
@@ -41,8 +36,8 @@ export function EngineerManager() {
     setFirstName("");
     setLastName("");
     setIsActive(true);
-    setCapacityPerWeek(DEFAULT_ENGINEER_CAPACITY.capacityPerWeek);
-    setCapacityDays(cloneDays(DEFAULT_ENGINEER_CAPACITY.capacityDays));
+    setMaxDailyHours(DEFAULT_ENGINEER_CAPACITY.maxDailyHours);
+    setMaxWeeklyHours(DEFAULT_ENGINEER_CAPACITY.maxWeeklyHours);
   };
 
   const handleCancelAdd = () => {
@@ -78,13 +73,13 @@ export function EngineerManager() {
             void (async () => {
               setIsSavingAdd(true);
               try {
-                const cap = reconcileCapacityForSave(capacityPerWeek, capacityDays);
+                const cap = reconcileEngineerCapacityForSave(maxDailyHours, maxWeeklyHours);
                 const ok = await vm.create({
                   firstName,
                   lastName,
                   isActive,
-                  capacityPerWeek: cap.capacityPerWeek,
-                  capacityDays: cloneDays(cap.capacityDays),
+                  maxDailyHours: cap.maxDailyHours,
+                  maxWeeklyHours: cap.maxWeeklyHours,
                 });
                 if (ok) {
                   resetAddForm();
@@ -138,12 +133,12 @@ export function EngineerManager() {
           </div>
 
           <EngineerCapacityFields
-            capacityPerWeek={capacityPerWeek}
-            capacityDays={capacityDays}
+            maxDailyHours={maxDailyHours}
+            maxWeeklyHours={maxWeeklyHours}
             disabled={vm.isPending || isSavingAdd}
-            onCapacityCommit={(w, d) => {
-              setCapacityPerWeek(w);
-              setCapacityDays(d);
+            onCapacityCommit={(d, w) => {
+              setMaxDailyHours(d);
+              setMaxWeeklyHours(w);
             }}
           />
 

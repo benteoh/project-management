@@ -2,6 +2,8 @@ import type { ProgrammeNode } from "@/components/programme/types";
 import type { ProgrammeNodeDbRow } from "@/types/programme-node";
 import type { ScopeEngineerDbRow, ScopeEngineerInsertRow } from "@/types/scope-engineer";
 
+import { isRollupTotalHoursParent, rollupTotalHoursInTree } from "./totalHoursRollup";
+
 export function flattenTree(
   nodes: ProgrammeNode[],
   projectId: string,
@@ -17,7 +19,7 @@ export function flattenTree(
       activity_id: node.activityId ?? null,
       name: node.name,
       type: node.type,
-      total_hours: node.totalHours,
+      total_hours: isRollupTotalHoursParent(node) ? 0 : node.totalHours,
       start_date: node.start || null,
       finish_date: node.finish || null,
       forecast_total_hours: node.forecastTotalHours,
@@ -116,5 +118,5 @@ export function buildTreeFromRows(
 
   const rootRows = childrenByParent.get(null) ?? [];
   rootRows.sort((a, b) => a.position - b.position);
-  return rootRows.map((r) => attachChildren(byId.get(r.id)!));
+  return rollupTotalHoursInTree(rootRows.map((r) => attachChildren(byId.get(r.id)!)));
 }

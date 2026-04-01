@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 
 import {
   ProgrammeNode,
@@ -12,7 +12,15 @@ import {
   defaultForm,
   ContextMenuState,
 } from "./types";
-import { updateNodeInTree, addNodeToTree, deleteNodeFromTree } from "./treeUtils";
+import { nextActivityIdFromTree } from "@/lib/programme/nextActivityId";
+import { isRollupTotalHoursParent, rollupTotalHoursInTree } from "@/lib/programme/totalHoursRollup";
+import {
+  updateNodeInTree,
+  addNodeToTree,
+  addScopeToRoot,
+  deleteNodeFromTree,
+  findNodeInTree,
+} from "./treeUtils";
 import { MiniCalendar } from "./MiniCalendar";
 import { ProgrammeRow } from "./ProgrammeRow";
 import { NodeContextMenu } from "./NodeContextMenu";
@@ -30,8 +38,14 @@ import { ColumnFilter } from "@/components/forecast/ColumnFilter";
 import type { EngineerPoolEntry } from "@/types/engineer-pool";
 import { ProgrammeTableHeader } from "./ProgrammeTableHeader";
 import { PROGRAMME_SORT_COLUMN_MAP, type ProgrammeSortColumn } from "./programmeTableSort";
+import {
+  collectProgrammeNodeIds,
+  readCollapsedNodeIds,
+  writeCollapsedNodeIds,
+} from "@/lib/programme/programmeCollapsedStorage";
 
 export type ProgrammeTabProps = {
+  projectId: string;
   initialTree: ProgrammeNode[];
   initialEngineerPool: EngineerPoolEntry[];
   /** Remote load failed (Supabase error, missing env, etc.) */
@@ -42,6 +56,7 @@ export type ProgrammeTabProps = {
 };
 
 export function ProgrammeTab({
+  projectId,
   initialTree,
   initialEngineerPool,
   loadError: initialLoadError,
@@ -50,14 +65,17 @@ export function ProgrammeTab({
   activityFilterIds,
 }: ProgrammeTabProps) {
   const histRef = useRef<{ stack: ProgrammeNode[][]; idx: number }>({
-    stack: [initialTree],
+    stack: [rollupTotalHoursInTree(initialTree)],
     idx: 0,
   });
-  const [present, setPresent] = useState<ProgrammeNode[]>(initialTree);
+  const [present, setPresent] = useState<ProgrammeNode[]>(() =>
+    rollupTotalHoursInTree(initialTree)
+  );
   const engineerPool = initialEngineerPool;
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  /** Empty on server + first client paint — session restore runs in `useLayoutEffect` to avoid hydration mismatch. */
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const [addForm, setAddForm] = useState<AddFormState | null>(null);
   const [formValues, setFormValues] = useState<FormValues>(defaultForm);
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
@@ -73,6 +91,18 @@ export function ProgrammeTab({
     rect: DOMRect;
   } | null>(null);
   const engAnchorRef = useRef<HTMLDivElement | null>(null);
+  const didHydrateCollapsedFromSessionRef = useRef(false);
+
+  const treeNodeIds = useMemo(() => collectProgrammeNodeIds(present), [present]);
+
+  useLayoutEffect(() => {
+    if (didHydrateCollapsedFromSessionRef.current) return;
+    didHydrateCollapsedFromSessionRef.current = true;
+    const fromStorage = readCollapsedNodeIds(projectId);
+    const ids = collectProgrammeNodeIds(present);
+    const next = new Set([...fromStorage].filter((id) => ids.has(id)));
+    queueMicrotask(() => setCollapsed(next));
+  }, [projectId, present]);
 
   const persist = useCallback(
     async (tree: ProgrammeNode[]) => {
@@ -85,13 +115,14 @@ export function ProgrammeTab({
 
   const commit = useCallback(
     (next: ProgrammeNode[]) => {
+      const rolled = rollupTotalHoursInTree(next);
       const h = histRef.current;
       h.stack = h.stack.slice(0, h.idx + 1);
-      h.stack.push(next);
+      h.stack.push(rolled);
       h.idx = h.stack.length - 1;
-      setPresent(next);
-      onTreeChange?.(next);
-      void persist(next);
+      setPresent(rolled);
+      onTreeChange?.(rolled);
+      void persist(rolled);
     },
     [onTreeChange, persist]
   );
@@ -133,7 +164,17 @@ export function ProgrammeTab({
   }, [undo, redo]);
 
   const saveField = (nodeId: string, field: keyof ProgrammeNode, raw: string) => {
-    let value: number | string | null = raw;
+    if (field === "totalHours") {
+      const node = findNodeInTree(present, nodeId);
+      if (node && isRollupTotalHoursParent(node)) return;
+    }
+    let value: number | string | null | undefined = raw;
+    if (field === "activityId") {
+      const trimmed = raw.trim();
+      value = trimmed === "" ? undefined : trimmed;
+      commit(updateNodeInTree(present, nodeId, "activityId", value as ProgrammeNode["activityId"]));
+      return;
+    }
     if (field === "totalHours" || field === "forecastTotalHours") {
       if (raw === "") value = null;
       else {
@@ -150,32 +191,62 @@ export function ProgrammeTab({
     setEditingCell(null);
   };
 
-  const toggleCollapse = (id: string) =>
-    setCollapsed((prev) => {
-      const s = new Set(prev);
-      if (s.has(id)) s.delete(id);
-      else s.add(id);
-      return s;
-    });
+  const toggleCollapse = useCallback(
+    (id: string) => {
+      setCollapsed((prev) => {
+        const s = new Set(prev);
+        if (s.has(id)) s.delete(id);
+        else s.add(id);
+        const pruned = new Set([...s].filter((nid) => treeNodeIds.has(nid)));
+        writeCollapsedNodeIds(projectId, pruned);
+        return pruned;
+      });
+    },
+    [projectId, treeNodeIds]
+  );
 
   const handleAdd = () => {
     if (!addForm || !formValues.name.trim()) return;
     const newNode: ProgrammeNode = {
       id: crypto.randomUUID(),
-      activityId: formValues.activityId || undefined,
+      ...(addForm.type === "scope" ? {} : { activityId: formValues.activityId || undefined }),
       name: formValues.name.trim(),
       type: addForm.type,
-      totalHours: formValues.totalHours ? Number(formValues.totalHours) : null,
+      totalHours:
+        addForm.type === "scope"
+          ? null
+          : formValues.totalHours
+            ? Number(formValues.totalHours)
+            : null,
       start: formValues.start,
       finish: formValues.finish,
-      forecastTotalHours: formValues.forecastTotalHours
-        ? Number(formValues.forecastTotalHours)
-        : null,
-      status: formValues.status,
+      forecastTotalHours:
+        addForm.type === "scope"
+          ? null
+          : formValues.forecastTotalHours
+            ? Number(formValues.forecastTotalHours)
+            : null,
+      status: addForm.type === "scope" ? "" : formValues.status,
       children: [],
+      ...(addForm.type === "scope"
+        ? { engineers: [] as NonNullable<ProgrammeNode["engineers"]> }
+        : {}),
     };
-    commit(addNodeToTree(present, addForm.parentId, newNode));
+    if (addForm.type === "scope") {
+      commit(addScopeToRoot(present, newNode));
+    } else if (addForm.parentId != null) {
+      commit(addNodeToTree(present, addForm.parentId, newNode));
+    }
     setAddForm(null);
+    setFormValues(defaultForm);
+  };
+
+  const openAddScopeModal = () => {
+    setCtxMenu(null);
+    setEditingCell(null);
+    setCalendar(null);
+    setEngPopup(null);
+    setAddForm({ parentId: null, type: "scope" });
     setFormValues(defaultForm);
   };
 
@@ -318,7 +389,7 @@ export function ProgrammeTab({
   }, [present, queriedActivityIds, hasAnyActivityFilter]);
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {initialLoadError && (
         <div className="border-border bg-status-critical-bg text-status-critical shrink-0 border-b px-4 py-2 text-sm">
           {initialLoadError}
@@ -330,12 +401,13 @@ export function ProgrammeTab({
         </div>
       )}
 
-      <div className="relative flex-1 overflow-y-auto">
+      <div className="relative min-h-0 flex-1 overflow-y-auto">
         <ProgrammeTableHeader
           sort={activityQuery.sort}
           statusFilterActive={Boolean(activityQuery.statuses)}
           onSort={toggleSort}
           onStatusFilterClick={(e) => openFilterFor("status", e)}
+          onAddScope={openAddScopeModal}
         />
 
         {visibleTree.length === 0 && hasAnyActivityFilter ? (
@@ -379,7 +451,11 @@ export function ProgrammeTab({
           onClose={() => setCtxMenu(null)}
           onAddChild={(form) => {
             setAddForm(form);
-            setFormValues(defaultForm);
+            setFormValues({
+              ...defaultForm,
+              activityId:
+                form.type === "activity" ? nextActivityIdFromTree(present) : defaultForm.activityId,
+            });
           }}
           onDelete={(nodeId) => {
             commit(deleteNodeFromTree(present, nodeId));
@@ -417,7 +493,10 @@ export function ProgrammeTab({
           formValues={formValues}
           onChange={setFormValues}
           onConfirm={handleAdd}
-          onClose={() => setAddForm(null)}
+          onClose={() => {
+            setAddForm(null);
+            setFormValues(defaultForm);
+          }}
         />
       )}
     </div>

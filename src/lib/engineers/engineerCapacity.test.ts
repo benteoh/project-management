@@ -1,20 +1,30 @@
 import { describe, expect, it } from "vitest";
 
-import { sumCapacityDays, weeklyHoursToFiveDays } from "./engineerCapacity";
+import { reconcileEngineerCapacityForSave } from "./engineerCapacity";
 
-describe("weeklyHoursToFiveDays", () => {
-  it("returns null tuple for null input", () => {
-    expect(weeklyHoursToFiveDays(null)).toEqual([null, null, null, null, null]);
+describe("reconcileEngineerCapacityForSave", () => {
+  it("returns nulls when both inputs empty", () => {
+    expect(reconcileEngineerCapacityForSave(null, null)).toEqual({
+      maxDailyHours: null,
+      maxWeeklyHours: null,
+    });
   });
 
-  it("sums to the clamped weekly total (40h → 8h × 5)", () => {
-    const row = weeklyHoursToFiveDays(40);
-    expect(sumCapacityDays(row)).toBe(40);
-    expect(row.every((d) => d === 8)).toBe(true);
+  it("does not auto-fill weekly from daily", () => {
+    const r = reconcileEngineerCapacityForSave(8, null);
+    expect(r.maxDailyHours).toBe(8);
+    expect(r.maxWeeklyHours).toBeNull();
   });
 
-  it("distributes remainder from Friday backward (6h week)", () => {
-    const row = weeklyHoursToFiveDays(6);
-    expect(sumCapacityDays(row)).toBe(6);
+  it("caps daily when it exceeds weekly (part-time case)", () => {
+    const r = reconcileEngineerCapacityForSave(8, 6);
+    expect(r.maxDailyHours).toBe(6);
+    expect(r.maxWeeklyHours).toBe(6);
+  });
+
+  it("leaves values unchanged when daily <= weekly", () => {
+    const r = reconcileEngineerCapacityForSave(6, 30);
+    expect(r.maxDailyHours).toBe(6);
+    expect(r.maxWeeklyHours).toBe(30);
   });
 });

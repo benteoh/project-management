@@ -14,8 +14,8 @@ const baseEngineer: Engineer = {
   firstName: "Jane",
   lastName: "Doe",
   isActive: true,
-  capacityPerWeek: 40,
-  capacityDays: [8, 8, 8, 8, 8],
+  maxDailyHours: 8,
+  maxWeeklyHours: 40,
 };
 
 describe("engineerEditableFieldsEqual", () => {
@@ -25,23 +25,23 @@ describe("engineerEditableFieldsEqual", () => {
     expect(engineerEditableFieldsEqual(a, b)).toBe(true);
   });
 
-  it("returns false when a capacity day differs", () => {
+  it("returns false when daily max differs", () => {
     const a = engineerToEditableFields(baseEngineer);
     const b = cloneEngineerEditableFields(a);
-    b.capacityDays = [7, 8, 8, 8, 8];
+    b.maxDailyHours = 7;
     expect(engineerEditableFieldsEqual(a, b)).toBe(false);
   });
 
-  it("treats null week capacities as equal", () => {
+  it("treats null capacities as equal", () => {
     const left: Engineer = {
       ...baseEngineer,
-      capacityPerWeek: null,
-      capacityDays: [null, null, null, null, null],
+      maxDailyHours: null,
+      maxWeeklyHours: null,
     };
     const right: Engineer = {
       ...baseEngineer,
-      capacityPerWeek: null,
-      capacityDays: [null, null, null, null, null],
+      maxDailyHours: null,
+      maxWeeklyHours: null,
     };
     expect(
       engineerEditableFieldsEqual(engineerToEditableFields(left), engineerToEditableFields(right))
@@ -50,10 +50,10 @@ describe("engineerEditableFieldsEqual", () => {
 });
 
 describe("cloneEngineerEditableFields", () => {
-  it("copies capacity days so mutations do not alias", () => {
+  it("copies primitives so mutations do not alias shared refs for numbers", () => {
     const a = engineerToEditableFields(baseEngineer);
     const b = cloneEngineerEditableFields(a);
-    b.capacityDays[0] = 0;
-    expect(a.capacityDays[0]).toBe(8);
+    b.maxDailyHours = 0;
+    expect(a.maxDailyHours).toBe(8);
   });
 });

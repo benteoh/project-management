@@ -7,12 +7,8 @@ import {
   CAPACITY_MAX_DAY,
   CAPACITY_MAX_WEEK,
   CAPACITY_STEP,
-  syncDaysFromWeek,
-  syncWeekFromDays,
+  reconcileEngineerCapacityForSave,
 } from "@/lib/engineers/engineerCapacity";
-import type { EngineerCapacityDays } from "@/types/engineer-pool";
-
-const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri"] as const;
 
 function formatHourDisplay(value: number | null, placeholder: string): string {
   if (value === null || Number.isNaN(value)) return placeholder;
@@ -35,69 +31,80 @@ function CapacitySection({ children }: CapacitySectionProps) {
 export type EngineerCapacityFieldsProps =
   | {
       readOnly: true;
-      capacityPerWeek: number | null;
-      capacityDays: EngineerCapacityDays;
+      maxDailyHours: number | null;
+      maxWeeklyHours: number | null;
       disabled?: boolean;
     }
   | {
       readOnly?: false;
-      capacityPerWeek: number | null;
-      capacityDays: EngineerCapacityDays;
+      maxDailyHours: number | null;
+      maxWeeklyHours: number | null;
       disabled?: boolean;
-      onCapacityCommit: (
-        capacityPerWeek: number | null,
-        capacityDays: EngineerCapacityDays
-      ) => void;
+      onCapacityCommit: (maxDailyHours: number | null, maxWeeklyHours: number | null) => void;
     };
 
 /**
- * Shared week + Mon–Fri capacity controls (settings add form and engineer rows).
- * Keeps layout and sync rules identical everywhere.
+ * Max hours per day and per week. On save, daily is capped so it cannot exceed weekly (e.g. 6h/week with 8h daily → 6h daily).
  */
 export function EngineerCapacityFields(props: EngineerCapacityFieldsProps) {
   if (props.readOnly === true) {
-    const { capacityPerWeek, capacityDays } = props;
+    const { maxDailyHours, maxWeeklyHours } = props;
     return (
       <CapacitySection>
-        <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
+        <div className="flex flex-wrap items-end gap-x-6 gap-y-2">
           <div className="w-[4.5rem] shrink-0">
             <span className="text-muted-foreground mb-0.5 block text-[10px] font-medium tracking-wide uppercase">
-              Week
+              Daily max
             </span>
             <p className="text-foreground px-1 py-0.5 text-xs leading-tight tabular-nums">
-              {formatHourDisplay(capacityPerWeek, "—")}
+              {formatHourDisplay(maxDailyHours, "—")}
             </p>
           </div>
-          <div className="min-w-0">
-            <div className="flex flex-nowrap items-end gap-0.5 sm:gap-1">
-              {WEEKDAY_LABELS.map((day, i) => (
-                <div key={day} className="w-[2.75rem] shrink-0">
-                  <span className="text-muted-foreground mb-0.5 block text-[10px] font-medium tracking-wide uppercase">
-                    {day}
-                  </span>
-                  <p className="text-foreground px-1 py-0.5 text-center text-xs leading-tight tabular-nums">
-                    {formatHourDisplay(capacityDays[i], "—")}
-                  </p>
-                </div>
-              ))}
-            </div>
+          <div className="w-[4.5rem] shrink-0">
+            <span className="text-muted-foreground mb-0.5 block text-[10px] font-medium tracking-wide uppercase">
+              Weekly max
+            </span>
+            <p className="text-foreground px-1 py-0.5 text-xs leading-tight tabular-nums">
+              {formatHourDisplay(maxWeeklyHours, "—")}
+            </p>
           </div>
         </div>
       </CapacitySection>
     );
   }
 
-  const { capacityPerWeek, capacityDays, disabled = false, onCapacityCommit } = props;
+  const { maxDailyHours, maxWeeklyHours, disabled = false, onCapacityCommit } = props;
+
+  const commit = (nextDaily: number | null, nextWeekly: number | null) => {
+    const r = reconcileEngineerCapacityForSave(nextDaily, nextWeekly);
+    onCapacityCommit(r.maxDailyHours, r.maxWeeklyHours);
+  };
 
   return (
     <CapacitySection>
-      <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
+      <div className="flex flex-wrap items-end gap-x-6 gap-y-2">
         <div className="w-[4.5rem] shrink-0">
           <span className="text-muted-foreground mb-0.5 block text-[10px] font-medium tracking-wide uppercase">
-            Week
+            Daily max
           </span>
           <InlineEditableNumber
-            value={capacityPerWeek}
+            value={maxDailyHours}
+            disabled={disabled}
+            placeholder="—"
+            compact
+            min={0}
+            max={CAPACITY_MAX_DAY}
+            step={CAPACITY_STEP}
+            className="w-full shrink-0"
+            onCommit={(next) => commit(next, maxWeeklyHours)}
+          />
+        </div>
+        <div className="w-[4.5rem] shrink-0">
+          <span className="text-muted-foreground mb-0.5 block text-[10px] font-medium tracking-wide uppercase">
+            Weekly max
+          </span>
+          <InlineEditableNumber
+            value={maxWeeklyHours}
             disabled={disabled}
             placeholder="—"
             compact
@@ -105,37 +112,8 @@ export function EngineerCapacityFields(props: EngineerCapacityFieldsProps) {
             max={CAPACITY_MAX_WEEK}
             step={CAPACITY_STEP}
             className="w-full shrink-0"
-            onCommit={(next) => {
-              const { capacityPerWeek: w, capacityDays: d } = syncDaysFromWeek(next);
-              onCapacityCommit(w, d);
-            }}
+            onCommit={(next) => commit(maxDailyHours, next)}
           />
-        </div>
-        <div className="min-w-0">
-          <div className="flex flex-nowrap items-end gap-0.5 sm:gap-1">
-            {WEEKDAY_LABELS.map((day, i) => (
-              <InlineEditableNumber
-                key={day}
-                label={day}
-                value={capacityDays[i]}
-                disabled={disabled}
-                placeholder="—"
-                compact
-                min={0}
-                max={CAPACITY_MAX_DAY}
-                step={CAPACITY_STEP}
-                className="w-[2.75rem] shrink-0"
-                onCommit={(next) => {
-                  const { capacityPerWeek: w, capacityDays: d } = syncWeekFromDays(
-                    capacityDays,
-                    i,
-                    next
-                  );
-                  onCapacityCommit(w, d);
-                }}
-              />
-            ))}
-          </div>
         </div>
       </div>
     </CapacitySection>

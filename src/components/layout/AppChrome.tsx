@@ -18,6 +18,7 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settingsModalKey, setSettingsModalKey] = useState(0);
   const [settingsTab, setSettingsTab] = useState<SettingsTabId>("engineers");
   const [isSigningOut, setIsSigningOut] = useState(false);
 
@@ -37,12 +38,15 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
   return (
     <div className="bg-background flex min-h-screen flex-col">
       <header className="border-border bg-card shadow-card sticky top-0 z-40 border-b px-4 py-2">
-        <div className="mx-auto flex w-full max-w-[1400px] items-center justify-between">
+        <div className="flex w-full items-center justify-between">
           <p className="text-foreground text-sm font-semibold">DSP Project Intelligence</p>
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setIsSettingsOpen(true)}
+              onClick={() => {
+                setSettingsModalKey((k) => k + 1);
+                setIsSettingsOpen(true);
+              }}
               className="border-border bg-background text-foreground hover:bg-muted rounded-md border px-3 py-1.5 text-sm"
             >
               Settings
@@ -59,10 +63,11 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      <div className="flex flex-1 flex-col">{children}</div>
+      <div className="flex min-h-0 flex-1 flex-col">{children}</div>
 
       {isSettingsOpen && (
         <SidebarTabsModal
+          key={settingsModalKey}
           title="Settings"
           activeTab={settingsTab}
           tabs={SETTINGS_TABS}

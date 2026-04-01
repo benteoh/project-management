@@ -2,7 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 
-import { reconcileCapacityForSave } from "@/lib/engineers/engineerCapacity";
+import { reconcileEngineerCapacityForSave } from "@/lib/engineers/engineerCapacity";
 import {
   allocateUniqueEngineerCodeInDb,
   createEngineerInDb,
@@ -21,8 +21,8 @@ type EngineersResult = { ok: true; engineers: Engineer[] } | { ok: false; error:
 
 function capacityToDb(c: EngineerCapacityPayload) {
   return {
-    capacity_per_week: c.capacityPerWeek,
-    capacity_days: [...c.capacityDays] as (number | null)[],
+    max_daily_hours: c.maxDailyHours,
+    max_weekly_hours: c.maxWeeklyHours,
   };
 }
 
@@ -53,7 +53,7 @@ export async function createEngineerAction(
   const allocated = await allocateUniqueEngineerCodeInDb(client, firstName, lastName);
   if ("error" in allocated) return { ok: false, error: allocated.error };
 
-  const cap = reconcileCapacityForSave(input.capacityPerWeek, input.capacityDays);
+  const cap = reconcileEngineerCapacityForSave(input.maxDailyHours, input.maxWeeklyHours);
 
   const createRes = await createEngineerInDb(client, {
     id: randomUUID(),
@@ -61,10 +61,7 @@ export async function createEngineerAction(
     first_name: firstName,
     last_name: lastName,
     is_active: input.isActive,
-    ...capacityToDb({
-      capacityPerWeek: cap.capacityPerWeek,
-      capacityDays: cap.capacityDays,
-    }),
+    ...capacityToDb(cap),
   });
   if ("error" in createRes) return { ok: false, error: createRes.error };
   return loadEngineersAction();
@@ -90,17 +87,14 @@ export async function updateEngineerAction(
   });
   if ("error" in allocated) return { ok: false, error: allocated.error };
 
-  const cap = reconcileCapacityForSave(input.capacityPerWeek, input.capacityDays);
+  const cap = reconcileEngineerCapacityForSave(input.maxDailyHours, input.maxWeeklyHours);
 
   const updateRes = await updateEngineerInDb(client, input.id, {
     code: allocated.code,
     first_name: firstName,
     last_name: lastName,
     is_active: input.isActive,
-    ...capacityToDb({
-      capacityPerWeek: cap.capacityPerWeek,
-      capacityDays: cap.capacityDays,
-    }),
+    ...capacityToDb(cap),
   });
   if ("error" in updateRes) return { ok: false, error: updateRes.error };
   return loadEngineersAction();
