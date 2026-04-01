@@ -15,6 +15,7 @@ import { flattenTree } from "../src/lib/programme/programmeTree";
 import {
   buildProgrammeNodesFromSeed,
   SEED_ENGINEER_ROWS,
+  SEED_PROJECT_ENGINEER_RATE_ROWS,
   SEED_PROJECT_ID,
   seedProjectRow,
 } from "../src/lib/programme/seedConfig";
@@ -83,6 +84,28 @@ async function seed() {
     if (engErr) throw new Error(`scope_engineers: ${engErr.message}`);
     console.log(`✓ ${engineerRows.length} scope-engineer rows`);
   }
+
+  const projectEngineerRows = SEED_PROJECT_ENGINEER_RATE_ROWS.map((r) => {
+    const engineerId = codeToId.get(r.code);
+    if (!engineerId) {
+      throw new Error(`project_engineers: no engineer_pool id for code ${r.code}`);
+    }
+    return {
+      project_id: SEED_PROJECT_ID,
+      engineer_id: engineerId,
+      rate_a: r.rateA,
+      rate_b: r.rateB,
+      rate_c: null as number | null,
+      rate_d: null as number | null,
+      rate_e: null as number | null,
+    };
+  });
+
+  const { error: peErr } = await supabase
+    .from("project_engineers")
+    .upsert(projectEngineerRows, { onConflict: "project_id,engineer_id" });
+  if (peErr) throw new Error(`project_engineers: ${peErr.message}`);
+  console.log(`✓ ${projectEngineerRows.length} project-engineer rate rows`);
 
   console.log("Done.");
 }
