@@ -15,7 +15,7 @@ import type { Project } from "@/types/project";
 
 import { ForecastTab } from "@/components/forecast/ForecastTab";
 
-import { addEngineerToPoolAction, saveProgrammeAction } from "./actions";
+import { saveProgrammeAction } from "./actions";
 
 const TABS = ["Programme", "Forecast"] as const;
 type Tab = (typeof TABS)[number];
@@ -41,7 +41,7 @@ export default function ProjectPageClient({
 }) {
   const [activeTab, setActiveTab] = useState<Tab>("Programme");
   const [programmeTree, setProgrammeTree] = useState<ProgrammeNode[]>(initialProgrammeTree);
-  const [engineerPool, setEngineerPool] = useState<EngineerPoolEntry[]>(initialEngineerPool);
+  const engineerPool = initialEngineerPool;
   const [activityFilter, setActivityFilter] = useState<ActivityFilterKey | null>(null);
   const activityBuckets = useMemo(() => buildActivityStateBuckets(programmeTree), [programmeTree]);
   const activityFilterIds = useMemo(() => {
@@ -131,9 +131,7 @@ export default function ProjectPageClient({
             initialEngineerPool={engineerPool}
             loadError={programmeLoadError}
             saveProgramme={saveProgramme}
-            addEngineerToPool={addEngineerToPoolAction}
             onTreeChange={setProgrammeTree}
-            onEngineerPoolChange={setEngineerPool}
             activityFilterIds={activityFilterIds}
           />
         )}

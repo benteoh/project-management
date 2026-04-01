@@ -27,7 +27,7 @@ import {
   type ActivityQueryState,
 } from "./activityQuery";
 import { ColumnFilter } from "@/components/forecast/ColumnFilter";
-import type { Engineer, EngineerPoolEntry } from "@/types/engineer-pool";
+import type { EngineerPoolEntry } from "@/types/engineer-pool";
 import { ProgrammeTableHeader } from "./ProgrammeTableHeader";
 import { PROGRAMME_SORT_COLUMN_MAP, type ProgrammeSortColumn } from "./programmeTableSort";
 
@@ -37,11 +37,7 @@ export type ProgrammeTabProps = {
   /** Remote load failed (Supabase error, missing env, etc.) */
   loadError: string | null;
   saveProgramme: (tree: ProgrammeNode[]) => Promise<{ ok: true } | { ok: false; error: string }>;
-  addEngineerToPool: (
-    code: string
-  ) => Promise<{ ok: true; engineer: Engineer } | { ok: false; error: string }>;
   onTreeChange?: (tree: ProgrammeNode[]) => void;
-  onEngineerPoolChange?: (engineers: EngineerPoolEntry[]) => void;
   activityFilterIds?: ReadonlySet<string> | null;
 };
 
@@ -50,9 +46,7 @@ export function ProgrammeTab({
   initialEngineerPool,
   loadError: initialLoadError,
   saveProgramme,
-  addEngineerToPool,
   onTreeChange,
-  onEngineerPoolChange,
   activityFilterIds,
 }: ProgrammeTabProps) {
   const histRef = useRef<{ stack: ProgrammeNode[][]; idx: number }>({
@@ -60,7 +54,7 @@ export function ProgrammeTab({
     idx: 0,
   });
   const [present, setPresent] = useState<ProgrammeNode[]>(initialTree);
-  const [engineerPool, setEngineerPool] = useState<EngineerPoolEntry[]>(initialEngineerPool);
+  const engineerPool = initialEngineerPool;
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -78,6 +72,7 @@ export function ProgrammeTab({
     column: "status";
     rect: DOMRect;
   } | null>(null);
+  const engAnchorRef = useRef<HTMLDivElement | null>(null);
 
   const persist = useCallback(
     async (tree: ProgrammeNode[]) => {
@@ -231,30 +226,6 @@ export function ProgrammeTab({
     );
   };
 
-  const addToPool = (code: string) => {
-    void addEngineerToPool(code).then((r) => {
-      if (!r.ok) {
-        setSaveError(r.error);
-        return;
-      }
-      setEngineerPool((prev) => {
-        const next = prev.filter((p) => p.id !== r.engineer.id);
-        const updated = [
-          ...next,
-          {
-            id: r.engineer.id,
-            code: r.engineer.code,
-            firstName: r.engineer.firstName,
-            lastName: r.engineer.lastName,
-            capacityPerWeek: r.engineer.capacityPerWeek,
-          },
-        ].sort((a, b) => a.code.localeCompare(b.code));
-        onEngineerPoolChange?.(updated);
-        return updated;
-      });
-    });
-  };
-
   const rowProps = {
     editingCell,
     onToggleCollapse: toggleCollapse,
@@ -380,6 +351,8 @@ export function ProgrammeTab({
               engineerPool={engineerPool}
               {...rowProps}
               collapsed={collapsed}
+              engPopupScopeId={engPopup?.scopeId ?? null}
+              engineerAnchorRef={engAnchorRef}
             />
           ))
         )}
@@ -418,12 +391,10 @@ export function ProgrammeTab({
         <EngineerPopup
           key={engPopup.scopeId}
           engineers={engPopupScopeNode.engineers ?? []}
-          totalHours={engPopupScopeNode.totalHours}
-          forecastHours={engPopupScopeNode.forecastTotalHours}
           engineerPool={engineerPool}
           rect={engPopup.rect}
+          anchorRef={engAnchorRef}
           onChangeEngineers={(engs) => updateScopeEngineers(engPopup.scopeId, engs)}
-          onAddToPool={addToPool}
           onClose={() => setEngPopup(null)}
         />
       )}

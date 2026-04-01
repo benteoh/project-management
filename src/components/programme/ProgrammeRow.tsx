@@ -1,3 +1,4 @@
+import type { RefObject } from "react";
 import { ChevronRight, ChevronDown } from "lucide-react";
 import type { EngineerPoolEntry } from "@/types/engineer-pool";
 
@@ -28,6 +29,9 @@ interface ProgrammeRowProps {
   onSaveField: (nodeId: string, field: keyof ProgrammeNode, raw: string) => void;
   onContextMenu: (node: ProgrammeNode, e: React.MouseEvent) => void;
   onOpenEngPinned?: (scopeId: string, e: React.MouseEvent<HTMLDivElement>) => void;
+  /** When set, ref is attached to this row's engineer chip (for anchored popups). */
+  engPopupScopeId?: string | null;
+  engineerAnchorRef?: RefObject<HTMLDivElement | null>;
 }
 
 const ROW_STYLES: Record<ProgrammeNode["type"], { bg: string; text: string }> = {
@@ -57,6 +61,8 @@ export function ProgrammeRow({
   onSaveField,
   onContextMenu,
   onOpenEngPinned,
+  engPopupScopeId,
+  engineerAnchorRef,
 }: ProgrammeRowProps) {
   const isCollapsed = collapsed.has(node.id);
   const hasChildren = node.children.length > 0;
@@ -138,8 +144,14 @@ export function ProgrammeRow({
           )}
           {node.type === "scope" && onOpenEngPinned && (
             <EngineerChip
+              ref={
+                engPopupScopeId != null && node.id === engPopupScopeId
+                  ? engineerAnchorRef
+                  : undefined
+              }
               engineers={node.engineers ?? []}
               engineerPool={engineerPool}
+              scopeTotalHours={node.totalHours}
               onClick={(e) => onOpenEngPinned(node.id, e)}
             />
           )}
@@ -263,6 +275,8 @@ export function ProgrammeRow({
                 onSaveField={onSaveField}
                 onContextMenu={onContextMenu}
                 onOpenEngPinned={onOpenEngPinned}
+                engPopupScopeId={engPopupScopeId}
+                engineerAnchorRef={engineerAnchorRef}
               />
             );
           });
