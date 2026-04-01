@@ -2,14 +2,16 @@ import { cn } from "@/lib/utils";
 
 import { DATE_COL_W, NO_COL_W, SUMMARY_COL_W } from "./constants";
 import type { ForecastGridRow as ForecastGridRowType } from "./types";
+import { toISODate } from "./utils";
 
 type ForecastGridRowProps = {
   row: ForecastGridRowType;
   index: number;
   dailyDates: Date[];
+  bankHolidays: Set<string>;
 };
 
-export function ForecastGridRow({ row, index, dailyDates }: ForecastGridRowProps) {
+export function ForecastGridRow({ row, index, dailyDates, bankHolidays }: ForecastGridRowProps) {
   const { scope, engineer } = row;
 
   return (
@@ -25,14 +27,18 @@ export function ForecastGridRow({ row, index, dailyDates }: ForecastGridRowProps
       </div>
       <div className={`border-border ${SUMMARY_COL_W} shrink-0 border-r px-4 py-2`} />
       <div className={`border-border ${SUMMARY_COL_W} shrink-0 border-r px-4 py-2`} />
-      <div className={`${SUMMARY_COL_W} shrink-0 px-4 py-2`} />
+      <div className={`border-border ${SUMMARY_COL_W} shrink-0 border-r px-4 py-2`} />
       {dailyDates.map((date) => {
         const dow = date.getDay();
         const isWeekend = dow === 0 || dow === 6;
+        const isBankHoliday = bankHolidays.has(toISODate(date));
         return (
           <div
             key={date.toISOString()}
-            className={cn(`border-border ${DATE_COL_W} shrink-0 border-r`, isWeekend && "bg-muted")}
+            className={cn(
+              `border-border ${DATE_COL_W} shrink-0 border-r`,
+              isBankHoliday ? "bg-green-100" : isWeekend && "bg-muted"
+            )}
           />
         );
       })}

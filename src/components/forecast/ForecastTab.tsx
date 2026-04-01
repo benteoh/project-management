@@ -3,6 +3,7 @@
 import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { supabase } from "@/lib/supabase/client";
+import { getUKBankHolidays } from "@/lib/utils";
 import type { ProgrammeNodeDbRow } from "@/types/programme";
 import type { EngineerPoolEntry } from "@/types/engineer-pool";
 
@@ -130,6 +131,15 @@ export function ForecastTab({ projectId, initialEngineerPool, programmeTree }: F
 
   const dailyDates = useMemo(() => generateDailyDates(startDate, END_DATE), [startDate]);
 
+  const bankHolidays = useMemo(() => {
+    const years = new Set(dailyDates.map((d) => d.getFullYear()));
+    const all = new Set<string>();
+    for (const y of years) {
+      for (const iso of getUKBankHolidays(y)) all.add(iso);
+    }
+    return all;
+  }, [dailyDates]);
+
   // All rows before filtering
   const allRows = useMemo<ForecastGridRowType[]>(
     () => scopes.flatMap((scope) => engineers.map((engineer) => ({ scope, engineer }))),
@@ -170,6 +180,7 @@ export function ForecastTab({ projectId, initialEngineerPool, programmeTree }: F
         <div className="min-w-max">
           <ForecastGridHeader
             dailyDates={dailyDates}
+            bankHolidays={bankHolidays}
             scopeFilterActive={scopeFilter !== null}
             personFilterActive={personFilter !== null}
             onOpenFilter={openFilterFor}
@@ -181,6 +192,7 @@ export function ForecastTab({ projectId, initialEngineerPool, programmeTree }: F
               row={row}
               index={idx}
               dailyDates={dailyDates}
+              bankHolidays={bankHolidays}
             />
           ))}
         </div>

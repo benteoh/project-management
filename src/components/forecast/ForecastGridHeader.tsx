@@ -5,9 +5,11 @@ import { cn } from "@/lib/utils";
 
 import { DATE_COL_W, NO_COL_W, SUMMARY_COL_W, SUMMARY_LABELS } from "./constants";
 import type { ForecastFilterColumn } from "./types";
+import { toISODate } from "./utils";
 
 type ForecastGridHeaderProps = {
   dailyDates: Date[];
+  bankHolidays: Set<string>;
   scopeFilterActive: boolean;
   personFilterActive: boolean;
   onOpenFilter: (column: ForecastFilterColumn, e: MouseEvent<HTMLButtonElement>) => void;
@@ -15,6 +17,7 @@ type ForecastGridHeaderProps = {
 
 export function ForecastGridHeader({
   dailyDates,
+  bankHolidays,
   scopeFilterActive,
   personFilterActive,
   onOpenFilter,
@@ -37,8 +40,7 @@ export function ForecastGridHeader({
           <div
             key={label}
             className={cn(
-              `border-border flex ${SUMMARY_COL_W} shrink-0 items-center justify-between px-4 py-3`,
-              i < SUMMARY_LABELS.length - 1 && "border-r"
+              `border-border flex ${SUMMARY_COL_W} shrink-0 items-center justify-between border-r px-4 py-3`
             )}
           >
             <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
@@ -61,6 +63,7 @@ export function ForecastGridHeader({
       {dailyDates.map((date) => {
         const dow = date.getDay();
         const isWeekend = dow === 0 || dow === 6;
+        const isBankHoliday = bankHolidays.has(toISODate(date));
         const dd = String(date.getDate()).padStart(2, "0");
         const mm = String(date.getMonth() + 1).padStart(2, "0");
         const yyyy = date.getFullYear();
@@ -69,7 +72,7 @@ export function ForecastGridHeader({
             key={date.toISOString()}
             className={cn(
               `border-border flex ${DATE_COL_W} shrink-0 items-center justify-center border-r py-2`,
-              isWeekend && "bg-muted"
+              isBankHoliday ? "bg-green-100" : isWeekend && "bg-muted"
             )}
           >
             <span
