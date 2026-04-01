@@ -3,7 +3,6 @@
 import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { supabase } from "@/lib/supabase/client";
-import { getUKBankHolidays } from "@/lib/utils";
 import type { ProgrammeNodeDbRow } from "@/types/programme";
 import type { EngineerPoolEntry } from "@/types/engineer-pool";
 
@@ -33,9 +32,15 @@ export type ForecastTabProps = {
   projectId: string;
   initialEngineerPool: EngineerPoolEntry[];
   programmeTree: ForecastProgrammeNode[];
+  bankHolidays: string[];
 };
 
-export function ForecastTab({ projectId, initialEngineerPool, programmeTree }: ForecastTabProps) {
+export function ForecastTab({
+  projectId,
+  initialEngineerPool,
+  programmeTree,
+  bankHolidays: bankHolidayDates,
+}: ForecastTabProps) {
   const [startDate, setStartDate] = useState<string>(computeStartDate);
   const [engineers, setEngineers] = useState<EngineerPoolEntry[]>(initialEngineerPool);
   const [scopes, setScopes] = useState<ScopeItem[]>(() => scopesFromTree(programmeTree));
@@ -131,14 +136,7 @@ export function ForecastTab({ projectId, initialEngineerPool, programmeTree }: F
 
   const dailyDates = useMemo(() => generateDailyDates(startDate, END_DATE), [startDate]);
 
-  const bankHolidays = useMemo(() => {
-    const years = new Set(dailyDates.map((d) => d.getFullYear()));
-    const all = new Set<string>();
-    for (const y of years) {
-      for (const iso of getUKBankHolidays(y)) all.add(iso);
-    }
-    return all;
-  }, [dailyDates]);
+  const bankHolidays = useMemo(() => new Set(bankHolidayDates), [bankHolidayDates]);
 
   // All rows before filtering
   const allRows = useMemo<ForecastGridRowType[]>(

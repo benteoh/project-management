@@ -31,6 +31,7 @@ export default function ProjectPageClient({
   initialProgrammeTree,
   initialEngineerPool,
   programmeLoadError,
+  bankHolidays,
 }: {
   projectId: string;
   project: Project | null;
@@ -38,6 +39,7 @@ export default function ProjectPageClient({
   initialProgrammeTree: ProgrammeNode[];
   initialEngineerPool: EngineerPoolEntry[];
   programmeLoadError: string | null;
+  bankHolidays: string[];
 }) {
   const [activeTab, setActiveTab] = useState<Tab>("Programme");
   const [programmeTree, setProgrammeTree] = useState<ProgrammeNode[]>(initialProgrammeTree);
@@ -156,6 +158,7 @@ export default function ProjectPageClient({
             projectId={projectId}
             initialEngineerPool={engineerPool}
             programmeTree={programmeTree}
+            bankHolidays={bankHolidays}
           />
         )}
       </div>
