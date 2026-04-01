@@ -1,6 +1,9 @@
+import type { RefObject } from "react";
 import { ChevronRight, ChevronDown } from "lucide-react";
+import { isRollupTotalHoursParent } from "@/lib/programme/totalHoursRollup";
 import type { EngineerPoolEntry } from "@/types/engineer-pool";
 
+import { cn } from "@/lib/utils";
 import { ProgrammeNode, EditableField, EditingCell } from "./types";
 import { StatusBadge } from "./StatusBadge";
 import { EngineerChip } from "./EngineerChip";
@@ -28,6 +31,9 @@ interface ProgrammeRowProps {
   onSaveField: (nodeId: string, field: keyof ProgrammeNode, raw: string) => void;
   onContextMenu: (node: ProgrammeNode, e: React.MouseEvent) => void;
   onOpenEngPinned?: (scopeId: string, e: React.MouseEvent<HTMLDivElement>) => void;
+  /** When set, ref is attached to this row's engineer chip (for anchored popups). */
+  engPopupScopeId?: string | null;
+  engineerAnchorRef?: RefObject<HTMLDivElement | null>;
 }
 
 const ROW_STYLES: Record<ProgrammeNode["type"], { bg: string; text: string }> = {
@@ -57,6 +63,8 @@ export function ProgrammeRow({
   onSaveField,
   onContextMenu,
   onOpenEngPinned,
+  engPopupScopeId,
+  engineerAnchorRef,
 }: ProgrammeRowProps) {
   const isCollapsed = collapsed.has(node.id);
   const hasChildren = node.children.length > 0;
@@ -65,10 +73,26 @@ export function ProgrammeRow({
   const isEditing = (field: EditableField) =>
     editingCell?.nodeId === node.id && editingCell?.field === field;
 
+  const totalHoursFromChildren = isRollupTotalHoursParent(node);
+
   const editInput = (
     <input
       autoFocus
       className={`min-w-0 flex-1 ${EDIT_INPUT_CLS}`}
+      value={editingCell?.value ?? ""}
+      onChange={(e) => onEditingCellChange(e.target.value)}
+      onBlur={onCommitEdit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") onCommitEdit();
+        if (e.key === "Escape") onCancelEdit();
+      }}
+    />
+  );
+
+  const activityIdInput = (
+    <input
+      autoFocus
+      className={`w-[5.5rem] shrink-0 font-mono text-xs ${EDIT_INPUT_CLS}`}
       value={editingCell?.value ?? ""}
       onChange={(e) => onEditingCellChange(e.target.value)}
       onBlur={onCommitEdit}
@@ -115,11 +139,18 @@ export function ProgrammeRow({
           ) : (
             <span className="w-4 shrink-0" />
           )}
-          {node.activityId && (
-            <span className="text-muted-foreground mr-1 shrink-0 font-mono text-xs">
-              {node.activityId}
-            </span>
-          )}
+          {node.type === "activity" &&
+            (isEditing("activityId") ? (
+              <span className="mr-1 shrink-0">{activityIdInput}</span>
+            ) : (
+              <span
+                className={`text-muted-foreground mr-1 shrink-0 font-mono text-xs ${HOVER_CLS}`}
+                onClick={() => onStartEdit(node.id, "activityId", node.activityId ?? "")}
+                title="Click to edit activity ID"
+              >
+                {node.activityId || "—"}
+              </span>
+            ))}
           {(node.type === "task" || node.type === "subtask") && namePrefix && (
             <span className="text-muted-foreground mr-1 shrink-0 font-mono text-xs select-none">
               {namePrefix}
@@ -138,16 +169,26 @@ export function ProgrammeRow({
           )}
           {node.type === "scope" && onOpenEngPinned && (
             <EngineerChip
+              ref={
+                engPopupScopeId != null && node.id === engPopupScopeId
+                  ? engineerAnchorRef
+                  : undefined
+              }
               engineers={node.engineers ?? []}
               engineerPool={engineerPool}
+              scopeTotalHours={node.totalHours}
               onClick={(e) => onOpenEngPinned(node.id, e)}
             />
           )}
         </div>
 
-        {/* Total Hours */}
+        {/* Total Hours — scope / parent tasks / subtasks roll up from children (not editable) */}
         <div className="text-muted-foreground w-24 shrink-0 px-2 py-1.5 text-center tabular-nums">
-          {isEditing("totalHours") ? (
+          {totalHoursFromChildren ? (
+            <span className="text-muted-foreground tabular-nums" title="Sum of child hours">
+              {node.totalHours ?? "—"}
+            </span>
+          ) : isEditing("totalHours") ? (
             numericInput
           ) : (
             <span
@@ -197,34 +238,28 @@ export function ProgrammeRow({
           )}
         </div>
 
-        {/* Status */}
+        {/* Status — activities use a native select so one click opens the dropdown */}
         <div className="w-28 shrink-0 px-2 py-1.5 text-center">
-          {isEditing("status") ? (
+          {node.type === "activity" && node.status ? (
             <select
-              autoFocus
-              className={`w-full px-1 py-0.5 text-center text-xs ${EDIT_INPUT_CLS}`}
-              value={editingCell?.value ?? ""}
-              onChange={(e) => {
-                onSaveField(node.id, "status", e.target.value);
-                onCancelEdit();
-              }}
-              onBlur={onCancelEdit}
+              className={cn(
+                "focus:ring-ring/30 w-full max-w-full cursor-pointer rounded px-1.5 py-0.5 text-center text-xs font-medium ring-1 ring-transparent outline-none select-auto",
+                node.status === "Completed" && "bg-status-healthy-bg text-status-healthy",
+                node.status === "In Progress" && "bg-status-info-bg text-status-info",
+                node.status === "Not Started" && "bg-muted text-muted-foreground"
+              )}
+              value={node.status}
+              onChange={(e) => onSaveField(node.id, "status", e.target.value)}
+              title="Change status"
+              aria-label="Activity status"
             >
-              <option>Not Started</option>
-              <option>In Progress</option>
-              <option>Completed</option>
+              <option value="Not Started">Not Started</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Completed">Completed</option>
             </select>
           ) : node.status ? (
             <span className="inline-flex justify-center">
-              <span
-                className={`inline-block rounded ${node.type === "activity" ? "cursor-pointer hover:opacity-80" : ""}`}
-                onClick={() =>
-                  node.type === "activity" && onStartEdit(node.id, "status", node.status)
-                }
-                title={node.type === "activity" ? "Click to change status" : undefined}
-              >
-                <StatusBadge status={node.status} />
-              </span>
+              <StatusBadge status={node.status} />
             </span>
           ) : null}
         </div>
@@ -263,6 +298,8 @@ export function ProgrammeRow({
                 onSaveField={onSaveField}
                 onContextMenu={onContextMenu}
                 onOpenEngPinned={onOpenEngPinned}
+                engPopupScopeId={engPopupScopeId}
+                engineerAnchorRef={engineerAnchorRef}
               />
             );
           });

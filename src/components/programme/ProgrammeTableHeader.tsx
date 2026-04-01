@@ -55,6 +55,7 @@ type ProgrammeTableHeaderProps = {
   statusFilterActive: boolean;
   onSort: (column: ProgrammeSortColumn) => void;
   onStatusFilterClick: (e: MouseEvent<HTMLElement>) => void;
+  onAddScope?: () => void;
 };
 
 export function ProgrammeTableHeader({
@@ -62,10 +63,11 @@ export function ProgrammeTableHeader({
   statusFilterActive,
   onSort,
   onStatusFilterClick,
+  onAddScope,
 }: ProgrammeTableHeaderProps) {
   return (
     <div className={programmeTableHeaderRowClassName}>
-      <ProgrammeTableHeaderNameCell />
+      <ProgrammeTableHeaderNameCell onAddScope={onAddScope} />
 
       {PROGRAMME_SORTABLE_HEADER_COLUMNS.map((col) => (
         <SortableHeaderButton key={col.column} {...col} sort={sort} onSort={onSort} />

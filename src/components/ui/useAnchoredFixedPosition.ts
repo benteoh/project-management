@@ -11,11 +11,26 @@ type AnchorRectLike = {
 };
 
 type AnchoredPositionOptions = {
+  /** Initial / fallback rect when `anchorRef` is missing (e.g. first paint). */
   anchorRect: AnchorRectLike;
   elementRef: RefObject<HTMLElement | null>;
+  /** When set, position is recomputed from this element on scroll/resize so the popup follows the anchor. */
+  anchorRef?: RefObject<HTMLElement | null>;
   offset?: number;
   viewportPadding?: number;
 };
+
+function resolveAnchorRect(
+  fallback: AnchorRectLike,
+  anchorRef: RefObject<HTMLElement | null> | undefined
+): AnchorRectLike {
+  const el = anchorRef?.current;
+  if (el) {
+    const r = el.getBoundingClientRect();
+    return { top: r.top, left: r.left, width: r.width, height: r.height };
+  }
+  return fallback;
+}
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
@@ -60,18 +75,24 @@ function computeAnchoredPosition({
 export function useAnchoredFixedPosition({
   anchorRect,
   elementRef,
+  anchorRef,
   offset = 4,
   viewportPadding = 8,
 }: AnchoredPositionOptions) {
   const [position, setPosition] = useState(() =>
-    computeAnchoredPosition({ anchorRect, element: null, offset, viewportPadding })
+    computeAnchoredPosition({
+      anchorRect: resolveAnchorRect(anchorRect, anchorRef),
+      element: null,
+      offset,
+      viewportPadding,
+    })
   );
 
   useEffect(() => {
     const update = () => {
       setPosition(
         computeAnchoredPosition({
-          anchorRect,
+          anchorRect: resolveAnchorRect(anchorRect, anchorRef),
           element: elementRef.current,
           offset,
           viewportPadding,
@@ -86,7 +107,7 @@ export function useAnchoredFixedPosition({
       window.removeEventListener("resize", update);
       window.removeEventListener("scroll", update, true);
     };
-  }, [anchorRect, elementRef, offset, viewportPadding]);
+  }, [anchorRect, anchorRef, elementRef, offset, viewportPadding]);
 
   return position;
 }

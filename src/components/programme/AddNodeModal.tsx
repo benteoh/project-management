@@ -76,26 +76,28 @@ export function AddNodeModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="text-muted-foreground mb-1 block text-xs">Total Hours</label>
-              <input
-                type="number"
-                className={inputCls}
-                value={formValues.totalHours}
-                onChange={(e) => set({ totalHours: e.target.value })}
-              />
+          {addForm.type !== "scope" && (
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-muted-foreground mb-1 block text-xs">Total Hours</label>
+                <input
+                  type="number"
+                  className={inputCls}
+                  value={formValues.totalHours}
+                  onChange={(e) => set({ totalHours: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="text-muted-foreground mb-1 block text-xs">Forecast Hours</label>
+                <input
+                  type="number"
+                  className={inputCls}
+                  value={formValues.forecastTotalHours}
+                  onChange={(e) => set({ forecastTotalHours: e.target.value })}
+                />
+              </div>
             </div>
-            <div>
-              <label className="text-muted-foreground mb-1 block text-xs">Forecast Hours</label>
-              <input
-                type="number"
-                className={inputCls}
-                value={formValues.forecastTotalHours}
-                onChange={(e) => set({ forecastTotalHours: e.target.value })}
-              />
-            </div>
-          </div>
+          )}
 
           {addForm.type === "activity" && (
             <div>

@@ -46,8 +46,22 @@ export function addNodeToTree(
   });
 }
 
+/** Append a new root-level scope (programme tree roots are scopes). */
+export function addScopeToRoot(nodes: ProgrammeNode[], newNode: ProgrammeNode): ProgrammeNode[] {
+  return [...nodes, newNode];
+}
+
 export function deleteNodeFromTree(nodes: ProgrammeNode[], nodeId: string): ProgrammeNode[] {
   return nodes
     .filter((n) => n.id !== nodeId)
     .map((n) => ({ ...n, children: deleteNodeFromTree(n.children, nodeId) }));
+}
+
+export function findNodeInTree(nodes: ProgrammeNode[], nodeId: string): ProgrammeNode | null {
+  for (const n of nodes) {
+    if (n.id === nodeId) return n;
+    const found = findNodeInTree(n.children, nodeId);
+    if (found) return found;
+  }
+  return null;
 }

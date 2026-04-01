@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { SUBTLE_FORM_INPUT_CLASS } from "@/components/ui/InlineEditableText";
-import { cloneCapacityDays } from "@/lib/engineers/engineerCapacity";
 import {
   engineerEditableFieldsEqual,
   engineerToEditableFields,
@@ -45,8 +44,8 @@ export function EngineerRow({
       firstName: d.firstName,
       lastName: d.lastName,
       isActive: d.isActive,
-      capacityPerWeek: d.capacityPerWeek,
-      capacityDays: cloneCapacityDays(d.capacityDays),
+      maxDailyHours: d.maxDailyHours,
+      maxWeeklyHours: d.maxWeeklyHours,
     }),
     [engineer.id]
   );
@@ -143,8 +142,8 @@ export function EngineerRow({
 
         <EngineerCapacityFields
           readOnly
-          capacityPerWeek={engineer.capacityPerWeek}
-          capacityDays={engineer.capacityDays}
+          maxDailyHours={engineer.maxDailyHours}
+          maxWeeklyHours={engineer.maxWeeklyHours}
         />
 
         <div className="border-border mt-4 flex flex-wrap items-center gap-3 border-t pt-4">
@@ -187,14 +186,14 @@ export function EngineerRow({
       </div>
 
       <EngineerCapacityFields
-        capacityPerWeek={draft.capacityPerWeek}
-        capacityDays={draft.capacityDays}
+        maxDailyHours={draft.maxDailyHours}
+        maxWeeklyHours={draft.maxWeeklyHours}
         disabled={isPending}
-        onCapacityCommit={(capacityPerWeek, capacityDays) =>
+        onCapacityCommit={(maxDailyHours, maxWeeklyHours) =>
           setDraft((d) => ({
             ...d,
-            capacityPerWeek,
-            capacityDays: cloneCapacityDays(capacityDays),
+            maxDailyHours,
+            maxWeeklyHours,
           }))
         }
       />

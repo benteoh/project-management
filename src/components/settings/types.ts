@@ -1,19 +1,15 @@
-import {
-  DEFAULT_CAPACITY_PER_WEEK,
-  DEFAULT_ENGINEER_CAPACITY_DAYS,
-  type EngineerCapacityDays,
-} from "@/types/engineer-pool";
+import { DEFAULT_MAX_DAILY_HOURS, DEFAULT_MAX_WEEKLY_HOURS } from "@/types/engineer-pool";
 
 export type SettingsTabId = "engineers" | "projects";
 
 export type EngineerCapacityPayload = {
-  capacityPerWeek: number | null;
-  capacityDays: EngineerCapacityDays;
+  maxDailyHours: number | null;
+  maxWeeklyHours: number | null;
 };
 
 export const DEFAULT_ENGINEER_CAPACITY: EngineerCapacityPayload = {
-  capacityPerWeek: DEFAULT_CAPACITY_PER_WEEK,
-  capacityDays: DEFAULT_ENGINEER_CAPACITY_DAYS,
+  maxDailyHours: DEFAULT_MAX_DAILY_HOURS,
+  maxWeeklyHours: DEFAULT_MAX_WEEKLY_HOURS,
 };
 
 export type EngineerCreatePayload = {

@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 
 import { createClient } from "@supabase/supabase-js";
 
-import { weeklyHoursToFiveDays } from "../src/lib/engineers/engineerCapacity";
+import { clampCapacityDay, clampCapacityWeek } from "../src/lib/engineers/engineerCapacity";
 import { deriveEngineerCodeBase } from "../src/lib/engineers/engineerCode";
 import { flattenTree } from "../src/lib/programme/programmeTree";
 import {
@@ -46,16 +46,17 @@ async function seed() {
 
   const poolUpsertRows = SEED_ENGINEER_ROWS.map((row) => {
     const code = deriveEngineerCodeBase(row.firstName, row.lastName);
-    const days = weeklyHoursToFiveDays(row.capacityPerWeek);
     const id = codeToExistingId.get(code) ?? randomUUID();
+    const w = clampCapacityWeek(row.maxWeeklyHours);
+    const d = clampCapacityDay(row.maxDailyHours);
     return {
       id,
       code,
       first_name: row.firstName,
       last_name: row.lastName,
       is_active: true,
-      capacity_per_week: row.capacityPerWeek,
-      capacity_days: [...days] as number[],
+      max_daily_hours: d,
+      max_weekly_hours: w,
     };
   });
 

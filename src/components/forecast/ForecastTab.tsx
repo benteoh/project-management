@@ -76,7 +76,6 @@ export function ForecastTab({ projectId, initialEngineerPool, programmeTree }: F
             first_name: string;
             last_name: string;
             is_active: boolean;
-            capacity_per_week: number | null;
           };
           if (row.is_active) {
             const entry: EngineerPoolEntry = {
@@ -84,7 +83,6 @@ export function ForecastTab({ projectId, initialEngineerPool, programmeTree }: F
               code: row.code,
               firstName: row.first_name,
               lastName: row.last_name,
-              capacityPerWeek: row.capacity_per_week,
             };
             setEngineers((prev) =>
               prev.some((e) => e.id === entry.id)
@@ -167,8 +165,8 @@ export function ForecastTab({ projectId, initialEngineerPool, programmeTree }: F
   }
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="overflow-x-auto">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-auto">
         <div className="min-w-max">
           <ForecastGridHeader
             dailyDates={dailyDates}

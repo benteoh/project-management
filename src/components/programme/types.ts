@@ -29,7 +29,7 @@ export interface ProgrammeNode {
   engineers?: EngineerAllocation[];
 }
 
-export type EditableField = "name" | "totalHours" | "forecastTotalHours" | "status";
+export type EditableField = "name" | "activityId" | "totalHours" | "forecastTotalHours";
 
 export interface EditingCell {
   nodeId: string;
@@ -45,7 +45,8 @@ export interface CalendarState {
 }
 
 export interface AddFormState {
-  parentId: string;
+  /** Parent node id, or `null` when adding a root-level scope. */
+  parentId: string | null;
   type: NodeType;
 }
 
