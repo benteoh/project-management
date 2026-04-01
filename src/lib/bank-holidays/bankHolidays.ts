@@ -1,6 +1,6 @@
 import "server-only";
 
-import { Redis } from "@upstash/redis";
+import { getRedis } from "@/lib/redis/redis";
 
 const GOV_UK_BANK_HOLIDAYS_URL = "https://www.gov.uk/bank-holidays.json";
 const CACHE_TTL_DAYS = 7;
@@ -21,13 +21,6 @@ type CachedPayload = {
 
 function cacheAgeDays(fetchedAtIso: string, nowMs: number): number {
   return (nowMs - new Date(fetchedAtIso).getTime()) / (1000 * 60 * 60 * 24);
-}
-
-function getRedis(): Redis | null {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) return null;
-  return new Redis({ url, token });
 }
 
 /**
