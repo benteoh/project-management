@@ -1,9 +1,9 @@
 import type { ProjectUpsertRow } from "@/types/project";
 
-import { SEED_ENGINEER_ROWS } from "./seedEngineers";
+import { SEED_ENGINEER_ROWS, SEED_PROJECT_ENGINEER_RATE_ROWS } from "./seedEngineers";
 import { buildProgrammeNodesFromSeed, seedProgrammeData } from "./seedProgrammeData";
 
-export { SEED_ENGINEER_ROWS };
+export { SEED_ENGINEER_ROWS, SEED_PROJECT_ENGINEER_RATE_ROWS };
 
 /** Primary key for the sample project (`/projects/1`, seed WBS). */
 export const SEED_PROJECT_ID = "1" as const;
