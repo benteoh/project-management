@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 
 import { ForecastTab } from "@/components/forecast/ForecastTab";
+import { TimesheetTab } from "@/components/timesheet/TimesheetTab";
 import { ProgrammeTab } from "@/components/programme/ProgrammeTab";
 import type { ProgrammeNode } from "@/components/programme/types";
 import {
@@ -17,7 +18,7 @@ import type { Project } from "@/types/project";
 
 import { saveProgrammeAction } from "./actions";
 
-const TABS = ["Programme", "Forecast"] as const;
+const TABS = ["Timesheet", "Programme", "Forecast"] as const;
 type Tab = (typeof TABS)[number];
 
 function formatProjectStatus(status: Project["status"]): string {
@@ -161,6 +162,9 @@ export default function ProjectPageClient({
             bankHolidays={bankHolidays}
           />
         )}
+        <div className={activeTab === "Timesheet" ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
+          <TimesheetTab />
+        </div>
       </div>
     </div>
   );
