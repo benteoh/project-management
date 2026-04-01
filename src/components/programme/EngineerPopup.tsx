@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Plus, X } from "lucide-react";
 
 import type { EngineerPoolEntry } from "@/types/engineer-pool";
+import { useAnchoredFixedPosition } from "@/components/ui/useAnchoredFixedPosition";
 
 import type { EngineerAllocation } from "./types";
 
@@ -30,6 +31,7 @@ export function EngineerPopup({
   const [showAddInput, setShowAddInput] = useState(false);
   const [newCode, setNewCode] = useState("");
   const [shake, setShake] = useState(false);
+  const popupRef = useRef<HTMLDivElement>(null);
 
   const triggerShake = () => {
     setShake(true);
@@ -70,16 +72,18 @@ export function EngineerPopup({
     onClose();
   };
 
-  const top = rect.top + rect.height + 6;
-  const left = Math.min(
-    rect.left,
-    typeof window !== "undefined" ? window.innerWidth - 360 : rect.left
-  );
+  const { top, left } = useAnchoredFixedPosition({
+    anchorRect: rect,
+    elementRef: popupRef,
+    offset: 6,
+    viewportPadding: 8,
+  });
 
   return (
     <>
       <div className="fixed inset-0 z-[118]" onClick={triggerShake} />
       <div
+        ref={popupRef}
         className="border-border bg-card shadow-elevated fixed z-[119] w-80 rounded-lg border"
         style={{ top, left }}
       >

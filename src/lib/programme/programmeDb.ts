@@ -18,7 +18,10 @@ export async function loadProgrammeFromDb(
 ): Promise<{ tree: ProgrammeNode[]; engineerPool: EngineerPoolEntry[] } | { error: string }> {
   const [nodesRes, poolRes] = await Promise.all([
     client.from("programme_nodes").select("*").eq("project_id", projectId),
-    client.from("engineer_pool").select("id, code, capacity_per_week").eq("is_active", true),
+    client
+      .from("engineer_pool")
+      .select("id, code, first_name, last_name, capacity_per_week")
+      .eq("is_active", true),
   ]);
 
   if (nodesRes.error) return { error: nodesRes.error.message };
@@ -38,10 +41,18 @@ export async function loadProgrammeFromDb(
   const tree = buildTreeFromRows(rows, engineerRows);
   const engineerPool = (poolRes.data ?? [])
     .map((r) => {
-      const row = r as { id: string; code: string; capacity_per_week: number | null };
+      const row = r as {
+        id: string;
+        code: string;
+        first_name: string;
+        last_name: string;
+        capacity_per_week: number | null;
+      };
       return {
         id: row.id,
         code: row.code,
+        firstName: row.first_name,
+        lastName: row.last_name,
         capacityPerWeek: (() => {
           if (row.capacity_per_week === null || row.capacity_per_week === undefined) return null;
           const n = Number(row.capacity_per_week);

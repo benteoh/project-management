@@ -1,5 +1,6 @@
 import type { MouseEvent } from "react";
 
+import { FilterFunnelIcon } from "@/components/ui/FilterFunnelIcon";
 import { cn } from "@/lib/utils";
 
 import { DATE_COL_W, NO_COL_W, SUMMARY_COL_W, SUMMARY_LABELS } from "./constants";
@@ -50,9 +51,7 @@ export function ForecastGridHeader({
                 title={`Filter ${label}`}
                 className={`ml-1 rounded p-0.5 transition-colors ${isActive ? "text-gold" : "text-muted-foreground hover:text-foreground"}`}
               >
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-                  <path d="M1 2h10L7 6.5V11L5 10V6.5L1 2z" />
-                </svg>
+                <FilterFunnelIcon />
               </button>
             )}
           </div>

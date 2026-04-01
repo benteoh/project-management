@@ -73,6 +73,8 @@ export function ForecastTab({ projectId, initialEngineerPool, programmeTree }: F
           const row = payload.new as {
             id: string;
             code: string;
+            first_name: string;
+            last_name: string;
             is_active: boolean;
             capacity_per_week: number | null;
           };
@@ -80,6 +82,8 @@ export function ForecastTab({ projectId, initialEngineerPool, programmeTree }: F
             const entry: EngineerPoolEntry = {
               id: row.id,
               code: row.code,
+              firstName: row.first_name,
+              lastName: row.last_name,
               capacityPerWeek: row.capacity_per_week,
             };
             setEngineers((prev) =>

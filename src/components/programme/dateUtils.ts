@@ -32,3 +32,33 @@ export function parseProgrammeDate(str: string): Date | null {
 export function formatProgrammeDate(d: Date): string {
   return `${String(d.getDate()).padStart(2, "0")}-${MONTH_NAMES[d.getMonth()]}-${String(d.getFullYear()).slice(-2)}`;
 }
+
+export function atStartOfDay(date: Date): Date {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+/**
+ * Parses ISO `YYYY-MM-DD`, programme `dd-Mon-yy` via {@link parseProgrammeDate}, or `Date.parse` fallback.
+ * Use {@link parseFlexibleActivityDateStartOfDay} when comparing calendar days (e.g. late vs today).
+ */
+export function parseFlexibleActivityDate(value: string): Date | null {
+  if (!value) return null;
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const parsedIso = new Date(`${value}T00:00:00`);
+    return Number.isNaN(parsedIso.getTime()) ? null : parsedIso;
+  }
+
+  const parsedProgramme = parseProgrammeDate(value);
+  if (parsedProgramme && !Number.isNaN(parsedProgramme.getTime())) return parsedProgramme;
+
+  const fallback = new Date(value);
+  return Number.isNaN(fallback.getTime()) ? null : fallback;
+}
+
+export function parseFlexibleActivityDateStartOfDay(value: string): Date | null {
+  const d = parseFlexibleActivityDate(value);
+  return d ? atStartOfDay(d) : null;
+}

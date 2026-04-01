@@ -83,7 +83,7 @@ export function ProgrammeRow({
     <input
       autoFocus
       type="number"
-      className={`w-full text-right ${EDIT_INPUT_CLS}`}
+      className={`w-full text-center ${EDIT_INPUT_CLS}`}
       value={editingCell?.value ?? ""}
       onChange={(e) => onEditingCellChange(e.target.value)}
       onBlur={onCommitEdit}
@@ -146,12 +146,12 @@ export function ProgrammeRow({
         </div>
 
         {/* Total Hours */}
-        <div className="text-muted-foreground w-24 shrink-0 px-2 py-1.5 text-right tabular-nums">
+        <div className="text-muted-foreground w-24 shrink-0 px-2 py-1.5 text-center tabular-nums">
           {isEditing("totalHours") ? (
             numericInput
           ) : (
             <span
-              className={HOVER_CLS}
+              className={`inline-block ${HOVER_CLS}`}
               onClick={() => onStartEdit(node.id, "totalHours", String(node.totalHours ?? ""))}
             >
               {node.totalHours ?? "—"}
@@ -160,7 +160,7 @@ export function ProgrammeRow({
         </div>
 
         {/* Start */}
-        <div className="w-28 shrink-0 px-2 py-1.5">
+        <div className="w-28 shrink-0 px-2 py-1.5 text-center">
           <span
             className={`text-muted-foreground inline-block font-mono text-xs ${HOVER_CLS}`}
             onClick={(e) => onOpenCal(node.id, "start", node.start, e)}
@@ -171,7 +171,7 @@ export function ProgrammeRow({
         </div>
 
         {/* Finish */}
-        <div className="w-28 shrink-0 px-2 py-1.5">
+        <div className="w-28 shrink-0 px-2 py-1.5 text-center">
           <span
             className={`text-muted-foreground inline-block font-mono text-xs ${HOVER_CLS}`}
             onClick={(e) => onOpenCal(node.id, "finish", node.finish, e)}
@@ -182,12 +182,12 @@ export function ProgrammeRow({
         </div>
 
         {/* Forecast Hours */}
-        <div className="text-muted-foreground w-28 shrink-0 px-2 py-1.5 text-right tabular-nums">
+        <div className="text-muted-foreground w-28 shrink-0 px-2 py-1.5 text-center tabular-nums">
           {isEditing("forecastTotalHours") ? (
             numericInput
           ) : (
             <span
-              className={HOVER_CLS}
+              className={`inline-block ${HOVER_CLS}`}
               onClick={() =>
                 onStartEdit(node.id, "forecastTotalHours", String(node.forecastTotalHours ?? ""))
               }
@@ -198,11 +198,11 @@ export function ProgrammeRow({
         </div>
 
         {/* Status */}
-        <div className="w-28 shrink-0 px-2 py-1.5">
+        <div className="w-28 shrink-0 px-2 py-1.5 text-center">
           {isEditing("status") ? (
             <select
               autoFocus
-              className={`w-full px-1 py-0.5 text-xs ${EDIT_INPUT_CLS}`}
+              className={`w-full px-1 py-0.5 text-center text-xs ${EDIT_INPUT_CLS}`}
               value={editingCell?.value ?? ""}
               onChange={(e) => {
                 onSaveField(node.id, "status", e.target.value);
@@ -215,14 +215,16 @@ export function ProgrammeRow({
               <option>Completed</option>
             </select>
           ) : node.status ? (
-            <span
-              className={`inline-block rounded ${node.type === "activity" ? "cursor-pointer hover:opacity-80" : ""}`}
-              onClick={() =>
-                node.type === "activity" && onStartEdit(node.id, "status", node.status)
-              }
-              title={node.type === "activity" ? "Click to change status" : undefined}
-            >
-              <StatusBadge status={node.status} />
+            <span className="inline-flex justify-center">
+              <span
+                className={`inline-block rounded ${node.type === "activity" ? "cursor-pointer hover:opacity-80" : ""}`}
+                onClick={() =>
+                  node.type === "activity" && onStartEdit(node.id, "status", node.status)
+                }
+                title={node.type === "activity" ? "Click to change status" : undefined}
+              >
+                <StatusBadge status={node.status} />
+              </span>
             </span>
           ) : null}
         </div>

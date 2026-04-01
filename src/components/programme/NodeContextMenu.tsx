@@ -1,6 +1,8 @@
 import { Plus, Trash2 } from "lucide-react";
+import { useRef } from "react";
 import { NodeType, ContextMenuState, AddFormState } from "./types";
 import { getAddOptions } from "./treeUtils";
+import { useAnchoredFixedPosition } from "@/components/ui/useAnchoredFixedPosition";
 
 interface NodeContextMenuProps {
   ctxMenu: ContextMenuState;
@@ -11,6 +13,13 @@ interface NodeContextMenuProps {
 
 export function NodeContextMenu({ ctxMenu, onClose, onAddChild, onDelete }: NodeContextMenuProps) {
   const addOptions = getAddOptions(ctxMenu.nodeType);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const { top, left } = useAnchoredFixedPosition({
+    anchorRect: { top: ctxMenu.y, left: ctxMenu.x, width: 0, height: 0 },
+    elementRef: menuRef,
+    offset: 2,
+    viewportPadding: 8,
+  });
 
   return (
     <>
@@ -23,8 +32,9 @@ export function NodeContextMenu({ ctxMenu, onClose, onAddChild, onDelete }: Node
         }}
       />
       <div
+        ref={menuRef}
         className="border-border bg-card shadow-elevated fixed z-100 min-w-[160px] overflow-hidden rounded-md border py-1 text-sm"
-        style={{ top: ctxMenu.y, left: ctxMenu.x }}
+        style={{ top, left }}
       >
         {addOptions.map((opt: { label: string; type: NodeType }) => (
           <button

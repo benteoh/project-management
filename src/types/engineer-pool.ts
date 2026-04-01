@@ -28,6 +28,8 @@ export interface Engineer {
 export interface EngineerPoolEntry {
   id: string;
   code: string;
+  firstName?: string;
+  lastName?: string;
   capacityPerWeek: number | null;
 }
 

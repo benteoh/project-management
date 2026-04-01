@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useAnchoredFixedPosition } from "@/components/ui/useAnchoredFixedPosition";
 
 export type ColumnFilterProps = {
   options: string[];
@@ -26,6 +27,12 @@ export function ColumnFilter({
   const [checked, setChecked] = useState<Set<string>>(() => new Set(selected ?? sortedOptions));
   const [search, setSearch] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
+  const { top, left } = useAnchoredFixedPosition({
+    anchorRect,
+    elementRef: containerRef,
+    offset: 4,
+    viewportPadding: 8,
+  });
 
   const allChecked = checked.size === sortedOptions.length;
   const visible = search
@@ -47,7 +54,7 @@ export function ColumnFilter({
 
   function apply() {
     if (checked.size === 0) {
-      // Nothing selected — keep previous state, just close
+      onChange(new Set());
       onClose();
       return;
     }
@@ -77,8 +84,8 @@ export function ColumnFilter({
 
   const style: React.CSSProperties = {
     position: "fixed",
-    top: anchorRect.bottom + 4,
-    left: anchorRect.left,
+    top,
+    left,
     zIndex: 9999,
     minWidth: 200,
   };
@@ -134,21 +141,28 @@ export function ColumnFilter({
       </div>
 
       {/* Footer */}
-      <div className="border-border flex justify-end gap-2 border-t px-3 py-2">
-        <button
-          type="button"
-          onClick={onClose}
-          className="text-muted-foreground hover:text-foreground rounded-md px-3 py-1 text-xs"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          onClick={apply}
-          className="bg-gold rounded-md px-3 py-1 text-xs font-medium text-white"
-        >
-          OK
-        </button>
+      <div className="border-border border-t px-3 py-2">
+        {checked.size === 0 ? (
+          <p className="text-muted-foreground mb-2 text-xs">
+            No statuses selected — the table will show no matching activities.
+          </p>
+        ) : null}
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-muted-foreground hover:text-foreground rounded-md px-3 py-1 text-xs"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={apply}
+            className="bg-gold rounded-md px-3 py-1 text-xs font-medium text-white"
+          >
+            OK
+          </button>
+        </div>
       </div>
     </div>,
     document.body

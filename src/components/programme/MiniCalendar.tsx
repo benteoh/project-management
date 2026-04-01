@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { parseProgrammeDate, formatProgrammeDate, MONTH_NAMES, DAY_NAMES } from "./dateUtils";
+import { useAnchoredFixedPosition } from "@/components/ui/useAnchoredFixedPosition";
 
 export function MiniCalendar({
   value,
@@ -17,8 +18,15 @@ export function MiniCalendar({
 }) {
   const parsed = parseProgrammeDate(value);
   const [view, setView] = useState<Date>(parsed ?? new Date());
+  const popupRef = useRef<HTMLDivElement>(null);
   const year = view.getFullYear();
   const month = view.getMonth();
+  const { top, left } = useAnchoredFixedPosition({
+    anchorRect,
+    elementRef: popupRef,
+    offset: 4,
+    viewportPadding: 8,
+  });
 
   const firstDow = (() => {
     const d = new Date(year, month, 1).getDay() - 1;
@@ -34,8 +42,9 @@ export function MiniCalendar({
     <>
       <div className="fixed inset-0 z-[99]" onClick={onClose} />
       <div
+        ref={popupRef}
         className="border-border bg-card shadow-elevated fixed z-[100] w-56 rounded-lg border p-3"
-        style={{ top: anchorRect.top + anchorRect.height + 4, left: anchorRect.left }}
+        style={{ top, left }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Month nav */}

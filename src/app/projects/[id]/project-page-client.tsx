@@ -1,9 +1,14 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { ProgrammeTab } from "@/components/programme/ProgrammeTab";
+import {
+  type ActivityFilterKey,
+  ProjectActivityStateWidget,
+} from "@/components/project/ProjectActivityStateWidget";
 import type { ProgrammeNode } from "@/components/programme/types";
+import { buildActivityStateBuckets } from "@/lib/programme/activityStateSummary";
 import { formatDate } from "@/lib/utils";
 import type { EngineerPoolEntry } from "@/types/engineer-pool";
 import type { Project } from "@/types/project";
@@ -35,6 +40,23 @@ export default function ProjectPageClient({
   programmeLoadError: string | null;
 }) {
   const [activeTab, setActiveTab] = useState<Tab>("Programme");
+  const [programmeTree, setProgrammeTree] = useState<ProgrammeNode[]>(initialProgrammeTree);
+  const [engineerPool, setEngineerPool] = useState<EngineerPoolEntry[]>(initialEngineerPool);
+  const [activityFilter, setActivityFilter] = useState<ActivityFilterKey | null>(null);
+  const activityBuckets = useMemo(() => buildActivityStateBuckets(programmeTree), [programmeTree]);
+  const activityFilterIds = useMemo(() => {
+    if (!activityFilter) return null;
+    return new Set(activityBuckets[activityFilter].map((row) => row.id));
+  }, [activityBuckets, activityFilter]);
+  const activitySummary = useMemo(
+    () => ({
+      upcoming: activityBuckets.upcoming.length,
+      inProgress: activityBuckets.inProgress.length,
+      warning: activityBuckets.warning.length,
+      late: activityBuckets.late.length,
+    }),
+    [activityBuckets]
+  );
 
   const saveProgramme = useCallback(
     (tree: ProgrammeNode[]) => saveProgrammeAction(projectId, tree),
@@ -50,14 +72,27 @@ export default function ProjectPageClient({
           </div>
         )}
         {project ? (
-          <>
-            <p className="text-muted-foreground text-sm">{project.client}</p>
-            <h1 className="text-foreground text-2xl font-semibold">{project.name}</h1>
-            <p className="text-muted-foreground mt-1 text-sm">
-              {formatDate(project.startDate)} – {formatDate(project.endDate)} · {project.office} ·{" "}
-              {formatProjectStatus(project.status)}
-            </p>
-          </>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-muted-foreground text-sm">{project.client}</p>
+              <h1 className="text-foreground text-2xl font-semibold">{project.name}</h1>
+              <p className="text-muted-foreground mt-1 text-sm">
+                {formatDate(project.startDate)} – {formatDate(project.endDate)} · {project.office} ·{" "}
+                {formatProjectStatus(project.status)}
+              </p>
+            </div>
+
+            <div className="flex items-stretch gap-2">
+              <ProjectActivityStateWidget
+                summary={activitySummary}
+                activeFilter={activityFilter}
+                onSelectFilter={(filter) => {
+                  setActivityFilter((prev) => (prev === filter ? null : filter));
+                  setActiveTab("Programme");
+                }}
+              />
+            </div>
+          </div>
         ) : (
           !projectLoadError && (
             <>
@@ -92,18 +127,21 @@ export default function ProjectPageClient({
       <div className="border-border bg-card mx-6 flex flex-1 flex-col overflow-hidden border-x border-b">
         {activeTab === "Programme" && (
           <ProgrammeTab
-            initialTree={initialProgrammeTree}
-            initialEngineerPool={initialEngineerPool}
+            initialTree={programmeTree}
+            initialEngineerPool={engineerPool}
             loadError={programmeLoadError}
             saveProgramme={saveProgramme}
             addEngineerToPool={addEngineerToPoolAction}
+            onTreeChange={setProgrammeTree}
+            onEngineerPoolChange={setEngineerPool}
+            activityFilterIds={activityFilterIds}
           />
         )}
         {activeTab === "Forecast" && (
           <ForecastTab
             projectId={projectId}
-            initialEngineerPool={initialEngineerPool}
-            programmeTree={initialProgrammeTree}
+            initialEngineerPool={engineerPool}
+            programmeTree={programmeTree}
           />
         )}
       </div>

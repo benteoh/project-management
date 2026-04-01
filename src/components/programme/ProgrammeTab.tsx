@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 
 import {
   ProgrammeNode,
@@ -18,7 +18,18 @@ import { ProgrammeRow } from "./ProgrammeRow";
 import { NodeContextMenu } from "./NodeContextMenu";
 import { AddNodeModal } from "./AddNodeModal";
 import { EngineerPopup } from "./EngineerPopup";
+import {
+  applyActivityQuery,
+  collectActivityQueryItems,
+  DEFAULT_ACTIVITY_QUERY,
+  isActivityQueryActive,
+  type ActivityStatusValue,
+  type ActivityQueryState,
+} from "./activityQuery";
+import { ColumnFilter } from "@/components/forecast/ColumnFilter";
 import type { Engineer, EngineerPoolEntry } from "@/types/engineer-pool";
+import { ProgrammeTableHeader } from "./ProgrammeTableHeader";
+import { PROGRAMME_SORT_COLUMN_MAP, type ProgrammeSortColumn } from "./programmeTableSort";
 
 export type ProgrammeTabProps = {
   initialTree: ProgrammeNode[];
@@ -29,6 +40,9 @@ export type ProgrammeTabProps = {
   addEngineerToPool: (
     code: string
   ) => Promise<{ ok: true; engineer: Engineer } | { ok: false; error: string }>;
+  onTreeChange?: (tree: ProgrammeNode[]) => void;
+  onEngineerPoolChange?: (engineers: EngineerPoolEntry[]) => void;
+  activityFilterIds?: ReadonlySet<string> | null;
 };
 
 export function ProgrammeTab({
@@ -37,6 +51,9 @@ export function ProgrammeTab({
   loadError: initialLoadError,
   saveProgramme,
   addEngineerToPool,
+  onTreeChange,
+  onEngineerPoolChange,
+  activityFilterIds,
 }: ProgrammeTabProps) {
   const histRef = useRef<{ stack: ProgrammeNode[][]; idx: number }>({
     stack: [initialTree],
@@ -56,6 +73,11 @@ export function ProgrammeTab({
     scopeId: string;
     rect: { top: number; left: number; width: number; height: number };
   } | null>(null);
+  const [activityQuery, setActivityQuery] = useState<ActivityQueryState>(DEFAULT_ACTIVITY_QUERY);
+  const [openFilter, setOpenFilter] = useState<{
+    column: "status";
+    rect: DOMRect;
+  } | null>(null);
 
   const persist = useCallback(
     async (tree: ProgrammeNode[]) => {
@@ -73,9 +95,10 @@ export function ProgrammeTab({
       h.stack.push(next);
       h.idx = h.stack.length - 1;
       setPresent(next);
+      onTreeChange?.(next);
       void persist(next);
     },
-    [persist]
+    [onTreeChange, persist]
   );
 
   const undo = useCallback(() => {
@@ -84,8 +107,9 @@ export function ProgrammeTab({
     h.idx--;
     const next = h.stack[h.idx];
     setPresent(next);
+    onTreeChange?.(next);
     void persist(next);
-  }, [persist]);
+  }, [onTreeChange, persist]);
 
   const redo = useCallback(() => {
     const h = histRef.current;
@@ -93,8 +117,9 @@ export function ProgrammeTab({
     h.idx++;
     const next = h.stack[h.idx];
     setPresent(next);
+    onTreeChange?.(next);
     void persist(next);
-  }, [persist]);
+  }, [onTreeChange, persist]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -214,20 +239,23 @@ export function ProgrammeTab({
       }
       setEngineerPool((prev) => {
         const next = prev.filter((p) => p.id !== r.engineer.id);
-        return [
+        const updated = [
           ...next,
           {
             id: r.engineer.id,
             code: r.engineer.code,
+            firstName: r.engineer.firstName,
+            lastName: r.engineer.lastName,
             capacityPerWeek: r.engineer.capacityPerWeek,
           },
         ].sort((a, b) => a.code.localeCompare(b.code));
+        onEngineerPoolChange?.(updated);
+        return updated;
       });
     });
   };
 
   const rowProps = {
-    collapsed,
     editingCell,
     onToggleCollapse: toggleCollapse,
     onStartEdit: startEdit,
@@ -239,6 +267,84 @@ export function ProgrammeTab({
     onContextMenu: openCtxMenu,
     onOpenEngPinned: openEngPinned,
   };
+
+  const statusFilterOptions: ActivityStatusValue[] = ["Not Started", "In Progress", "Completed"];
+
+  const toggleSort = (column: ProgrammeSortColumn) => {
+    setActivityQuery((prev) => {
+      const sorts = PROGRAMME_SORT_COLUMN_MAP[column];
+      const nextSort =
+        prev.sort === sorts.asc ? sorts.desc : prev.sort === sorts.desc ? "none" : sorts.asc;
+      return { ...prev, sort: nextSort };
+    });
+  };
+
+  const openFilterFor = (column: "status", e: React.MouseEvent<HTMLElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setOpenFilter({ column, rect });
+  };
+
+  const queriedActivityIds = useMemo(() => {
+    const items = collectActivityQueryItems(present);
+    return applyActivityQuery(items, activityQuery, activityFilterIds ?? null);
+  }, [present, activityQuery, activityFilterIds]);
+
+  const engPopupScopeNode = useMemo(() => {
+    if (!engPopup) return null;
+    const findScope = (nodes: ProgrammeNode[]): ProgrammeNode | null => {
+      for (const n of nodes) {
+        if (n.id === engPopup.scopeId) return n;
+        const found = findScope(n.children);
+        if (found) return found;
+      }
+      return null;
+    };
+    return findScope(present);
+  }, [engPopup, present]);
+
+  const hasExternalCardFilter = activityFilterIds != null;
+  const hasAnyActivityFilter = hasExternalCardFilter || isActivityQueryActive(activityQuery);
+
+  const visibleTree = useMemo(() => {
+    if (!hasAnyActivityFilter) return present;
+
+    const activityIds = new Set(queriedActivityIds);
+
+    const filterTree = (nodes: ProgrammeNode[]): ProgrammeNode[] =>
+      nodes.flatMap((node) => {
+        const filteredChildren = filterTree(node.children);
+        const includeSelf = node.type === "activity" && activityIds.has(node.id);
+        if (!includeSelf && filteredChildren.length === 0) return [];
+        return [{ ...node, children: filteredChildren }];
+      });
+
+    const rankById = new Map(queriedActivityIds.map((id, idx) => [id, idx]));
+
+    const sortTree = (nodes: ProgrammeNode[]): { node: ProgrammeNode; rank: number }[] => {
+      return nodes
+        .map((node) => {
+          const childEntries = sortTree(node.children);
+          const selfRank =
+            node.type === "activity"
+              ? (rankById.get(node.id) ?? Number.POSITIVE_INFINITY)
+              : Number.POSITIVE_INFINITY;
+          const minChildRank = childEntries.reduce(
+            (min, child) => Math.min(min, child.rank),
+            Number.POSITIVE_INFINITY
+          );
+          return {
+            node: {
+              ...node,
+              children: childEntries.map((entry) => entry.node),
+            },
+            rank: Math.min(selfRank, minChildRank),
+          };
+        })
+        .sort((a, b) => a.rank - b.rank);
+    };
+
+    return sortTree(filterTree(present)).map((entry) => entry.node);
+  }, [present, queriedActivityIds, hasAnyActivityFilter]);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -253,26 +359,46 @@ export function ProgrammeTab({
         </div>
       )}
 
-      <div className="border-border bg-muted text-muted-foreground relative flex shrink-0 items-center border-b-2 text-xs font-medium tracking-wide uppercase">
-        <div className="flex-1 px-3 py-2.5">Activity Name</div>
-        <div className="w-24 shrink-0 px-3 py-2.5 text-right">Total Hours</div>
-        <div className="w-28 shrink-0 px-3 py-2.5">Start</div>
-        <div className="w-28 shrink-0 px-3 py-2.5">Finish</div>
-        <div className="w-28 shrink-0 px-3 py-2.5 text-right">Forecast Hrs</div>
-        <div className="w-28 shrink-0 px-3 py-2.5">Status</div>
+      <div className="relative flex-1 overflow-y-auto">
+        <ProgrammeTableHeader
+          sort={activityQuery.sort}
+          statusFilterActive={Boolean(activityQuery.statuses)}
+          onSort={toggleSort}
+          onStatusFilterClick={(e) => openFilterFor("status", e)}
+        />
+
+        {visibleTree.length === 0 && hasAnyActivityFilter ? (
+          <div className="text-muted-foreground px-4 py-3 text-sm">
+            No activities match the selected filter.
+          </div>
+        ) : (
+          visibleTree.map((node) => (
+            <ProgrammeRow
+              key={node.id}
+              node={node}
+              depth={0}
+              engineerPool={engineerPool}
+              {...rowProps}
+              collapsed={collapsed}
+            />
+          ))
+        )}
       </div>
 
-      <div className="relative flex-1 overflow-y-auto">
-        {present.map((node) => (
-          <ProgrammeRow
-            key={node.id}
-            node={node}
-            depth={0}
-            engineerPool={engineerPool}
-            {...rowProps}
-          />
-        ))}
-      </div>
+      {openFilter && (
+        <ColumnFilter
+          options={statusFilterOptions}
+          selected={activityQuery.statuses}
+          anchorRect={openFilter.rect}
+          onChange={(next) =>
+            setActivityQuery((prev) => ({
+              ...prev,
+              statuses: next as Set<ActivityStatusValue> | null,
+            }))
+          }
+          onClose={() => setOpenFilter(null)}
+        />
+      )}
 
       {ctxMenu && (
         <NodeContextMenu
@@ -288,32 +414,19 @@ export function ProgrammeTab({
         />
       )}
 
-      {engPopup &&
-        (() => {
-          const findScope = (nodes: ProgrammeNode[]): ProgrammeNode | null => {
-            for (const n of nodes) {
-              if (n.id === engPopup.scopeId) return n;
-              const found = findScope(n.children);
-              if (found) return found;
-            }
-            return null;
-          };
-          const scopeNode = findScope(present);
-          if (!scopeNode) return null;
-          return (
-            <EngineerPopup
-              key={engPopup.scopeId}
-              engineers={scopeNode.engineers ?? []}
-              totalHours={scopeNode.totalHours}
-              forecastHours={scopeNode.forecastTotalHours}
-              engineerPool={engineerPool}
-              rect={engPopup.rect}
-              onChangeEngineers={(engs) => updateScopeEngineers(engPopup.scopeId, engs)}
-              onAddToPool={addToPool}
-              onClose={() => setEngPopup(null)}
-            />
-          );
-        })()}
+      {engPopup && engPopupScopeNode && (
+        <EngineerPopup
+          key={engPopup.scopeId}
+          engineers={engPopupScopeNode.engineers ?? []}
+          totalHours={engPopupScopeNode.totalHours}
+          forecastHours={engPopupScopeNode.forecastTotalHours}
+          engineerPool={engineerPool}
+          rect={engPopup.rect}
+          onChangeEngineers={(engs) => updateScopeEngineers(engPopup.scopeId, engs)}
+          onAddToPool={addToPool}
+          onClose={() => setEngPopup(null)}
+        />
+      )}
 
       {calendar && (
         <MiniCalendar

@@ -5,9 +5,14 @@ import { usePathname, useRouter } from "next/navigation";
 
 import { EngineerManager } from "@/components/settings/EngineerManager";
 import { ProjectSettingsSection } from "@/components/settings/ProjectSettingsSection";
-import { SettingsModal } from "@/components/settings/SettingsModal";
+import { SidebarTabsModal } from "@/components/settings/SidebarTabsModal";
 import type { SettingsTabId } from "@/components/settings/types";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+
+const SETTINGS_TABS: { id: SettingsTabId; label: string }[] = [
+  { id: "engineers", label: "Engineers" },
+  { id: "projects", label: "Projects" },
+];
 
 export function AppChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -57,8 +62,10 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
       <div className="flex flex-1 flex-col">{children}</div>
 
       {isSettingsOpen && (
-        <SettingsModal
+        <SidebarTabsModal
+          title="Settings"
           activeTab={settingsTab}
+          tabs={SETTINGS_TABS}
           onTabChange={setSettingsTab}
           onClose={() => {
             setIsSettingsOpen(false);
@@ -66,7 +73,7 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
           }}
         >
           {settingsTab === "engineers" ? <EngineerManager /> : <ProjectSettingsSection />}
-        </SettingsModal>
+        </SidebarTabsModal>
       )}
     </div>
   );
