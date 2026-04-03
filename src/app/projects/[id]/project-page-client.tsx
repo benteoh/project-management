@@ -15,6 +15,7 @@ import { buildActivityStateBuckets } from "@/lib/programme/activityStateSummary"
 import { formatDate } from "@/lib/utils";
 import type { EngineerPoolEntry } from "@/types/engineer-pool";
 import type { Project } from "@/types/project";
+import type { TimesheetUpload } from "@/types/timesheet";
 
 import { saveProgrammeAction } from "./actions";
 
@@ -33,6 +34,7 @@ export default function ProjectPageClient({
   initialEngineerPool,
   programmeLoadError,
   bankHolidays,
+  initialTimesheetUploads,
 }: {
   projectId: string;
   project: Project | null;
@@ -41,6 +43,7 @@ export default function ProjectPageClient({
   initialEngineerPool: EngineerPoolEntry[];
   programmeLoadError: string | null;
   bankHolidays: string[];
+  initialTimesheetUploads: TimesheetUpload[];
 }) {
   const [activeTab, setActiveTab] = useState<Tab>("Programme");
   const [programmeTree, setProgrammeTree] = useState<ProgrammeNode[]>(initialProgrammeTree);
@@ -163,7 +166,7 @@ export default function ProjectPageClient({
           />
         )}
         <div className={activeTab === "Timesheet" ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
-          <TimesheetTab />
+          <TimesheetTab projectId={projectId} initialUploads={initialTimesheetUploads} />
         </div>
       </div>
     </div>
