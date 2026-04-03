@@ -1,0 +1,2 @@
+-- Column ordering is preserved via a sentinel row (row_index = -1) in
+-- timesheet_entries; no schema change to timesheet_uploads is required.
