@@ -5,11 +5,11 @@ import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
 import type { ProgrammeNodeDbRow } from "@/types/programme";
 import type { EngineerPoolEntry } from "@/types/engineer-pool";
+import { formatEngineerListLabel } from "@/lib/engineer-pool-display";
 
 import { ColumnFilter } from "./ColumnFilter";
 import { END_DATE } from "./constants";
-import { ForecastGridHeader } from "./ForecastGridHeader";
-import { ForecastGridRow } from "./ForecastGridRow";
+import { ForecastAgGrid } from "./ForecastAgGrid";
 import type {
   ForecastFilterColumn,
   ForecastGridRow as ForecastGridRowType,
@@ -150,14 +150,18 @@ export function ForecastTab({
       allRows.filter(
         ({ scope, engineer }) =>
           (scopeFilter === null || scopeFilter.has(scope.label)) &&
-          (personFilter === null || personFilter.has(engineer.code))
+          (personFilter === null ||
+            personFilter.has(formatEngineerListLabel(engineer, engineer.code)))
       ),
     [allRows, scopeFilter, personFilter]
   );
 
   // Unique option lists for each filter dropdown
   const scopeOptions = useMemo(() => [...new Set(scopes.map((s) => s.label))], [scopes]);
-  const personOptions = useMemo(() => engineers.map((e) => e.code), [engineers]);
+  const personOptions = useMemo(
+    () => engineers.map((e) => formatEngineerListLabel(e, e.code)),
+    [engineers]
+  );
   const scopeFilterSignature = useMemo(() => {
     const selected = scopeFilter ? [...scopeFilter].sort().join("|") : "all";
     return `${scopeOptions.join("|")}::${selected}`;
@@ -174,25 +178,48 @@ export function ForecastTab({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="min-h-0 flex-1 overflow-auto">
-        <div className="min-w-max">
-          <ForecastGridHeader
-            dailyDates={dailyDates}
-            bankHolidays={bankHolidays}
-            scopeFilterActive={scopeFilter !== null}
-            personFilterActive={personFilter !== null}
-            onOpenFilter={openFilterFor}
-          />
+      {/* Filter toolbar */}
+      <div className="border-border flex shrink-0 items-center gap-2 border-b px-4 py-2">
+        <button
+          type="button"
+          onClick={(e) => openFilterFor("scope", e)}
+          className={`rounded-md border px-3 py-1 text-xs font-medium transition-colors ${
+            scopeFilter !== null
+              ? "border-gold text-gold"
+              : "border-border text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Scope{scopeFilter !== null ? ` (${scopeFilter.size})` : ""}
+        </button>
+        <button
+          type="button"
+          onClick={(e) => openFilterFor("person", e)}
+          className={`rounded-md border px-3 py-1 text-xs font-medium transition-colors ${
+            personFilter !== null
+              ? "border-gold text-gold"
+              : "border-border text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Person{personFilter !== null ? ` (${personFilter.size})` : ""}
+        </button>
+        {(scopeFilter !== null || personFilter !== null) && (
+          <button
+            type="button"
+            onClick={() => {
+              setScopeFilter(null);
+              setPersonFilter(null);
+            }}
+            className="text-muted-foreground hover:text-foreground text-xs underline"
+          >
+            Clear filters
+          </button>
+        )}
+      </div>
 
-          {filteredRows.map((row, idx) => (
-            <ForecastGridRow
-              key={`${row.scope.id}-${row.engineer.id}`}
-              row={row}
-              index={idx}
-              dailyDates={dailyDates}
-              bankHolidays={bankHolidays}
-            />
-          ))}
+      {/* AG Grid — outer div is the flex item; inner absolute div gives AG Grid a definite pixel height */}
+      <div className="relative min-h-0 flex-1">
+        <div className="absolute inset-0">
+          <ForecastAgGrid rows={filteredRows} dailyDates={dailyDates} bankHolidays={bankHolidays} />
         </div>
       </div>
 

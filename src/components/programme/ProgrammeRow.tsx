@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { ProgrammeNode, EditableField, EditingCell } from "./types";
 import { StatusBadge } from "./StatusBadge";
 import { EngineerChip } from "./EngineerChip";
-import { getScopeNumberFromName } from "./treeUtils";
+import { getScopeDisplayName, getScopeNumberFromName } from "./treeUtils";
 
 interface ProgrammeRowProps {
   node: ProgrammeNode;
@@ -164,7 +164,7 @@ export function ProgrammeRow({
               onClick={() => onStartEdit(node.id, "name", node.name)}
               title="Click to edit · Right-click for options"
             >
-              {node.name}
+              {node.type === "scope" ? getScopeDisplayName(node.name) : node.name}
             </span>
           )}
           {node.type === "scope" && onOpenEngPinned && (

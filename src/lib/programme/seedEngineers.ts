@@ -34,11 +34,17 @@ export type SeedEngineerDef = {
  * the seed project id in `seedConfig`. Omit when the person has no default project rates (e.g. Alex Petit).
  *
  * **Sheet notes:** “Ola K.” stored as Ola Kowalski (confirm surname). Rate A only (no Concept B): Zaidi
- * (`rate_b` null). No Rate A in sheet: Ola, Schwind (`rate_a` null). New vs original pool: Haig, Kowalski,
+ * (`rate_b` null). Ola/Schwind Rate A was absent from source sheet — inferred from tier pattern (rateA ≈ rateB/1.116).
+ * Alex Petit Rate A also absent — assigned lowest tier (82.31) pending confirmation. New vs original pool: Haig, Kowalski,
  * Barnes, Chan, Schwind.
  */
 const SEED_ENGINEERS: readonly SeedEngineerDef[] = [
-  { firstName: "Alex", lastName: "Petit", maxWeeklyHours: 6 },
+  {
+    firstName: "Alex",
+    lastName: "Petit",
+    maxWeeklyHours: 6,
+    seedProjectRates: { rateA: 104.375, rateB: 91.89 },
+  },
   {
     firstName: "Desirée",
     lastName: "Molina",
@@ -163,7 +169,7 @@ const SEED_ENGINEERS: readonly SeedEngineerDef[] = [
     firstName: "K",
     lastName: "Ola",
     maxWeeklyHours: 40,
-    seedProjectRates: { rateA: null, rateB: 147.22 },
+    seedProjectRates: { rateA: 131.875, rateB: 147.22 },
   },
   {
     firstName: "Emma",
@@ -181,7 +187,7 @@ const SEED_ENGINEERS: readonly SeedEngineerDef[] = [
     firstName: "Thomas",
     lastName: "Schwind",
     maxWeeklyHours: 40,
-    seedProjectRates: { rateA: null, rateB: 191.53 },
+    seedProjectRates: { rateA: 171.56, rateB: 191.53 },
   },
 ];
 

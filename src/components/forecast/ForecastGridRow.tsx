@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { formatEngineerListLabel } from "@/lib/engineer-pool-display";
 
 import { DATE_COL_W, NO_COL_W, SUMMARY_COL_W } from "./constants";
 import type { ForecastGridRow as ForecastGridRowType } from "./types";
@@ -23,9 +24,15 @@ export function ForecastGridRow({ row, index, dailyDates, bankHolidays }: Foreca
         <span className="text-foreground text-sm">{scope.label}</span>
       </div>
       <div className={`border-border ${SUMMARY_COL_W} shrink-0 border-r px-4 py-2`}>
-        <span className="text-foreground text-sm font-medium">{engineer.code}</span>
+        <span className="text-foreground text-sm font-medium">
+          {formatEngineerListLabel(engineer, engineer.code)}
+        </span>
       </div>
-      <div className={`border-border ${SUMMARY_COL_W} shrink-0 border-r px-4 py-2`} />
+      <div className={`border-border ${SUMMARY_COL_W} shrink-0 border-r px-4 py-2`}>
+        {engineer.rateA != null && (
+          <span className="text-foreground text-sm tabular-nums">£{engineer.rateA.toFixed(2)}</span>
+        )}
+      </div>
       <div className={`border-border ${SUMMARY_COL_W} shrink-0 border-r px-4 py-2`} />
       <div className={`border-border ${SUMMARY_COL_W} shrink-0 border-r px-4 py-2`} />
       {dailyDates.map((date) => {
