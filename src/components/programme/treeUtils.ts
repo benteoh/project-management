@@ -6,6 +6,19 @@ export function getScopeNumberFromName(scopeName: string): string {
   return m ? m[1] : "";
 }
 
+/**
+ * Returns the scope name with the leading index prefix removed for display.
+ *
+ * "12. NR Boiler Room"  →  "NR Boiler Room"   (index only — strip)
+ * "+17mOD impact study" →  "+17mOD impact study"  (number is part of title — keep)
+ *
+ * Rule: strip only when the name starts with one or more digits followed by
+ * ". " (period + space). Numbers embedded elsewhere in the title are preserved.
+ */
+export function getScopeDisplayName(scopeName: string): string {
+  return scopeName.replace(/^\d+\.\s*/, "");
+}
+
 export type AddOptions = { label: string; type: NodeType }[];
 
 export function getAddOptions(nodeType: NodeType): AddOptions {

@@ -2,11 +2,11 @@ import type { ForecastProgrammeNode, ScopeItem } from "./types";
 
 export function cleanScopeLabel(name: string): string {
   return name
-    .replace(/[^a-zA-Z\s]/g, " ")
+    .replace(/^\d+\.\s*/, "") // strip leading index prefix ("13. ") only — never strip digits embedded in the title
     .replace(/\s+/g, " ")
     .trim()
     .split(" ")
-    .slice(0, 3)
+    .slice(0, 4)
     .join(" ");
 }
 
