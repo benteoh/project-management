@@ -1,5 +1,7 @@
 import type { RefObject } from "react";
-import { ChevronRight, ChevronDown } from "lucide-react";
+import { ChevronRight, ChevronDown, GripVertical } from "lucide-react";
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { isRollupTotalHoursParent } from "@/lib/programme/totalHoursRollup";
 import type { EngineerPoolEntry } from "@/types/engineer-pool";
 
@@ -34,6 +36,12 @@ interface ProgrammeRowProps {
   /** When set, ref is attached to this row's engineer chip (for anchored popups). */
   engPopupScopeId?: string | null;
   engineerAnchorRef?: RefObject<HTMLDivElement | null>;
+  /** Full set of selected node IDs — each row checks its own membership. */
+  selectedIds: Set<string>;
+  onRowMouseDown: (id: string, e: React.MouseEvent) => void;
+  onRowMouseEnter: (id: string) => void;
+  /** ID of the node currently being dragged over (for drop indicator). */
+  dragOverId?: string | null;
 }
 
 const ROW_STYLES: Record<ProgrammeNode["type"], { bg: string; text: string }> = {
@@ -65,10 +73,28 @@ export function ProgrammeRow({
   onOpenEngPinned,
   engPopupScopeId,
   engineerAnchorRef,
+  selectedIds,
+  onRowMouseDown,
+  onRowMouseEnter,
+  dragOverId,
 }: ProgrammeRowProps) {
   const isCollapsed = collapsed.has(node.id);
   const hasChildren = node.children.length > 0;
   const { bg, text } = ROW_STYLES[node.type];
+  const isSelected = selectedIds.has(node.id);
+  const isDropTarget = dragOverId === node.id;
+
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: node.id,
+  });
+
+  const dragStyle = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : undefined,
+    position: isDragging ? ("relative" as const) : undefined,
+    zIndex: isDragging ? 10 : undefined,
+  };
 
   const isEditing = (field: EditableField) =>
     editingCell?.nodeId === node.id && editingCell?.field === field;
@@ -118,16 +144,57 @@ export function ProgrammeRow({
     />
   );
 
+  const childProps = {
+    collapsed,
+    editingCell,
+    onToggleCollapse,
+    onStartEdit,
+    onCommitEdit,
+    onEditingCellChange,
+    onCancelEdit,
+    onOpenCal,
+    onSaveField,
+    onContextMenu,
+    onOpenEngPinned,
+    engPopupScopeId,
+    engineerAnchorRef,
+    selectedIds,
+    onRowMouseDown,
+    onRowMouseEnter,
+    dragOverId,
+    engineerPool,
+  };
+
   return (
-    <div>
+    <div ref={setNodeRef} style={dragStyle}>
+      {/* Drop indicator above this row */}
+      {isDropTarget && <div className="pointer-events-none h-0.5 bg-blue-400" />}
+
       <div
-        className={`border-border flex items-center border-b text-sm ${bg} select-none`}
+        className={cn(
+          "border-border flex items-center border-b text-sm select-none",
+          bg,
+          isSelected && "bg-blue-50 ring-1 ring-blue-200 ring-inset"
+        )}
         onContextMenu={(e) => onContextMenu(node, e)}
+        onMouseDown={(e) => onRowMouseDown(node.id, e)}
+        onMouseEnter={() => onRowMouseEnter(node.id)}
       >
+        {/* Drag handle */}
+        <div
+          className="text-muted-foreground/40 hover:text-muted-foreground w-5 shrink-0 cursor-grab touch-none pl-1 active:cursor-grabbing"
+          {...attributes}
+          {...listeners}
+          title="Drag to reorder"
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <GripVertical size={12} />
+        </div>
+
         {/* Name */}
         <div
           className={`flex min-w-0 flex-1 items-center gap-1 py-1.5 pr-3 ${text}`}
-          style={{ paddingLeft: `${12 + depth * 20}px` }}
+          style={{ paddingLeft: `${4 + depth * 20}px` }}
         >
           {hasChildren ? (
             <button
@@ -182,7 +249,7 @@ export function ProgrammeRow({
           )}
         </div>
 
-        {/* Total Hours — scope / parent tasks / subtasks roll up from children (not editable) */}
+        {/* Total Hours */}
         <div className="text-muted-foreground w-24 shrink-0 px-2 py-1.5 text-center tabular-nums">
           {totalHoursFromChildren ? (
             <span className="text-muted-foreground tabular-nums" title="Sum of child hours">
@@ -238,7 +305,7 @@ export function ProgrammeRow({
           )}
         </div>
 
-        {/* Status — activities use a native select so one click opens the dropdown */}
+        {/* Status */}
         <div className="w-28 shrink-0 px-2 py-1.5 text-center">
           {node.type === "activity" && node.status ? (
             <select
@@ -285,21 +352,8 @@ export function ProgrammeRow({
                 key={child.id}
                 node={child}
                 depth={depth + 1}
-                engineerPool={engineerPool}
                 namePrefix={childNamePrefix}
-                collapsed={collapsed}
-                editingCell={editingCell}
-                onToggleCollapse={onToggleCollapse}
-                onStartEdit={onStartEdit}
-                onCommitEdit={onCommitEdit}
-                onEditingCellChange={onEditingCellChange}
-                onCancelEdit={onCancelEdit}
-                onOpenCal={onOpenCal}
-                onSaveField={onSaveField}
-                onContextMenu={onContextMenu}
-                onOpenEngPinned={onOpenEngPinned}
-                engPopupScopeId={engPopupScopeId}
-                engineerAnchorRef={engineerAnchorRef}
+                {...childProps}
               />
             );
           });

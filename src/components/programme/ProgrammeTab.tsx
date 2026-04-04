@@ -1,6 +1,18 @@
 "use client";
 
 import { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import {
+  DndContext,
+  DragEndEvent,
+  DragOverEvent,
+  DragStartEvent,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
 import {
   ProgrammeNode,
@@ -20,6 +32,8 @@ import {
   addScopeToRoot,
   deleteNodeFromTree,
   findNodeInTree,
+  flattenVisibleNodes,
+  reorderSiblings,
 } from "./treeUtils";
 import { MiniCalendar } from "./MiniCalendar";
 import { ProgrammeRow } from "./ProgrammeRow";
@@ -43,6 +57,8 @@ import {
   readCollapsedNodeIds,
   writeCollapsedNodeIds,
 } from "@/lib/programme/programmeCollapsedStorage";
+import { useRowSelection } from "./useRowSelection";
+import { useProgrammeClipboard } from "./useProgrammeClipboard";
 
 export type ProgrammeTabProps = {
   projectId: string;
@@ -74,7 +90,6 @@ export function ProgrammeTab({
   const engineerPool = initialEngineerPool;
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  /** Empty on server + first client paint — session restore runs in `useLayoutEffect` to avoid hydration mismatch. */
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const [addForm, setAddForm] = useState<AddFormState | null>(null);
   const [formValues, setFormValues] = useState<FormValues>(defaultForm);
@@ -90,6 +105,8 @@ export function ProgrammeTab({
     column: "status";
     rect: DOMRect;
   } | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+
   const engAnchorRef = useRef<HTMLDivElement | null>(null);
   const didHydrateCollapsedFromSessionRef = useRef(false);
 
@@ -147,21 +164,73 @@ export function ProgrammeTab({
     void persist(next);
   }, [onTreeChange, persist]);
 
+  // ─── Row selection ──────────────────────────────────────────────────────────
+  const getFlatNodes = useCallback(
+    () => flattenVisibleNodes(present, collapsed),
+    [present, collapsed]
+  );
+
+  const selection = useRowSelection(getFlatNodes);
+
+  // ─── Clipboard ──────────────────────────────────────────────────────────────
+  const clipboard = useProgrammeClipboard(present, selection.selectedIds, commit);
+
+  // ─── Keyboard shortcuts ──────────────────────────────────────────────────────
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!e.ctrlKey) return;
-      if (e.key === "z") {
+      const ctrl = e.ctrlKey || e.metaKey;
+      if (ctrl && e.key === "z") {
         e.preventDefault();
         undo();
+        return;
       }
-      if (e.key === "y") {
+      if (ctrl && e.key === "y") {
         e.preventDefault();
         redo();
+        return;
+      }
+      if (ctrl && e.key === "c") {
+        e.preventDefault();
+        void clipboard.copy();
+        return;
+      }
+      if (ctrl && e.key === "v") {
+        e.preventDefault();
+        void clipboard.paste();
+        return;
+      }
+      if (e.key === "Escape") {
+        selection.clearSelection();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [undo, redo]);
+  }, [undo, redo, clipboard, selection]);
+
+  // ─── DnD sensors ─────────────────────────────────────────────────────────────
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor)
+  );
+
+  const handleDragStart = useCallback((_e: DragStartEvent) => {
+    // Clear text selection on drag start
+    window.getSelection()?.removeAllRanges();
+  }, []);
+
+  const handleDragOver = useCallback((e: DragOverEvent) => {
+    setDragOverId(e.over ? String(e.over.id) : null);
+  }, []);
+
+  const handleDragEnd = useCallback(
+    (e: DragEndEvent) => {
+      setDragOverId(null);
+      const { active, over } = e;
+      if (!over || active.id === over.id) return;
+      commit(reorderSiblings(present, String(active.id), String(over.id), "before"));
+    },
+    [present, commit]
+  );
 
   const saveField = (nodeId: string, field: keyof ProgrammeNode, raw: string) => {
     if (field === "totalHours") {
@@ -308,6 +377,10 @@ export function ProgrammeTab({
     onSaveField: saveField,
     onContextMenu: openCtxMenu,
     onOpenEngPinned: openEngPinned,
+    selectedIds: selection.selectedIds,
+    onRowMouseDown: selection.onRowMouseDown,
+    onRowMouseEnter: selection.onRowMouseEnter,
+    dragOverId,
   };
 
   const statusFilterOptions: ActivityStatusValue[] = ["Not Started", "In Progress", "Completed"];
@@ -388,8 +461,22 @@ export function ProgrammeTab({
     return sortTree(filterTree(present)).map((entry) => entry.node);
   }, [present, queriedActivityIds, hasAnyActivityFilter]);
 
+  // Flat ID list for SortableContext — all visible nodes in render order
+  const sortableIds = useMemo(
+    () => flattenVisibleNodes(visibleTree, collapsed).map((f) => f.node.id),
+    [visibleTree, collapsed]
+  );
+
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+    <div
+      className="flex min-h-0 flex-1 flex-col overflow-hidden"
+      // Clear selection when clicking outside rows
+      onMouseDown={(e) => {
+        if ((e.target as HTMLElement).closest("[data-programme-row]")) return;
+        selection.clearSelection();
+      }}
+      onMouseUp={selection.onMouseUp}
+    >
       {initialLoadError && (
         <div className="border-border bg-status-critical-bg text-status-critical shrink-0 border-b px-4 py-2 text-sm">
           {initialLoadError}
@@ -410,24 +497,34 @@ export function ProgrammeTab({
           onAddScope={openAddScopeModal}
         />
 
-        {visibleTree.length === 0 && hasAnyActivityFilter ? (
-          <div className="text-muted-foreground px-4 py-3 text-sm">
-            No activities match the selected filter.
-          </div>
-        ) : (
-          visibleTree.map((node) => (
-            <ProgrammeRow
-              key={node.id}
-              node={node}
-              depth={0}
-              engineerPool={engineerPool}
-              {...rowProps}
-              collapsed={collapsed}
-              engPopupScopeId={engPopup?.scopeId ?? null}
-              engineerAnchorRef={engAnchorRef}
-            />
-          ))
-        )}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+            {visibleTree.length === 0 && hasAnyActivityFilter ? (
+              <div className="text-muted-foreground px-4 py-3 text-sm">
+                No activities match the selected filter.
+              </div>
+            ) : (
+              visibleTree.map((node) => (
+                <ProgrammeRow
+                  key={node.id}
+                  node={node}
+                  depth={0}
+                  engineerPool={engineerPool}
+                  {...rowProps}
+                  collapsed={collapsed}
+                  engPopupScopeId={engPopup?.scopeId ?? null}
+                  engineerAnchorRef={engAnchorRef}
+                />
+              ))
+            )}
+          </SortableContext>
+        </DndContext>
       </div>
 
       {openFilter && (
