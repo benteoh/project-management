@@ -174,6 +174,21 @@ export function ForecastTab({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="border-border flex shrink-0 items-center justify-end gap-2 border-b px-4 py-2">
+        <a
+          href={`/api/export?projectId=${projectId}&format=csv&type=forecast`}
+          className="text-muted-foreground hover:text-foreground rounded px-2 py-1 text-xs font-medium transition-colors"
+        >
+          Export CSV
+        </a>
+        <a
+          href={`/api/export?projectId=${projectId}&format=xlsx&type=forecast`}
+          className="text-muted-foreground hover:text-foreground rounded px-2 py-1 text-xs font-medium transition-colors"
+        >
+          Export XLSX
+        </a>
+      </div>
+
       <div className="min-h-0 flex-1 overflow-auto">
         <div className="min-w-max">
           <ForecastGridHeader
