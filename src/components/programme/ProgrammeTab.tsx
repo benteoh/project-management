@@ -43,6 +43,9 @@ import {
   readCollapsedNodeIds,
   writeCollapsedNodeIds,
 } from "@/lib/programme/programmeCollapsedStorage";
+import { GanttView } from "@/components/gantt/GanttView";
+
+type ViewMode = "table" | "gantt";
 
 export type ProgrammeTabProps = {
   projectId: string;
@@ -90,6 +93,7 @@ export function ProgrammeTab({
     column: "status";
     rect: DOMRect;
   } | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>("table");
   const engAnchorRef = useRef<HTMLDivElement | null>(null);
   const didHydrateCollapsedFromSessionRef = useRef(false);
 
@@ -401,34 +405,60 @@ export function ProgrammeTab({
         </div>
       )}
 
-      <div className="relative min-h-0 flex-1 overflow-y-auto">
-        <ProgrammeTableHeader
-          sort={activityQuery.sort}
-          statusFilterActive={Boolean(activityQuery.statuses)}
-          onSort={toggleSort}
-          onStatusFilterClick={(e) => openFilterFor("status", e)}
-          onAddScope={openAddScopeModal}
-        />
-
-        {visibleTree.length === 0 && hasAnyActivityFilter ? (
-          <div className="text-muted-foreground px-4 py-3 text-sm">
-            No activities match the selected filter.
-          </div>
-        ) : (
-          visibleTree.map((node) => (
-            <ProgrammeRow
-              key={node.id}
-              node={node}
-              depth={0}
-              engineerPool={engineerPool}
-              {...rowProps}
-              collapsed={collapsed}
-              engPopupScopeId={engPopup?.scopeId ?? null}
-              engineerAnchorRef={engAnchorRef}
-            />
-          ))
-        )}
+      {/* View mode toggle */}
+      <div className="border-border bg-card flex shrink-0 items-center gap-1 border-b px-3 py-1.5">
+        {(["table", "gantt"] as ViewMode[]).map((mode) => (
+          <button
+            key={mode}
+            onClick={() => setViewMode(mode)}
+            className={
+              viewMode === mode
+                ? "bg-gold/10 text-gold rounded-md px-3 py-1 text-xs font-semibold capitalize"
+                : "text-muted-foreground hover:text-foreground rounded-md px-3 py-1 text-xs font-medium capitalize"
+            }
+          >
+            {mode}
+          </button>
+        ))}
       </div>
+
+      {viewMode === "gantt" ? (
+        <GanttView
+          tree={visibleTree}
+          collapsed={collapsed}
+          onToggleCollapse={toggleCollapse}
+          onCommit={commit}
+        />
+      ) : (
+        <div className="relative min-h-0 flex-1 overflow-y-auto">
+          <ProgrammeTableHeader
+            sort={activityQuery.sort}
+            statusFilterActive={Boolean(activityQuery.statuses)}
+            onSort={toggleSort}
+            onStatusFilterClick={(e) => openFilterFor("status", e)}
+            onAddScope={openAddScopeModal}
+          />
+
+          {visibleTree.length === 0 && hasAnyActivityFilter ? (
+            <div className="text-muted-foreground px-4 py-3 text-sm">
+              No activities match the selected filter.
+            </div>
+          ) : (
+            visibleTree.map((node) => (
+              <ProgrammeRow
+                key={node.id}
+                node={node}
+                depth={0}
+                engineerPool={engineerPool}
+                {...rowProps}
+                collapsed={collapsed}
+                engPopupScopeId={engPopup?.scopeId ?? null}
+                engineerAnchorRef={engAnchorRef}
+              />
+            ))
+          )}
+        </div>
+      )}
 
       {openFilter && (
         <ColumnFilter
