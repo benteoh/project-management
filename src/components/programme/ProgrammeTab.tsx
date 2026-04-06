@@ -1,18 +1,6 @@
 "use client";
 
 import { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
-import {
-  DndContext,
-  DragEndEvent,
-  DragOverEvent,
-  DragStartEvent,
-  KeyboardSensor,
-  PointerSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
 import {
   ProgrammeNode,
@@ -33,7 +21,8 @@ import {
   deleteNodeFromTree,
   findNodeInTree,
   flattenVisibleNodes,
-  reorderSiblings,
+  cloneNodesWithNewIds,
+  insertNodesAfter,
 } from "./treeUtils";
 import { MiniCalendar } from "./MiniCalendar";
 import { ProgrammeRow } from "./ProgrammeRow";
@@ -105,9 +94,8 @@ export function ProgrammeTab({
     column: "status";
     rect: DOMRect;
   } | null>(null);
-  const [dragOverId, setDragOverId] = useState<string | null>(null);
-
   const engAnchorRef = useRef<HTMLDivElement | null>(null);
+  const tableRef = useRef<HTMLDivElement | null>(null);
   const didHydrateCollapsedFromSessionRef = useRef(false);
 
   const treeNodeIds = useMemo(() => collectProgrammeNodeIds(present), [present]);
@@ -175,6 +163,17 @@ export function ProgrammeTab({
   // ─── Clipboard ──────────────────────────────────────────────────────────────
   const clipboard = useProgrammeClipboard(present, selection.selectedIds, commit);
 
+  // ─── Deselect on click outside ───────────────────────────────────────────────
+  useEffect(() => {
+    const onMouseDown = (e: MouseEvent) => {
+      if (tableRef.current && !tableRef.current.contains(e.target as Node)) {
+        selection.clearSelection();
+      }
+    };
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, [selection]);
+
   // ─── Keyboard shortcuts ──────────────────────────────────────────────────────
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -196,7 +195,7 @@ export function ProgrammeTab({
       }
       if (ctrl && e.key === "v") {
         e.preventDefault();
-        void clipboard.paste();
+        clipboard.paste();
         return;
       }
       if (e.key === "Escape") {
@@ -206,31 +205,6 @@ export function ProgrammeTab({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [undo, redo, clipboard, selection]);
-
-  // ─── DnD sensors ─────────────────────────────────────────────────────────────
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor)
-  );
-
-  const handleDragStart = useCallback((_e: DragStartEvent) => {
-    // Clear text selection on drag start
-    window.getSelection()?.removeAllRanges();
-  }, []);
-
-  const handleDragOver = useCallback((e: DragOverEvent) => {
-    setDragOverId(e.over ? String(e.over.id) : null);
-  }, []);
-
-  const handleDragEnd = useCallback(
-    (e: DragEndEvent) => {
-      setDragOverId(null);
-      const { active, over } = e;
-      if (!over || active.id === over.id) return;
-      commit(reorderSiblings(present, String(active.id), String(over.id), "before"));
-    },
-    [present, commit]
-  );
 
   const saveField = (nodeId: string, field: keyof ProgrammeNode, raw: string) => {
     if (field === "totalHours") {
@@ -346,6 +320,11 @@ export function ProgrammeTab({
     e.preventDefault();
     setEditingCell(null);
     setCalendar(null);
+    // If the right-clicked row isn't part of the current selection, select only it
+    if (!selection.selectedIds.has(node.id)) {
+      selection.clearSelection();
+      selection.onRowMouseDown(node.id, e as React.MouseEvent);
+    }
     setCtxMenu({ nodeId: node.id, nodeType: node.type, x: e.clientX, y: e.clientY });
   };
 
@@ -378,9 +357,15 @@ export function ProgrammeTab({
     onContextMenu: openCtxMenu,
     onOpenEngPinned: openEngPinned,
     selectedIds: selection.selectedIds,
-    onRowMouseDown: selection.onRowMouseDown,
+    onRowMouseDown: (id: string, e: React.MouseEvent) => {
+      if (editingCell) {
+        commitEdit();
+        return;
+      }
+      selection.onRowMouseDown(id, e);
+    },
     onRowMouseEnter: selection.onRowMouseEnter,
-    dragOverId,
+    copiedIds: clipboard.copiedIds,
   };
 
   const statusFilterOptions: ActivityStatusValue[] = ["Not Started", "In Progress", "Completed"];
@@ -461,20 +446,10 @@ export function ProgrammeTab({
     return sortTree(filterTree(present)).map((entry) => entry.node);
   }, [present, queriedActivityIds, hasAnyActivityFilter]);
 
-  // Flat ID list for SortableContext — all visible nodes in render order
-  const sortableIds = useMemo(
-    () => flattenVisibleNodes(visibleTree, collapsed).map((f) => f.node.id),
-    [visibleTree, collapsed]
-  );
-
   return (
     <div
+      ref={tableRef}
       className="flex min-h-0 flex-1 flex-col overflow-hidden"
-      // Clear selection when clicking outside rows
-      onMouseDown={(e) => {
-        if ((e.target as HTMLElement).closest("[data-programme-row]")) return;
-        selection.clearSelection();
-      }}
       onMouseUp={selection.onMouseUp}
     >
       {initialLoadError && (
@@ -497,34 +472,24 @@ export function ProgrammeTab({
           onAddScope={openAddScopeModal}
         />
 
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
-            {visibleTree.length === 0 && hasAnyActivityFilter ? (
-              <div className="text-muted-foreground px-4 py-3 text-sm">
-                No activities match the selected filter.
-              </div>
-            ) : (
-              visibleTree.map((node) => (
-                <ProgrammeRow
-                  key={node.id}
-                  node={node}
-                  depth={0}
-                  engineerPool={engineerPool}
-                  {...rowProps}
-                  collapsed={collapsed}
-                  engPopupScopeId={engPopup?.scopeId ?? null}
-                  engineerAnchorRef={engAnchorRef}
-                />
-              ))
-            )}
-          </SortableContext>
-        </DndContext>
+        {visibleTree.length === 0 && hasAnyActivityFilter ? (
+          <div className="text-muted-foreground px-4 py-3 text-sm">
+            No activities match the selected filter.
+          </div>
+        ) : (
+          visibleTree.map((node) => (
+            <ProgrammeRow
+              key={node.id}
+              node={node}
+              depth={0}
+              engineerPool={engineerPool}
+              {...rowProps}
+              collapsed={collapsed}
+              engPopupScopeId={engPopup?.scopeId ?? null}
+              engineerAnchorRef={engAnchorRef}
+            />
+          ))
+        )}
       </div>
 
       {openFilter && (
@@ -557,6 +522,18 @@ export function ProgrammeTab({
           onDelete={(nodeId) => {
             commit(deleteNodeFromTree(present, nodeId));
           }}
+          onCopy={() => void clipboard.copy()}
+          onPaste={() => clipboard.paste(ctxMenu.nodeId)}
+          onDuplicate={() => {
+            const nodes = [...selection.selectedIds]
+              .map((id) => findNodeInTree(present, id))
+              .filter((n): n is ProgrammeNode => n !== null);
+            if (nodes.length === 0) return;
+            const cloned = cloneNodesWithNewIds(nodes);
+            commit(insertNodesAfter(present, ctxMenu.nodeId, cloned));
+          }}
+          hasSelection={selection.selectedIds.size > 0}
+          hasStash={clipboard.hasStash}
         />
       )}
 

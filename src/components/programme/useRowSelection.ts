@@ -39,6 +39,8 @@ export function useRowSelection(getFlatNodes: () => FlatNode[]): RowSelectionApi
 
   const onRowMouseDown = useCallback(
     (id: string, e: React.MouseEvent) => {
+      // Right-click is handled by onContextMenu — don't disturb the selection
+      if (e.button === 2) return;
       // Don't steal focus from inputs / buttons inside the row
       if ((e.target as HTMLElement).closest("input, select, button, a")) return;
       e.preventDefault();

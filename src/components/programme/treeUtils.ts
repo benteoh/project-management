@@ -87,8 +87,8 @@ export function flattenVisibleNodes(
 }
 
 /**
- * Move `dragId` to be a sibling of `targetId`, inserting before or after it.
- * Only works when drag and target share the same parent. Returns tree unchanged if not.
+ * Move `dragId` next to `targetId` (before or after), even across parent boundaries.
+ * Extracts the drag node from wherever it lives, then splices it adjacent to the target.
  */
 export function reorderSiblings(
   nodes: ProgrammeNode[],
@@ -96,31 +96,28 @@ export function reorderSiblings(
   targetId: string,
   position: "before" | "after"
 ): ProgrammeNode[] {
-  return reorderInSubtree(nodes, dragId, targetId, position) ?? nodes;
+  const dragNode = findNodeInTree(nodes, dragId);
+  if (!dragNode) return nodes;
+  const withoutDrag = deleteNodeFromTree(nodes, dragId);
+  return insertAdjacentToNode(withoutDrag, dragNode, targetId, position) ?? withoutDrag;
 }
 
-function reorderInSubtree(
+function insertAdjacentToNode(
   nodes: ProgrammeNode[],
-  dragId: string,
+  insert: ProgrammeNode,
   targetId: string,
   position: "before" | "after"
 ): ProgrammeNode[] | null {
-  const dragIdx = nodes.findIndex((n) => n.id === dragId);
   const targetIdx = nodes.findIndex((n) => n.id === targetId);
-
-  // Both are siblings at this level — reorder here
-  if (dragIdx !== -1 && targetIdx !== -1) {
-    const next = nodes.filter((n) => n.id !== dragId);
-    const insertAt = next.findIndex((n) => n.id === targetId);
+  if (targetIdx !== -1) {
+    const next = [...nodes];
     const offset = position === "after" ? 1 : 0;
-    next.splice(insertAt + offset, 0, nodes[dragIdx]);
+    next.splice(targetIdx + offset, 0, insert);
     return next;
   }
-
-  // Recurse into children
   let changed = false;
   const result = nodes.map((n) => {
-    const newChildren = reorderInSubtree(n.children, dragId, targetId, position);
+    const newChildren = insertAdjacentToNode(n.children, insert, targetId, position);
     if (newChildren) {
       changed = true;
       return { ...n, children: newChildren };
@@ -131,31 +128,39 @@ function reorderInSubtree(
 }
 
 /**
- * Serialise a set of nodes to TSV rows (spreadsheet-compatible clipboard format).
- * Columns: Name, Activity ID, Total Hours, Start, Finish, Forecast Hours, Status
+ * Insert `newNodes` immediately after `afterId` at whatever level it lives.
+ * Falls back to appending at root if `afterId` is not found.
  */
-export function nodesToTsv(nodes: ProgrammeNode[]): string {
-  const header = [
-    "Name",
-    "Activity ID",
-    "Total Hours",
-    "Start",
-    "Finish",
-    "Forecast Hours",
-    "Status",
-  ].join("\t");
-  const rows = nodes.map((n) =>
-    [
-      n.name,
-      n.activityId ?? "",
-      n.totalHours ?? "",
-      n.start,
-      n.finish,
-      n.forecastTotalHours ?? "",
-      n.status,
-    ].join("\t")
-  );
-  return [header, ...rows].join("\n");
+export function insertNodesAfter(
+  nodes: ProgrammeNode[],
+  afterId: string,
+  newNodes: ProgrammeNode[]
+): ProgrammeNode[] {
+  const result = insertNodesAfterInList(nodes, afterId, newNodes);
+  return result ?? [...nodes, ...newNodes];
+}
+
+function insertNodesAfterInList(
+  nodes: ProgrammeNode[],
+  afterId: string,
+  newNodes: ProgrammeNode[]
+): ProgrammeNode[] | null {
+  const idx = nodes.findIndex((n) => n.id === afterId);
+  if (idx !== -1) {
+    const next = [...nodes];
+    next.splice(idx + 1, 0, ...newNodes);
+    return next;
+  }
+  let changed = false;
+  const result = nodes.map((n) => {
+    const newChildren = insertNodesAfterInList(n.children, afterId, newNodes);
+    if (newChildren) {
+      changed = true;
+      return { ...n, children: newChildren };
+    }
+    return n;
+  });
+  return changed ? result : null;
 }
 
 /** Deep-clone a node tree assigning fresh IDs throughout. */
