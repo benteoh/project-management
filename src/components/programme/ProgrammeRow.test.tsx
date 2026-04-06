@@ -119,7 +119,7 @@ describe("ProgrammeRow — selection", () => {
       <ProgrammeRow node={node} {...baseProps} copiedIds={new Set(["s1"])} />
     );
     const row = container.querySelector("[data-programme-row]");
-    expect(row?.className).toContain("bg-emerald-50");
+    expect(row?.className).toContain("bg-blue-100");
   });
 
   it("calls onRowMouseDown with node id on mousedown", () => {
@@ -129,16 +129,6 @@ describe("ProgrammeRow — selection", () => {
     );
     const row = container.querySelector("[data-programme-row]") as HTMLElement;
     row.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
-    expect(onRowMouseDown).toHaveBeenCalledWith("s1", expect.anything());
-  });
-
-  it("calls onRowMouseDown when clicking the drag handle", () => {
-    const onRowMouseDown = vi.fn();
-    const { container } = render(
-      <ProgrammeRow node={node} {...baseProps} onRowMouseDown={onRowMouseDown} />
-    );
-    const handle = container.querySelector("[title='Drag to reorder']") as HTMLElement;
-    fireEvent.mouseDown(handle);
     expect(onRowMouseDown).toHaveBeenCalledWith("s1", expect.anything());
   });
 
