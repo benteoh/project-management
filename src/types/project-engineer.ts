@@ -3,6 +3,9 @@ export const PROJECT_ENGINEER_RATE_SLOT_COUNT = 5;
 
 export const PROJECT_ENGINEER_RATE_SLOT_LABELS = ["A", "B", "C", "D", "E"] as const;
 
+/** Rate band A–E. Derived from {@link PROJECT_ENGINEER_RATE_SLOT_LABELS} — single source of truth. */
+export type RateSlot = (typeof PROJECT_ENGINEER_RATE_SLOT_LABELS)[number];
+
 export type ProjectEngineerRateSlotIndex = 0 | 1 | 2 | 3 | 4;
 
 export type ProjectEngineerRates = [

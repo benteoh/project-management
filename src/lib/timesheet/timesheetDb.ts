@@ -1,55 +1,24 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { PROJECT_ENGINEER_RATE_SLOT_LABELS } from "@/types/project-engineer";
+import type { RateSlot } from "@/types/project-engineer";
 import type {
-  RateSlot,
   TimesheetEntry,
   TimesheetEntryDbRow,
   TimesheetUpload,
   TimesheetUploadDbRow,
 } from "@/types/timesheet";
+import { findCol, parseAmount, parseDate } from "@/lib/xlsx/xlsxUtils";
 
 // ---------------------------------------------------------------------------
-// Column detection helpers
+// Rate slot helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Returns the index of the first header that matches any of the candidates
- * (case-insensitive, trimmed). Returns -1 if not found.
- */
-function findCol(headers: string[], candidates: string[]): number {
-  const lower = headers.map((h) => h.trim().toLowerCase());
-  for (const c of candidates) {
-    const idx = lower.indexOf(c.toLowerCase());
-    if (idx >= 0) return idx;
-  }
-  return -1;
-}
-
-const RATE_SLOTS = new Set<string>(["A", "B", "C", "D", "E"]);
+const RATE_SLOTS = new Set(PROJECT_ENGINEER_RATE_SLOT_LABELS);
 
 function parseRateSlot(raw: string): RateSlot | null {
   const v = raw.trim().toUpperCase();
-  return RATE_SLOTS.has(v) ? (v as RateSlot) : null;
-}
-
-function parseDate(raw: string): string | null {
-  if (!raw.trim()) return null;
-  // Try ISO first (YYYY-MM-DD)
-  if (/^\d{4}-\d{2}-\d{2}/.test(raw.trim())) return raw.trim().slice(0, 10);
-  // Try DD/MM/YYYY (common UK format) — day first
-  const dmy = raw.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-  if (dmy) return `${dmy[3]}-${dmy[2].padStart(2, "0")}-${dmy[1].padStart(2, "0")}`;
-  // Try MM/DD/YYYY (US format) — month first
-  const mdy = raw.trim().match(/^(\d{1,2})-(\d{1,2})-(\d{4})/);
-  if (mdy) return `${mdy[3]}-${mdy[1].padStart(2, "0")}-${mdy[2].padStart(2, "0")}`;
-  const d = new Date(raw.trim());
-  return !isNaN(d.getTime()) ? d.toISOString().slice(0, 10) : null;
-}
-
-function parseAmount(raw: string): number | null {
-  const stripped = raw.replace(/[£$,\s]/g, "");
-  const n = parseFloat(stripped);
-  return isNaN(n) ? null : n;
+  return RATE_SLOTS.has(v as RateSlot) ? (v as RateSlot) : null;
 }
 
 // ---------------------------------------------------------------------------

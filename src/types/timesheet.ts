@@ -1,5 +1,5 @@
-/** Rate band used on a project — corresponds to rate_a … rate_e on project_engineers. */
-export type RateSlot = "A" | "B" | "C" | "D" | "E";
+import type { RateSlot } from "./project-engineer";
+export type { RateSlot };
 
 // ---------------------------------------------------------------------------
 // Domain / app types (camelCase)
