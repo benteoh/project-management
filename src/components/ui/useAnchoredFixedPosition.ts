@@ -107,7 +107,17 @@ export function useAnchoredFixedPosition({
       window.removeEventListener("resize", update);
       window.removeEventListener("scroll", update, true);
     };
-  }, [anchorRect, anchorRef, elementRef, offset, viewportPadding]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    anchorRect.top,
+    anchorRect.left,
+    anchorRect.width,
+    anchorRect.height,
+    anchorRef,
+    elementRef,
+    offset,
+    viewportPadding,
+  ]);
 
   return position;
 }
