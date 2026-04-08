@@ -1,6 +1,3 @@
-import type { RateSlot } from "./project-engineer";
-export type { RateSlot };
-
 // ---------------------------------------------------------------------------
 // Domain / app types (camelCase)
 // ---------------------------------------------------------------------------
@@ -20,12 +17,9 @@ export interface TimesheetUpload {
 /**
  * One row from an uploaded timesheet file.
  *
- * Key fields are extracted and validated against the engineer pool and project
- * rates when the upload is saved. `rawData` preserves the entire original row
- * (header → value) so nothing is lost.
- *
- * Rate linking: `rateSlot` (A–E) + `engineerId` + `projectId` → JOIN
- * `project_engineers` to derive the £/hr rate from the project settings.
+ * Key fields are extracted and validated against the engineer pool when the
+ * upload is saved. `rawData` preserves the entire original row (header → value)
+ * so nothing is lost.
  */
 export interface TimesheetEntry {
   id: string;
@@ -39,10 +33,6 @@ export interface TimesheetEntry {
   /** ISO date string (YYYY-MM-DD), or null if the date column was missing / unparseable. */
   entryDate: string | null;
   hours: number | null;
-  /** Rate band from the timesheet file. Links to project_engineers.rate_X. */
-  rateSlot: RateSlot | null;
-  amount: number | null;
-  description: string | null;
   /** Full row as header→value map — the raw source of truth for display and re-processing. */
   rawData: Record<string, string>;
 }
@@ -68,8 +58,5 @@ export interface TimesheetEntryDbRow {
   engineer_code: string | null;
   entry_date: string | null;
   hours: number | null;
-  rate_slot: string | null;
-  amount: number | null;
-  description: string | null;
   raw_data: Record<string, string>;
 }

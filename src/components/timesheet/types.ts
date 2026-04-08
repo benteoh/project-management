@@ -1,3 +1,4 @@
+import type { EngineerPoolEntry } from "@/types/engineer-pool";
 import type { TimesheetUpload } from "@/types/timesheet";
 
 export type SheetData = {
@@ -14,4 +15,7 @@ export type SaveState = "idle" | "saving" | "saved" | "error";
 export type TimesheetTabProps = {
   projectId: string;
   initialUploads: TimesheetUpload[];
+  engineerPool: EngineerPoolEntry[];
+  /** Scope names from the project programme — used to validate Task ID (Scope) column. */
+  scopeNames: string[];
 };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Upload } from "lucide-react";
 
 import {
@@ -14,11 +14,16 @@ import { SavedUploadsList } from "./SavedUploadsList";
 import { TimesheetTable } from "./TimesheetTable";
 import type { SaveState, SheetData, TimesheetTabProps, ViewingUpload } from "./types";
 import { parseTimesheetWorkbook } from "./timesheetWorkbook";
-import { stripUiMirrorColumns } from "./timesheetSheetNormalize";
+import { stripExcludedColumns } from "./timesheetSheetNormalize";
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
-export function TimesheetTab({ projectId, initialUploads }: TimesheetTabProps) {
+export function TimesheetTab({
+  projectId,
+  initialUploads,
+  engineerPool,
+  scopeNames,
+}: TimesheetTabProps) {
   const [sheet, setSheet] = useState<SheetData | null>(null);
   const [viewingUpload, setViewingUpload] = useState<ViewingUpload>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -28,6 +33,15 @@ export function TimesheetTab({ projectId, initialUploads }: TimesheetTabProps) {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [uploads, setUploads] = useState<TimesheetUpload[]>(initialUploads);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // On mount: if there are saved uploads, restore the most recent one automatically
+  // so a page refresh doesn't lose the view.
+  useEffect(() => {
+    if (initialUploads.length > 0) {
+      handleViewSaved(initialUploads[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleFile(file: File | undefined) {
     if (!file) return;
@@ -42,7 +56,7 @@ export function TimesheetTab({ projectId, initialUploads }: TimesheetTabProps) {
     setLoading(true);
     try {
       const parsed = await parseTimesheetWorkbook(file);
-      setSheet(stripUiMirrorColumns(parsed));
+      setSheet(stripExcludedColumns(parsed));
     } catch (err) {
       setParseError(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -96,7 +110,7 @@ export function TimesheetTab({ projectId, initialUploads }: TimesheetTabProps) {
     // headers come from the sentinel row (row_index = -1) which stores the
     // original column sequence; this survives jsonb key-order normalisation.
     const rows = entries.map((e) => headers.map((h) => e.rawData[h] ?? ""));
-    setSheet({ headers, rows, fileName: upload.fileName });
+    setSheet(stripExcludedColumns({ headers, rows, fileName: upload.fileName }));
     setViewingUpload(upload);
     setSaveState("saved");
   }
@@ -189,7 +203,7 @@ export function TimesheetTab({ projectId, initialUploads }: TimesheetTabProps) {
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto">
-        <TimesheetTable sheet={sheet} />
+        <TimesheetTable sheet={sheet} engineerPool={engineerPool} scopeNames={scopeNames} />
       </div>
     </div>
   );

@@ -8,6 +8,8 @@ export interface EngineerAllocation {
   isLead: boolean;
   plannedHrs: number | null;
   forecastHrs: number | null;
+  /** Rate slot (A–E) used to cost this engineer's hours on this scope. */
+  rate: string;
 }
 
 /**

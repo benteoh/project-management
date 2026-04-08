@@ -1,25 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { PROJECT_ENGINEER_RATE_SLOT_LABELS } from "@/types/project-engineer";
-import type { RateSlot } from "@/types/project-engineer";
 import type {
   TimesheetEntry,
   TimesheetEntryDbRow,
   TimesheetUpload,
   TimesheetUploadDbRow,
 } from "@/types/timesheet";
-import { findCol, parseAmount, parseDate } from "@/lib/xlsx/xlsxUtils";
-
-// ---------------------------------------------------------------------------
-// Rate slot helpers
-// ---------------------------------------------------------------------------
-
-const RATE_SLOTS = new Set(PROJECT_ENGINEER_RATE_SLOT_LABELS);
-
-function parseRateSlot(raw: string): RateSlot | null {
-  const v = raw.trim().toUpperCase();
-  return RATE_SLOTS.has(v as RateSlot) ? (v as RateSlot) : null;
-}
+import { findCol, parseDate } from "@/lib/xlsx/xlsxUtils";
 
 // ---------------------------------------------------------------------------
 // Row mappers
@@ -45,9 +32,6 @@ function rowToEntry(r: TimesheetEntryDbRow): TimesheetEntry {
     engineerCode: r.engineer_code,
     entryDate: r.entry_date,
     hours: r.hours !== null ? Number(r.hours) : null,
-    rateSlot: r.rate_slot ? parseRateSlot(r.rate_slot) : null,
-    amount: r.amount !== null ? Number(r.amount) : null,
-    description: r.description,
     rawData: r.raw_data ?? {},
   };
 }
@@ -110,13 +94,9 @@ export async function getTimesheetEntries(
 /**
  * Save a timesheet upload + all its rows.
  *
- * Extracts and validates key fields (engineer_id, entry_date, hours,
- * rate_slot, amount) from the provided headers/rows. Unrecognised engineers
- * are stored with engineer_id = null so the PM can review them later.
- *
- * Rate linking: rate_slot A–E stored on each entry. To get the £/hr rate,
- * JOIN timesheet_entries → project_engineers on (project_id, engineer_id)
- * and read rate_a … rate_e for the matching slot.
+ * Extracts and validates key fields (engineer_id, entry_date, hours) from
+ * the provided headers/rows. Unrecognised engineers are stored with
+ * engineer_id = null so the PM can review them later.
  */
 export async function saveTimesheetUpload(
   client: SupabaseClient,
@@ -139,18 +119,10 @@ export async function saveTimesheetUpload(
     "employee code",
     "emp code",
     "engineer",
+    "employee",
   ]);
   const dateIdx = findCol(headers, ["date", "work date", "entry date", "timesheet date"]);
   const hoursIdx = findCol(headers, ["hours", "hrs", "hours worked"]);
-  const rateIdx = findCol(headers, ["rate", "rate type", "rate band", "rate slot", "grade"]);
-  const amountIdx = findCol(headers, ["amount", "cost", "value", "total"]);
-  const descIdx = findCol(headers, [
-    "description",
-    "activity",
-    "notes",
-    "task",
-    "task description",
-  ]);
 
   // ---- Insert upload row ------------------------------------------------
   const { data: uploadData, error: uploadErr } = await client
@@ -175,9 +147,6 @@ export async function saveTimesheetUpload(
     engineer_code: null,
     entry_date: null,
     hours: null,
-    rate_slot: null,
-    amount: null,
-    description: null,
     raw_data: { __dsp_column_order__: JSON.stringify(headers) },
   };
 
@@ -190,9 +159,6 @@ export async function saveTimesheetUpload(
     const entryDate = dateIdx >= 0 ? parseDate(raw(dateIdx)) : null;
     const hoursRaw = parseFloat(raw(hoursIdx));
     const hours = hoursIdx >= 0 && !isNaN(hoursRaw) ? hoursRaw : null;
-    const rateSlot = rateIdx >= 0 ? parseRateSlot(raw(rateIdx)) : null;
-    const amount = amountIdx >= 0 ? parseAmount(raw(amountIdx)) : null;
-    const description = descIdx >= 0 ? raw(descIdx) || null : null;
 
     const rawData: Record<string, string> = {};
     headers.forEach((h, i) => {
@@ -207,9 +173,6 @@ export async function saveTimesheetUpload(
       engineer_code: engineerCode,
       entry_date: entryDate,
       hours: hours ?? null,
-      rate_slot: rateSlot,
-      amount: amount ?? null,
-      description,
       raw_data: rawData,
     };
   });

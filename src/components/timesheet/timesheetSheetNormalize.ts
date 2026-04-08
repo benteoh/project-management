@@ -1,15 +1,32 @@
 import type { SheetData } from "./types";
 
 /**
- * Headers that match UI-prepended columns (No., Alert, Details/Note) on export.
- * Real uploads should not use these; if they do, we drop them so DB rows stay clean.
+ * Headers to exclude from both display and DB storage.
+ * Includes UI-prepended columns (No., Alert, Details/Note) and columns
+ * that are not needed for this platform (activity, phase, office).
  */
-const DISPLAY_ONLY_HEADERS = new Set(["no.", "no", "alert", "note", "details"]);
+const EXCLUDED_HEADERS = new Set([
+  "no.",
+  "no",
+  "alert",
+  "note",
+  "details",
+  "activity",
+  "phase",
+  "office",
+  "rate",
+  "amount",
+  "proj",
+  "proj.",
+  "proj.#",
+  "proj#",
+  "proj. #",
+]);
 
-export function stripUiMirrorColumns(sheet: SheetData): SheetData {
+export function stripExcludedColumns(sheet: SheetData): SheetData {
   const keepIdx = sheet.headers
     .map((h, i) => ({ h, i }))
-    .filter(({ h }) => !DISPLAY_ONLY_HEADERS.has(h.trim().toLowerCase()))
+    .filter(({ h }) => !EXCLUDED_HEADERS.has(h.trim().toLowerCase()))
     .map(({ i }) => i);
   return {
     ...sheet,

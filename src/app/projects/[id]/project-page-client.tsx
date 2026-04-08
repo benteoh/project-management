@@ -12,6 +12,7 @@ import {
 } from "@/components/project/ProjectActivityStateWidget";
 import { useViewportFitsProjectWorkspace } from "@/hooks/useViewportFitsProjectWorkspace";
 import { buildActivityStateBuckets } from "@/lib/programme/activityStateSummary";
+import { collectScopeNames } from "@/lib/programme/programmeTree";
 import { formatDate } from "@/lib/utils";
 import type { EngineerPoolEntry } from "@/types/engineer-pool";
 import type { Project } from "@/types/project";
@@ -48,6 +49,8 @@ export default function ProjectPageClient({
   const [activeTab, setActiveTab] = useState<Tab>("Programme");
   const [programmeTree, setProgrammeTree] = useState<ProgrammeNode[]>(initialProgrammeTree);
   const engineerPool = initialEngineerPool;
+
+  const scopeNames = useMemo(() => collectScopeNames(programmeTree), [programmeTree]);
   const [activityFilter, setActivityFilter] = useState<ActivityFilterKey | null>(null);
   const activityBuckets = useMemo(() => buildActivityStateBuckets(programmeTree), [programmeTree]);
   const activityFilterIds = useMemo(() => {
@@ -166,7 +169,12 @@ export default function ProjectPageClient({
           />
         )}
         <div className={activeTab === "Timesheet" ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
-          <TimesheetTab projectId={projectId} initialUploads={initialTimesheetUploads} />
+          <TimesheetTab
+            projectId={projectId}
+            initialUploads={initialTimesheetUploads}
+            engineerPool={engineerPool}
+            scopeNames={scopeNames}
+          />
         </div>
       </div>
     </div>
