@@ -42,6 +42,23 @@ export function msUntilNextSaturdayMidnight(): number {
   return nextSat.getTime() - now.getTime();
 }
 
+// Returns the Monday of the week containing the given ISO date (or today).
+export function startOfWeek(isoDate?: string): string {
+  const d = isoDate ? new Date(isoDate) : new Date();
+  d.setHours(0, 0, 0, 0);
+  const day = d.getDay();
+  const daysToMonday = day === 0 ? 6 : day - 1;
+  d.setDate(d.getDate() - daysToMonday);
+  return toISODate(d);
+}
+
+// Returns the ISO date for today + N months.
+export function addMonths(isoDate: string, months: number): string {
+  const d = new Date(isoDate);
+  d.setMonth(d.getMonth() + months);
+  return toISODate(d);
+}
+
 export function generateDailyDates(startIso: string, endIso: string): Date[] {
   const dates: Date[] = [];
   const current = new Date(startIso);

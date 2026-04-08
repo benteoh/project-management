@@ -153,14 +153,22 @@ export default function ProjectPageClient({
             activityFilterIds={activityFilterIds}
           />
         )}
-        {activeTab === "Forecast" && (
-          <ForecastTab
-            projectId={projectId}
-            initialEngineerPool={engineerPool}
-            programmeTree={programmeTree}
-            bankHolidays={bankHolidays}
-          />
-        )}
+        {activeTab === "Forecast" &&
+          (project ? (
+            <ForecastTab
+              projectId={projectId}
+              projectStartDate={project.startDate}
+              projectEndDate={project.endDate}
+              projectIsFinished={project.status === "complete"}
+              initialEngineerPool={engineerPool}
+              programmeTree={programmeTree}
+              bankHolidays={bankHolidays}
+            />
+          ) : (
+            <div className="text-muted-foreground flex flex-1 items-center justify-center p-6 text-sm">
+              Load a project to view the demand forecast.
+            </div>
+          ))}
       </div>
     </div>
   );
