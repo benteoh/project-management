@@ -222,7 +222,8 @@ export function ProgrammeTab({
       if (raw === "") value = null;
       else {
         const n = parseFloat(raw);
-        value = Number.isNaN(n) ? null : Math.round(n * 100) / 100;
+        const parsed = Number.isNaN(n) ? null : Math.round(n * 100) / 100;
+        value = parsed;
       }
     }
     commit(updateNodeInTree(present, nodeId, field, value as ProgrammeNode[keyof ProgrammeNode]));
