@@ -41,7 +41,8 @@ export default function LoginPageClient() {
   return (
     <div className="bg-background flex min-h-screen items-center justify-center p-4">
       <div className="bg-card border-border shadow-card w-full max-w-md rounded-lg border p-5">
-        <h1 className="text-foreground text-2xl font-semibold">DSP Project Intelligence</h1>
+        <h1 className="text-foreground text-2xl font-semibold">Kite</h1>
+        <p className="text-muted-foreground text-sm">Project management</p>
         <p className="text-muted-foreground mt-1 text-sm">Sign in with your email and password.</p>
 
         <form className="mt-4 space-y-3" onSubmit={onSubmit}>

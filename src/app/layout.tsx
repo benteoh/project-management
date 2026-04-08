@@ -14,8 +14,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "DSP Project Intelligence",
-  description: "Project management platform for DSP",
+  title: "DSP | Kite",
+  description: "Project management",
 };
 
 export default function RootLayout({

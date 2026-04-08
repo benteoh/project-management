@@ -39,7 +39,10 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
     <div className="bg-background flex min-h-screen flex-col">
       <header className="border-border bg-card shadow-card sticky top-0 z-40 border-b px-4 py-2">
         <div className="flex w-full items-center justify-between">
-          <p className="text-foreground text-sm font-semibold">DSP Project Intelligence</p>
+          <div className="flex flex-col leading-tight">
+            <p className="text-foreground text-sm font-semibold">Kite</p>
+            <p className="text-muted-foreground text-xs">Project management</p>
+          </div>
           <div className="flex items-center gap-2">
             <button
               type="button"
