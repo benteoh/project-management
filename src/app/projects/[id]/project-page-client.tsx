@@ -17,7 +17,7 @@ import type { Project } from "@/types/project";
 
 import { saveProgrammeAction } from "./actions";
 
-const TABS = ["Programme", "Forecast"] as const;
+const TABS = ["Programme", "Forecast", "CVR"] as const;
 type Tab = (typeof TABS)[number];
 
 function formatProjectStatus(status: Project["status"]): string {
@@ -152,6 +152,16 @@ export default function ProjectPageClient({
             onTreeChange={setProgrammeTree}
             activityFilterIds={activityFilterIds}
           />
+        )}
+        {activeTab === "CVR" && (
+          <div className="flex flex-1 items-center justify-center overflow-auto p-6">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/cvr-chart.png"
+              alt="CVR chart"
+              className="max-h-full max-w-full object-contain"
+            />
+          </div>
         )}
         {activeTab === "Forecast" &&
           (project ? (
