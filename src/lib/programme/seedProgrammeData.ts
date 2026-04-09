@@ -2,12 +2,12 @@ import type { EngineerAllocation, ProgrammeNode } from "@/components/programme/t
 
 import { rollupTotalHoursInTree } from "./totalHoursRollup";
 
-type SeedAlloc = { code: string; isLead: boolean; plannedHrs: null; forecastHrs: null };
+type SeedAlloc = { code: string; isLead: boolean; plannedHrs: number | null; forecastHrs: null };
 
-const e = (code: string, isLead = false): SeedAlloc => ({
+const e = (code: string, isLead = false, plannedHrs: number | null = null): SeedAlloc => ({
   code,
   isLead,
-  plannedHrs: null,
+  plannedHrs,
   forecastHrs: null,
 });
 
@@ -272,7 +272,7 @@ export const seedProgrammeData: SeedProgrammeNode[] = [
     finish: "16-Mar-26",
     forecastTotalHours: 86,
     status: "",
-    engineers: [e("PHa", true), e("MWo")],
+    engineers: [e("PHa", true, 55), e("MWo", false, 31)],
     children: [
       {
         id: "a3800",
@@ -393,7 +393,7 @@ export const seedProgrammeData: SeedProgrammeNode[] = [
     finish: "06-May-26",
     forecastTotalHours: 76,
     status: "",
-    engineers: [e("SSi", true), e("ARa"), e("KLa")],
+    engineers: [e("SSi", true, 40), e("ARa", false, 20), e("KLa", false, 16)],
     children: [
       {
         id: "a3890",
@@ -646,7 +646,7 @@ export const seedProgrammeData: SeedProgrammeNode[] = [
     finish: "31-Mar-26",
     forecastTotalHours: 51,
     status: "",
-    engineers: [e("SSi", true), e("TRe")],
+    engineers: [e("SSi", true, 35), e("TRe", false, 16)],
     children: [
       {
         id: "a4070",
@@ -767,7 +767,14 @@ export const seedProgrammeData: SeedProgrammeNode[] = [
     finish: "12-Jun-26",
     forecastTotalHours: null,
     status: "",
-    engineers: [e("ANa", true), e("PHa"), e("ANi"), e("DMo"), e("JWr"), e("APe")],
+    engineers: [
+      e("ANa", true, 30),
+      e("PHa", false, 20),
+      e("ANi", false, 15),
+      e("DMo", false, 15),
+      e("JWr", false, 10),
+      e("APe", false, 5),
+    ],
     children: [
       {
         id: "a4170",
@@ -900,7 +907,7 @@ export const seedProgrammeData: SeedProgrammeNode[] = [
     finish: "30-Apr-26",
     forecastTotalHours: null,
     status: "",
-    engineers: [e("SSi", true), e("TRe")],
+    engineers: [e("SSi", true, 45), e("TRe", false, 19)],
     children: [
       {
         id: "a4270",
@@ -1009,7 +1016,7 @@ export const seedProgrammeData: SeedProgrammeNode[] = [
     finish: "05-May-26",
     forecastTotalHours: null,
     status: "",
-    engineers: [e("SFl", true), e("PHa"), e("SSi"), e("ANa")],
+    engineers: [e("SFl", true, 30), e("PHa", false, 20), e("SSi", false, 12), e("ANa", false, 10)],
     children: [
       {
         id: "a4350",
@@ -1190,7 +1197,7 @@ export const seedProgrammeData: SeedProgrammeNode[] = [
     finish: "13-Apr-26",
     forecastTotalHours: null,
     status: "",
-    engineers: [e("SSi", true), e("AMa")],
+    engineers: [e("SSi", true, 40), e("AMa", false, 11)],
     children: [
       {
         id: "a4490",
@@ -1407,7 +1414,7 @@ export const seedProgrammeData: SeedProgrammeNode[] = [
     finish: "08-Apr-26",
     forecastTotalHours: null,
     status: "",
-    engineers: [e("ANa", true), e("ARa"), e("MWo")],
+    engineers: [e("ANa", true, 20), e("ARa", false, 15), e("MWo", false, 8)],
     children: [
       {
         id: "a4650",
@@ -1532,6 +1539,7 @@ export function buildProgrammeNodesFromSeed(codeToId: Map<string, string>): Prog
       isLead: a.isLead,
       plannedHrs: a.plannedHrs,
       forecastHrs: a.forecastHrs,
+      rate: "A",
     };
   }
 

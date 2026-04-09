@@ -25,6 +25,7 @@ import {
   startOfWeek,
   toISODate,
 } from "./utils";
+import { parseFlexibleActivityDate } from "@/components/programme/dateUtils";
 
 // ---------------------------------------------------------------------------
 // Component
@@ -183,10 +184,62 @@ export function ForecastTab({
   const dailyDates = useMemo(() => generateDailyDates(startDate, endDate), [startDate, endDate]);
   const bankHolidays = useMemo(() => new Set(bankHolidayDates), [bankHolidayDates]);
 
+  // ── Scope metadata map ────────────────────────────────────────────────────
+  // Built from programmeTree once; used to populate enriched ForecastGridRow fields.
+  const scopeMetaMap = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        plannedHrsByEngineer: Map<string, number | null>;
+        startDate: string | null;
+        endDate: string | null;
+        status: string;
+      }
+    >();
+    for (const node of programmeTree) {
+      if (node.type !== "scope") continue;
+      const plannedHrsByEngineer = new Map<string, number | null>();
+      if (node.engineers) {
+        for (const e of node.engineers) {
+          plannedHrsByEngineer.set(e.engineerId, e.plannedHrs ?? null);
+        }
+      }
+      // Dates may be stored as "dd-Mon-yy" (programme format) — convert to ISO for comparisons
+      const toIso = (raw: string | undefined | null): string | null => {
+        if (!raw) return null;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+        const d = parseFlexibleActivityDate(raw);
+        return d ? toISODate(d) : null;
+      };
+      map.set(node.id, {
+        plannedHrsByEngineer,
+        startDate: toIso(node.start),
+        endDate: toIso(node.finish),
+        status: node.status ?? "",
+      });
+    }
+    return map;
+  }, [programmeTree]);
+
   // ── Rows ───────────────────────────────────────────────────────────────────
   const allRows = useMemo<ForecastGridRowType[]>(
-    () => scopes.flatMap((scope) => engineers.map((engineer) => ({ scope, engineer }))),
-    [scopes, engineers]
+    () =>
+      scopes.flatMap((scope) =>
+        engineers.map((engineer) => {
+          const meta = scopeMetaMap.get(scope.id);
+          return {
+            scope,
+            engineer,
+            plannedHrs: meta?.plannedHrsByEngineer.get(engineer.id) ?? null,
+            scopeStartDate: meta?.startDate ?? null,
+            scopeEndDate: meta?.endDate ?? null,
+            scopeStatus: (meta?.status ?? "") as ForecastGridRowType["scopeStatus"],
+            maxDailyHours: engineer.maxDailyHours ?? null,
+            maxWeeklyHours: engineer.maxWeeklyHours ?? null,
+          };
+        })
+      ),
+    [scopes, engineers, scopeMetaMap]
   );
 
   const filteredRows = useMemo(

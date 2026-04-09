@@ -1,0 +1,210 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { Upload } from "lucide-react";
+
+import {
+  getTimesheetEntriesAction,
+  listTimesheetUploadsAction,
+  saveTimesheetUploadAction,
+} from "@/app/projects/[id]/actions";
+import type { TimesheetUpload } from "@/types/timesheet";
+
+import { SavedUploadsList } from "./SavedUploadsList";
+import { TimesheetTable } from "./TimesheetTable";
+import type { SaveState, SheetData, TimesheetTabProps, ViewingUpload } from "./types";
+import { parseTimesheetWorkbook } from "./timesheetWorkbook";
+import { stripExcludedColumns } from "./timesheetSheetNormalize";
+
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
+
+export function TimesheetTab({
+  projectId,
+  initialUploads,
+  engineerPool,
+  scopeNames,
+}: TimesheetTabProps) {
+  const [sheet, setSheet] = useState<SheetData | null>(null);
+  const [viewingUpload, setViewingUpload] = useState<ViewingUpload>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [saveState, setSaveState] = useState<SaveState>("idle");
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [uploads, setUploads] = useState<TimesheetUpload[]>(initialUploads);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // On mount: if there are saved uploads, restore the most recent one automatically
+  // so a page refresh doesn't lose the view.
+  useEffect(() => {
+    if (initialUploads.length > 0) {
+      handleViewSaved(initialUploads[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleFile(file: File | undefined) {
+    if (!file) return;
+    if (file.size > MAX_FILE_BYTES) {
+      setParseError("File is too large. Maximum size is 10 MB.");
+      return;
+    }
+    setParseError(null);
+    setSaveState("idle");
+    setSaveError(null);
+    setViewingUpload(null);
+    setLoading(true);
+    try {
+      const parsed = await parseTimesheetWorkbook(file);
+      setSheet(stripExcludedColumns(parsed));
+    } catch (err) {
+      setParseError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function onInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    handleFile(e.target.files?.[0]);
+    e.target.value = "";
+  }
+
+  function onDrop(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    handleFile(e.dataTransfer.files?.[0]);
+  }
+
+  async function handleSave() {
+    if (!sheet) return;
+    setSaveState("saving");
+    setSaveError(null);
+    const res = await saveTimesheetUploadAction(
+      projectId,
+      sheet.fileName,
+      sheet.headers,
+      sheet.rows
+    );
+    if (res.ok) {
+      setSaveState("saved");
+      setViewingUpload(res.upload);
+      setUploads((prev) => [res.upload, ...prev]);
+    } else {
+      setSaveState("error");
+      setSaveError(res.error);
+    }
+  }
+
+  async function handleViewSaved(upload: TimesheetUpload) {
+    setLoadError(null);
+    const res = await getTimesheetEntriesAction(upload.id);
+    if ("error" in res) {
+      setLoadError(res.error);
+      return;
+    }
+    const { entries, headers } = res;
+    if (entries.length === 0) {
+      setSheet({ headers: [], rows: [], fileName: upload.fileName });
+      setViewingUpload(upload);
+      return;
+    }
+    // headers come from the sentinel row (row_index = -1) which stores the
+    // original column sequence; this survives jsonb key-order normalisation.
+    const rows = entries.map((e) => headers.map((h) => e.rawData[h] ?? ""));
+    setSheet(stripExcludedColumns({ headers, rows, fileName: upload.fileName }));
+    setViewingUpload(upload);
+    setSaveState("saved");
+  }
+
+  async function handleDeleteUpload(id: string) {
+    setUploads((prev) => prev.filter((u) => u.id !== id));
+    const res = await listTimesheetUploadsAction(projectId);
+    if ("uploads" in res) setUploads(res.uploads);
+  }
+
+  function handleClose() {
+    setSheet(null);
+    setViewingUpload(null);
+    setParseError(null);
+    setSaveState("idle");
+    setSaveError(null);
+    setLoadError(null);
+  }
+
+  if (!sheet) {
+    return (
+      <div
+        className="flex flex-1 flex-col items-center justify-center gap-4"
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={onDrop}
+      >
+        <input
+          ref={inputRef}
+          type="file"
+          accept=".csv,.xlsx,.xls"
+          className="hidden"
+          onChange={onInputChange}
+        />
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          className="border-border text-foreground hover:border-gold hover:text-gold flex flex-col items-center gap-3 rounded-lg border-2 border-dashed px-12 py-10 transition-colors"
+        >
+          <Upload className="h-8 w-8" strokeWidth={1.5} />
+          <span className="text-sm font-medium">Upload timesheet</span>
+          <span className="text-muted-foreground text-xs">CSV or Excel (.xlsx, .xls)</span>
+        </button>
+        {loading && <p className="text-muted-foreground text-sm">Parsing file…</p>}
+        {parseError && <p className="text-status-critical text-sm">{parseError}</p>}
+        {loadError && <p className="text-status-critical text-sm">{loadError}</p>}
+        <SavedUploadsList
+          uploads={uploads}
+          onView={handleViewSaved}
+          onDelete={handleDeleteUpload}
+        />
+      </div>
+    );
+  }
+
+  const isSaved = saveState === "saved" || viewingUpload !== null;
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="border-border flex shrink-0 items-center justify-between border-b px-4 py-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <p className="text-muted-foreground truncate text-xs">
+            {sheet.fileName} — {sheet.rows.length} rows
+          </p>
+          {isSaved && (
+            <span className="text-status-healthy shrink-0 text-xs font-medium">· Saved</span>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center gap-3">
+          {saveState === "error" && saveError && (
+            <p className="text-status-critical text-xs">{saveError}</p>
+          )}
+          {!isSaved && (
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saveState === "saving"}
+              className="bg-gold text-foreground rounded-md px-3 py-1 text-xs font-medium transition-opacity disabled:opacity-50"
+            >
+              {saveState === "saving" ? "Saving…" : "Save to project"}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleClose}
+            className="text-muted-foreground hover:text-foreground text-xs underline-offset-2 hover:underline"
+          >
+            {isSaved ? "Back to list" : "Upload different file"}
+          </button>
+        </div>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-auto">
+        <TimesheetTable sheet={sheet} engineerPool={engineerPool} scopeNames={scopeNames} />
+      </div>
+    </div>
+  );
+}

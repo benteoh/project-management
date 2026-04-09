@@ -23,6 +23,8 @@ type Params = {
   selRef: React.MutableRefObject<SelRange | null>;
   dateColFieldsRef: React.MutableRefObject<string[]>;
   fillPreviewSel: SelRange | null;
+  /** Set of "rowId:field" keys for cells with pending autofill values (ghost style). */
+  pendingSet: Set<string>;
 };
 
 export function forecastColumnDefs({
@@ -32,6 +34,7 @@ export function forecastColumnDefs({
   selRef,
   dateColFieldsRef,
   fillPreviewSel,
+  pendingSet,
 }: Params): ColDef<RowData>[] {
   const fixed: ColDef<RowData>[] = [
     {
@@ -192,6 +195,8 @@ export function forecastColumnDefs({
       cellClass: (p) => {
         const classes = ["forecast-date-cell"];
         if (p.value != null && p.value !== "") classes.push("forecast-date-cell--has-value");
+        if (p.node.id && pendingSet.has(`${p.node.id}:${iso}`))
+          classes.push("forecast-date-cell--pending");
         return classes.join(" ");
       },
     };
