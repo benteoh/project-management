@@ -22,6 +22,18 @@ export function toISODate(date: Date): string {
   return `${date.getFullYear()}-${mm}-${dd}`;
 }
 
+/** Display an ISO calendar date (YYYY-MM-DD) in en-GB short form for tooltips. */
+export function formatIsoDateShort(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  if (!y || !m || !d) return iso;
+  const date = new Date(y, m - 1, d);
+  return date.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 export function computeStartDate(): string {
   const today = new Date();
   today.setHours(0, 0, 0, 0);

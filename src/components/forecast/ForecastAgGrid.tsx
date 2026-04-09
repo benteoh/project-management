@@ -242,6 +242,7 @@ export const ForecastAgGrid = forwardRef<ForecastAgGridHandle, Props>(function F
         const saved = cellValuesRef.current[id] ?? {};
         const pending = pendingValuesRef.current[id] ?? {};
         const prevScopeId = idx > 0 ? rows[idx - 1].scope.id : null;
+        const scopeLeadRow = idx === 0 || row.scope.id !== prevScopeId;
         const base: RowData = {
           _id: id,
           _no: idx + 1,
@@ -250,6 +251,9 @@ export const ForecastAgGrid = forwardRef<ForecastAgGridHandle, Props>(function F
           _person: formatEngineerListLabel(row.engineer, row.engineer.code),
           _hourRate: row.engineer.rateA ?? null,
           _scopeDivider: idx > 0 && row.scope.id !== prevScopeId,
+          _scopeLeadRow: scopeLeadRow,
+          _scopeStartIso: row.scopeStartDate,
+          _scopeEndIso: row.scopeEndDate,
         };
         for (const d of dailyDates) {
           const field = toISODate(d);

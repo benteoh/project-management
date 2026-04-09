@@ -12,6 +12,11 @@ export type RowData = {
   _person: string;
   _hourRate: number | null;
   _scopeDivider: boolean; // true on the first row of each new scope group
+  /** First engineer row for this scope in the current (filtered) grid — used for scope date bracket. */
+  _scopeLeadRow: boolean;
+  /** ISO dates from programme scope — bracket spans [start, end] ∩ visible columns. */
+  _scopeStartIso: string | null;
+  _scopeEndIso: string | null;
   [dateKey: string]: string | number | null | boolean;
 };
 

@@ -98,7 +98,9 @@ export default function ProjectPageClient({
           <div className="flex w-full min-w-0 items-start justify-between gap-4">
             <div>
               <p className="text-muted-foreground text-sm">{project.client}</p>
-              <h1 className="text-foreground text-2xl font-semibold">{project.name}</h1>
+              <h1 className="text-foreground text-2xl font-semibold">
+                {project.projectCode} - {project.name}
+              </h1>
               <p className="text-muted-foreground mt-1 text-sm">
                 {formatDate(project.startDate)} – {formatDate(project.endDate)} · {project.office} ·{" "}
                 {formatProjectStatus(project.status)}

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 
-import { addMonths, generateDailyDates, startOfWeek, toISODate } from "./utils";
+import { addMonths, formatIsoDateShort, generateDailyDates, startOfWeek, toISODate } from "./utils";
 
 describe("startOfWeek", () => {
   it("returns Monday for a Wednesday in the same week", () => {
@@ -35,5 +35,12 @@ describe("generateDailyDates", () => {
   it("returns one day when start equals end", () => {
     const dates = generateDailyDates("2026-06-01", "2026-06-01");
     expect(dates.length).toBe(1);
+  });
+});
+
+describe("formatIsoDateShort", () => {
+  it("formats YYYY-MM-DD for en-GB display", () => {
+    expect(formatIsoDateShort("2026-01-05")).toMatch(/5/);
+    expect(formatIsoDateShort("2026-01-05")).toMatch(/2026/);
   });
 });

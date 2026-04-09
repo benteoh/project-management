@@ -11,10 +11,11 @@ import type {
   ValueParserParams,
 } from "ag-grid-community";
 
-import { toISODate } from "./utils";
+import { formatIsoDateShort, toISODate } from "./utils";
 import { normSel, cellNumeric } from "./forecastCellUtils";
 import { NoColumnRenderer } from "./NoColumnRenderer";
 import type { RowData, SelRange } from "./forecastGridTypes";
+import { scopeBracketCellStyle } from "./scopeBracketCellStyle";
 
 type Params = {
   dailyDates: Date[];
@@ -57,7 +58,22 @@ export function forecastColumnDefs({
       editable: false,
       suppressMovable: true,
       resizable: false,
-      tooltipField: "_scope",
+      tooltipValueGetter: (p) => {
+        const d = p.data;
+        if (!d) return null;
+        if (d._scopeLeadRow && (d._scopeStartIso || d._scopeEndIso)) {
+          const s =
+            d._scopeStartIso != null && d._scopeStartIso !== ""
+              ? formatIsoDateShort(d._scopeStartIso)
+              : "…";
+          const e =
+            d._scopeEndIso != null && d._scopeEndIso !== ""
+              ? formatIsoDateShort(d._scopeEndIso)
+              : "…";
+          return `Scope dates: ${s} – ${e}`;
+        }
+        return d._scope;
+      },
     },
     {
       field: "_person",
@@ -153,25 +169,29 @@ export function forecastColumnDefs({
         const colIdx = dateColFieldsRef.current.indexOf(iso);
         const ri = p.node.rowIndex;
 
-        // Base background — lowest priority, overridden by selection
+        // Base background — weekend / bank holiday / plain
         const baseBg = isBankHoliday ? "var(--status-healthy-bg)" : isWeekend ? "var(--muted)" : "";
 
-        // Scope boundary divider — inset top shadow, merged with selection below
+        const scopeBand = scopeBracketCellStyle(iso, p.data, dateColFieldsRef.current);
+
+        // Scope boundary divider — inset top shadow between scope groups
         const dividerShadow = p.data?._scopeDivider ? "0 2px 0 0 var(--border) inset" : "";
 
         const sel = selRef.current;
         if (sel && ri != null) {
           const n = normSel(sel);
           if (ri >= n.r1 && ri <= n.r2 && colIdx >= n.c1 && colIdx <= n.c2) {
-            // Selection edges — blue inset shadows. Listed first so they layer above divider.
+            // Selection edges — blue inset shadows; scope divider stacks underneath.
             const edge = "var(--chart-1)";
             const top = ri === n.r1 ? `0 2px 0 0 ${edge} inset` : "";
             const bot = ri === n.r2 ? `0 -2px 0 0 ${edge} inset` : "";
             const lft = colIdx === n.c1 ? `2px 0 0 0 ${edge} inset` : "";
             const rgt = colIdx === n.c2 ? `-2px 0 0 0 ${edge} inset` : "";
-            // Selection takes full precedence — suppress divider shadow inside the range
-            const shadows = [top, bot, lft, rgt].filter(Boolean).join(", ");
+            const shadows = [scopeBand.boxShadow, dividerShadow, top, bot, lft, rgt]
+              .filter(Boolean)
+              .join(", ");
             return {
+              ...scopeBand,
               backgroundColor: "color-mix(in srgb, var(--chart-1) 12%, transparent)",
               boxShadow: shadows || "none",
             };
@@ -181,16 +201,23 @@ export function forecastColumnDefs({
         if (fillPreviewSel && ri != null) {
           const fn = normSel(fillPreviewSel);
           if (ri >= fn.r1 && ri <= fn.r2 && colIdx >= fn.c1 && colIdx <= fn.c2) {
+            const fillShadows = [scopeBand.boxShadow, dividerShadow].filter(Boolean).join(", ");
             return {
+              ...scopeBand,
               backgroundColor: "color-mix(in srgb, var(--chart-1) 6%, transparent)",
               outline: "1px dashed var(--chart-1)",
-              boxShadow: "none",
+              boxShadow: fillShadows || "none",
             };
           }
         }
 
-        // Always return an explicit boxShadow to clear any previously applied value.
-        return { backgroundColor: baseBg, boxShadow: dividerShadow || "none" };
+        const mergedShadow =
+          [scopeBand.boxShadow, dividerShadow].filter(Boolean).join(", ") || "none";
+        return {
+          ...scopeBand,
+          backgroundColor: baseBg,
+          boxShadow: mergedShadow,
+        };
       },
       cellClass: (p) => {
         const classes = ["forecast-date-cell"];
