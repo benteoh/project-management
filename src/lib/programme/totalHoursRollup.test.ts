@@ -7,7 +7,6 @@ import { isRollupTotalHoursParent, rollupTotalHoursInTree } from "./totalHoursRo
 const base = {
   start: "",
   finish: "",
-  forecastTotalHours: null as number | null,
   status: "Not Started" as const,
 };
 

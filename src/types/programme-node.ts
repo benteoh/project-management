@@ -15,7 +15,6 @@ export interface ProgrammeNodeDbRow {
   total_hours: number | null;
   start_date: string | null;
   finish_date: string | null;
-  forecast_total_hours: number | null;
   status: ActivityStatus;
   parent_id: string | null;
   position: number;

@@ -20,7 +20,6 @@ describe("nextActivityIdFromTree", () => {
         totalHours: 0,
         start: "",
         finish: "",
-        forecastTotalHours: null,
         status: "",
         children: [
           {
@@ -31,7 +30,6 @@ describe("nextActivityIdFromTree", () => {
             totalHours: 1,
             start: "",
             finish: "",
-            forecastTotalHours: null,
             status: "Not Started",
             children: [],
           },

@@ -5,7 +5,6 @@ export interface ScopeEngineerDbRow {
   engineer_id: string;
   is_lead: boolean;
   planned_hrs: number | null;
-  forecast_hrs: number | null;
   position: number;
   /** Rate slot (A–E) used to cost this engineer's hours on this scope. Defaults to 'A'. */
   rate: string;
@@ -17,7 +16,6 @@ export interface ScopeEngineerInsertRow {
   engineer_id: string;
   is_lead: boolean;
   planned_hrs: number | null;
-  forecast_hrs: number | null;
   position: number;
   /** Defaults to 'A' at the DB level when omitted. */
   rate?: string;

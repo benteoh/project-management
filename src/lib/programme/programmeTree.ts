@@ -22,7 +22,6 @@ export function flattenTree(
       total_hours: isRollupTotalHoursParent(node) ? 0 : node.totalHours,
       start_date: node.start || null,
       finish_date: node.finish || null,
-      forecast_total_hours: node.forecastTotalHours,
       status: node.status,
       parent_id: parentId,
       position,
@@ -35,7 +34,6 @@ export function flattenTree(
           engineer_id: eng.engineerId,
           is_lead: eng.isLead,
           planned_hrs: eng.plannedHrs,
-          forecast_hrs: eng.forecastHrs,
           position: i,
           rate: eng.rate,
         });
@@ -91,7 +89,6 @@ export function buildTreeFromRows(
       totalHours: r.total_hours !== null ? Number(r.total_hours) : null,
       start: r.start_date ?? "",
       finish: r.finish_date ?? "",
-      forecastTotalHours: r.forecast_total_hours !== null ? Number(r.forecast_total_hours) : null,
       status: r.status,
       children: [],
     };
@@ -104,7 +101,6 @@ export function buildTreeFromRows(
         engineerId: e.engineer_id,
         isLead: e.is_lead,
         plannedHrs: e.planned_hrs !== null ? Number(e.planned_hrs) : null,
-        forecastHrs: e.forecast_hrs !== null ? Number(e.forecast_hrs) : null,
         rate: e.rate,
       }));
     }
