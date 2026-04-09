@@ -123,7 +123,7 @@ export function useAutofill({
         };
       });
 
-      gridRef.current?.api.refreshCells({ force: true });
+      gridRef.current?.api?.refreshCells({ force: true });
     },
     [rows, dateColFields, selRef, gridRef, cellValuesRef, bankHolidays]
   );
@@ -165,7 +165,7 @@ export function useAutofill({
   const discardFill = useCallback(() => {
     pendingValuesRef.current = {};
     setPendingFill(null);
-    gridRef.current?.api.refreshCells({ force: true });
+    gridRef.current?.api?.refreshCells({ force: true });
   }, [gridRef]);
 
   // Restores a previously discarded fill back into preview (used by redo after undo-discard)
@@ -177,7 +177,7 @@ export function useAutofill({
         pendingValuesRef.current[c.rowId][c.field] = c.newValue;
       }
       setPendingFill(fill);
-      gridRef.current?.api.refreshCells({ force: true });
+      gridRef.current?.api?.refreshCells({ force: true });
     },
     [gridRef]
   );

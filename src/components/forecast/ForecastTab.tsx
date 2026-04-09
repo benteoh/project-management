@@ -1,14 +1,25 @@
 "use client";
 
-import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { parseFlexibleActivityDate } from "@/components/programme/dateUtils";
+import { cellValuesHasPositiveHours } from "@/lib/forecast/cellValuesUtils";
+import { loadForecastEntries, saveForecastEntries } from "@/lib/forecast/forecastDb";
+import {
+  clearDraft,
+  loadDraft,
+  saveDraft,
+  type ForecastDraftPayload,
+} from "@/lib/forecast/forecastDraft";
 import { supabase } from "@/lib/supabase/client";
-import type { ProgrammeNodeDbRow } from "@/types/programme";
+import { cn } from "@/lib/utils";
 import type { EngineerPoolEntry } from "@/types/engineer-pool";
+import type { ProgrammeNodeDbRow } from "@/types/programme";
 import { formatEngineerListLabel } from "@/lib/engineer-pool-display";
 
 import { ColumnFilter } from "./ColumnFilter";
-import { ForecastAgGrid } from "./ForecastAgGrid";
+import { ForecastAgGrid, type ForecastAgGridHandle } from "./ForecastAgGrid";
+import type { CellValues } from "./forecastGridTypes";
 import type {
   ForecastFilterColumn,
   ForecastGridRow as ForecastGridRowType,
@@ -25,7 +36,6 @@ import {
   startOfWeek,
   toISODate,
 } from "./utils";
-import { parseFlexibleActivityDate } from "@/components/programme/dateUtils";
 
 // ---------------------------------------------------------------------------
 // Component
@@ -84,6 +94,86 @@ export function ForecastTab({
     column: ForecastFilterColumn;
     rect: DOMRect;
   } | null>(null);
+
+  const gridRef = useRef<ForecastAgGridHandle>(null);
+  const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [forecastLoading, setForecastLoading] = useState(true);
+  const [hydratePayload, setHydratePayload] = useState<{
+    key: number;
+    values: CellValues;
+  } | null>(null);
+  const [draftConflict, setDraftConflict] = useState<{
+    draft: ForecastDraftPayload;
+    server: CellValues;
+  } | null>(null);
+  const [hasUnsaved, setHasUnsaved] = useState(false);
+  const [savePending, setSavePending] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const scheduleDraftSave = useCallback(() => {
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    draftTimerRef.current = setTimeout(() => {
+      const vals = gridRef.current?.getCellValues() ?? {};
+      saveDraft(projectId, vals);
+    }, 300);
+  }, [projectId]);
+
+  const onPersistableChange = useCallback(() => {
+    setHasUnsaved(true);
+    scheduleDraftSave();
+  }, [scheduleDraftSave]);
+
+  useEffect(
+    () => () => {
+      if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    },
+    []
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      setForecastLoading(true);
+      setSaveError(null);
+      const serverRes = await loadForecastEntries(supabase, projectId);
+      const draft = loadDraft(projectId);
+      if (cancelled) return;
+
+      const serverVals = serverRes.ok ? serverRes.values : {};
+      const serverHas = serverRes.ok && cellValuesHasPositiveHours(serverVals);
+      const draftHas = draft != null && cellValuesHasPositiveHours(draft.values);
+
+      if (draftHas && serverHas) {
+        setDraftConflict({ draft, server: serverVals });
+        setHydratePayload({ key: Date.now(), values: serverVals });
+      } else if (draftHas && (!serverRes.ok || !serverHas)) {
+        setHydratePayload({ key: Date.now(), values: draft!.values });
+      } else if (serverRes.ok) {
+        setHydratePayload({ key: Date.now(), values: serverVals });
+      } else {
+        setHydratePayload({ key: Date.now(), values: {} });
+      }
+      setForecastLoading(false);
+    }
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
+
+  const handleSaveForecast = useCallback(async () => {
+    setSavePending(true);
+    setSaveError(null);
+    const vals = gridRef.current?.getCellValues() ?? {};
+    const res = await saveForecastEntries(supabase, projectId, vals);
+    setSavePending(false);
+    if (res.ok) {
+      clearDraft(projectId);
+      setHasUnsaved(false);
+    } else {
+      setSaveError(res.error);
+    }
+  }, [projectId]);
 
   // Advance current week every Saturday at midnight
   useEffect(() => {
@@ -221,26 +311,30 @@ export function ForecastTab({
     return map;
   }, [programmeTree]);
 
-  // ── Rows ───────────────────────────────────────────────────────────────────
-  const allRows = useMemo<ForecastGridRowType[]>(
-    () =>
-      scopes.flatMap((scope) =>
-        engineers.map((engineer) => {
-          const meta = scopeMetaMap.get(scope.id);
-          return {
-            scope,
-            engineer,
-            plannedHrs: meta?.plannedHrsByEngineer.get(engineer.id) ?? null,
-            scopeStartDate: meta?.startDate ?? null,
-            scopeEndDate: meta?.endDate ?? null,
-            scopeStatus: (meta?.status ?? "") as ForecastGridRowType["scopeStatus"],
-            maxDailyHours: engineer.maxDailyHours ?? null,
-            maxWeeklyHours: engineer.maxWeeklyHours ?? null,
-          };
-        })
-      ),
-    [scopes, engineers, scopeMetaMap]
-  );
+  // ── Rows (one row per scope × engineer; dedupe stable row ids) ─────────────
+  const allRows = useMemo<ForecastGridRowType[]>(() => {
+    const seen = new Set<string>();
+    const out: ForecastGridRowType[] = [];
+    for (const scope of scopes) {
+      for (const engineer of engineers) {
+        const rid = `${scope.id}-${engineer.id}`;
+        if (seen.has(rid)) continue;
+        seen.add(rid);
+        const meta = scopeMetaMap.get(scope.id);
+        out.push({
+          scope,
+          engineer,
+          plannedHrs: meta?.plannedHrsByEngineer.get(engineer.id) ?? null,
+          scopeStartDate: meta?.startDate ?? null,
+          scopeEndDate: meta?.endDate ?? null,
+          scopeStatus: (meta?.status ?? "") as ForecastGridRowType["scopeStatus"],
+          maxDailyHours: engineer.maxDailyHours ?? null,
+          maxWeeklyHours: engineer.maxWeeklyHours ?? null,
+        });
+      }
+    }
+    return out;
+  }, [scopes, engineers, scopeMetaMap]);
 
   const filteredRows = useMemo(
     () =>
@@ -275,6 +369,47 @@ export function ForecastTab({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      {draftConflict && (
+        <div
+          className="bg-status-warning-bg text-status-warning border-border flex shrink-0 flex-wrap items-center justify-between gap-3 border-b px-4 py-2 text-sm"
+          role="status"
+        >
+          <p>
+            You have a local draft from{" "}
+            {new Date(draftConflict.draft.savedAt).toLocaleString("en-GB", {
+              dateStyle: "medium",
+              timeStyle: "short",
+            })}
+            . Restore draft or use saved version?
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="bg-card text-foreground border-border shadow-card rounded-md border px-3 py-1 text-xs font-medium"
+              onClick={() => {
+                gridRef.current?.hydrate(draftConflict.draft.values);
+                setDraftConflict(null);
+                setHasUnsaved(true);
+              }}
+            >
+              Restore draft
+            </button>
+            <button
+              type="button"
+              className="bg-card text-foreground border-border shadow-card rounded-md border px-3 py-1 text-xs font-medium"
+              onClick={() => {
+                clearDraft(projectId);
+                gridRef.current?.hydrate(draftConflict.server);
+                setDraftConflict(null);
+                setHasUnsaved(false);
+              }}
+            >
+              Use saved
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Toolbar */}
       <div className="border-border flex shrink-0 items-center gap-2 border-b px-4 py-2">
         {/* Filters */}
@@ -349,19 +484,50 @@ export function ForecastTab({
         >
           Today
         </button>
+
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void handleSaveForecast()}
+            disabled={forecastLoading || savePending || draftConflict !== null}
+            className={cn(
+              "relative rounded-md border px-3 py-1 text-xs font-medium transition-colors",
+              savePending || forecastLoading || draftConflict
+                ? "border-border text-muted-foreground cursor-not-allowed opacity-60"
+                : "border-border text-foreground hover:bg-muted/50"
+            )}
+          >
+            {hasUnsaved && (
+              <span
+                className="bg-status-warning absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full"
+                aria-hidden
+              />
+            )}
+            {savePending ? "Saving…" : "Save"}
+          </button>
+        </div>
       </div>
+
+      {saveError && <p className="text-status-critical shrink-0 px-4 pb-1 text-xs">{saveError}</p>}
 
       {/* AG Grid */}
       <div className="relative min-h-0 flex-1">
-        <div className="absolute inset-0">
-          <ForecastAgGrid
-            rows={filteredRows}
-            dailyDates={dailyDates}
-            bankHolidays={bankHolidays}
-            todayIso={todayIso}
-            scrollToTodayRef={scrollToTodayRef}
-          />
-        </div>
+        {forecastLoading || hydratePayload === null ? (
+          <div className="bg-muted/40 m-4 flex-1 animate-pulse rounded-lg" aria-hidden />
+        ) : (
+          <div className="absolute inset-0">
+            <ForecastAgGrid
+              ref={gridRef}
+              rows={filteredRows}
+              dailyDates={dailyDates}
+              bankHolidays={bankHolidays}
+              todayIso={todayIso}
+              scrollToTodayRef={scrollToTodayRef}
+              hydratePayload={hydratePayload}
+              onPersistableChange={onPersistableChange}
+            />
+          </div>
+        )}
       </div>
 
       {/* Filter dropdown */}

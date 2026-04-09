@@ -1,6 +1,9 @@
 // Internal types for the forecast AG Grid — not domain types.
 // Domain types (ForecastGridRow, ScopeItem, etc.) live in ./types.
 
+/** rowId → date field (ISO) → hours — shared by grid, autofill, draft, and persistence. */
+export type CellValues = Record<string, Record<string, unknown>>;
+
 export type RowData = {
   _id: string;
   _no: number;

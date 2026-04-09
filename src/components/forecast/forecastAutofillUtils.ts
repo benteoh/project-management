@@ -7,9 +7,7 @@ const DEBUG = false;
 import { DEFAULT_MAX_DAILY_HOURS, DEFAULT_MAX_WEEKLY_HOURS } from "@/types/engineer-pool";
 
 import type { ForecastGridRow } from "./types";
-import type { HistoryChange, PendingFill } from "./forecastGridTypes";
-
-type CellValues = Record<string, Record<string, unknown>>;
+import type { CellValues, HistoryChange, PendingFill } from "./forecastGridTypes";
 
 export type AutofillInput = {
   /** All rows currently in the grid (used for cross-row capacity totals). */
@@ -168,10 +166,7 @@ export function autofill(input: AutofillInput): PendingFill {
           console.log(`  [skip cell] ${field} — before scopeStartDate (${row.scopeStartDate})`);
         continue;
       }
-      if (row.scopeEndDate && field > row.scopeEndDate) {
-        if (DEBUG) console.log(`  [skip cell] ${field} — after scopeEndDate (${row.scopeEndDate})`);
-        continue;
-      }
+      // scopeEndDate: used for row sort only — do not clip cells after finish (AUTOFILL_PLAN v1).
 
       // Selection restriction
       if (targetCells && !targetCells.has(`${rowId}:${field}`)) continue;

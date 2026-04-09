@@ -285,9 +285,6 @@ async function seed() {
       engineer_code: e.code,
       entry_date: e.date,
       hours: e.hours,
-      rate_slot: e.rate,
-      amount: e.amount,
-      description: e.description,
       raw_data,
     };
   });

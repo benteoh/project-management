@@ -31,12 +31,10 @@ export type SeedEngineerDef = {
  * Demo engineer roster for `npm run seed` (`engineer_pool`).
  *
  * **Rates:** `seedProjectRates` maps to `rate_a` / `rate_b` (Concept Stage) on `project_engineers` for
- * the seed project id in `seedConfig`. Omit when the person has no default project rates (e.g. Alex Petit).
+ * the seed project id in `seedConfig`. Omit only when there are no default project rates for seed.
  *
  * **Sheet notes:** “Ola K.” stored as Ola Kowalski (confirm surname). Rate A only (no Concept B): Zaidi
- * (`rate_b` null). Ola/Schwind Rate A was absent from source sheet — inferred from tier pattern (rateA ≈ rateB/1.116).
- * Alex Petit Rate A also absent — assigned lowest tier (82.31) pending confirmation. New vs original pool: Haig, Kowalski,
- * Barnes, Chan, Schwind.
+ * (`rate_b` null). New vs original pool: Haig, Kowalski, Barnes, Chan, Schwind.
  */
 const SEED_ENGINEERS: readonly SeedEngineerDef[] = [
   {

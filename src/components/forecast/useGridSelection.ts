@@ -87,7 +87,7 @@ export function useGridSelection({
   function refreshSelection() {
     if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
     rafRef.current = requestAnimationFrame(() => {
-      gridRef.current?.api.refreshCells({ force: true });
+      gridRef.current?.api?.refreshCells({ force: true });
       updateFillHandlePos();
       rafRef.current = null;
     });
@@ -107,7 +107,7 @@ export function useGridSelection({
         selRef.current = null;
         setHasSelection(false);
         hideFillHandle();
-        gridRef.current?.api.refreshCells({ force: true });
+        gridRef.current?.api?.refreshCells({ force: true });
         return;
       }
       isDraggingSelRef.current = true;
@@ -154,7 +154,7 @@ export function useGridSelection({
         selRef.current = null;
         setHasSelection(false);
         hideFillHandle();
-        gridRef.current?.api.refreshCells({ force: true });
+        gridRef.current?.api?.refreshCells({ force: true });
       }
     }
     document.addEventListener("mousedown", onDocMouseDown);
@@ -183,7 +183,7 @@ export function useGridSelection({
         selRef.current = null;
         setHasSelection(false);
         hideFillHandle();
-        gridRef.current?.api.refreshCells({ force: true });
+        gridRef.current?.api?.refreshCells({ force: true });
         return;
       }
 

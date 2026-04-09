@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { AgGridReact } from "ag-grid-react";
 import {
   AllCommunityModule,
@@ -22,9 +30,14 @@ import { useGridHistory } from "./useGridHistory";
 import { useGridSelection } from "./useGridSelection";
 import { useGridKeyboard } from "./useGridKeyboard";
 import { useAutofill } from "./useAutofill";
-import type { HistoryEntry, PendingFill, RowData } from "./forecastGridTypes";
+import type { CellValues, HistoryEntry, PendingFill, RowData } from "./forecastGridTypes";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
+
+export type ForecastAgGridHandle = {
+  getCellValues: () => CellValues;
+  hydrate: (values: CellValues) => void;
+};
 
 type Props = {
   rows: ForecastGridRow[];
@@ -33,15 +46,24 @@ type Props = {
   todayIso: string;
   // Parent passes a ref whose .current will be set to a scroll-to-today callback
   scrollToTodayRef: React.RefObject<(() => void) | null>;
+  /** When set, replaces cellValuesRef with these values (server/draft load). */
+  hydratePayload: { key: number; values: CellValues } | null;
+  /** Fired after committed edits (not preview). Parent uses for draft + unsaved. */
+  onPersistableChange?: () => void;
 };
 
-export function ForecastAgGrid({
-  rows,
-  dailyDates,
-  bankHolidays,
-  todayIso,
-  scrollToTodayRef,
-}: Props) {
+export const ForecastAgGrid = forwardRef<ForecastAgGridHandle, Props>(function ForecastAgGrid(
+  {
+    rows,
+    dailyDates,
+    bankHolidays,
+    todayIso,
+    scrollToTodayRef,
+    hydratePayload,
+    onPersistableChange,
+  },
+  ref
+) {
   const gridRef = useRef<AgGridReact<RowData>>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -53,7 +75,7 @@ export function ForecastAgGrid({
   }, [dateColFields]);
 
   // ── Feature hooks ──────────────────────────────────────────────────────────
-  const { cellValuesRef, setCellValue } = useCellStore();
+  const { cellValuesRef, setCellValue } = useCellStore(onPersistableChange);
 
   // Incremented on every undo/redo so rowData recomputes from the updated cellValuesRef.
   const [rowDataRevision, setRowDataRevision] = useState(0);
@@ -110,6 +132,29 @@ export function ForecastAgGrid({
   // Keep the ref in sync so the history callback above always calls the latest version
   handleHistoryAppliedRef.current = handleHistoryApplied;
 
+  useImperativeHandle(
+    ref,
+    () => ({
+      getCellValues: () => structuredClone(cellValuesRef.current),
+      hydrate: (values: CellValues) => {
+        cellValuesRef.current = structuredClone(values);
+        discardFill();
+        setRowDataRevision((n) => n + 1);
+      },
+    }),
+    [cellValuesRef, discardFill]
+  );
+
+  const lastHydrateKeyRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!hydratePayload) return;
+    if (lastHydrateKeyRef.current === hydratePayload.key) return;
+    lastHydrateKeyRef.current = hydratePayload.key;
+    cellValuesRef.current = structuredClone(hydratePayload.values);
+    discardFill();
+    setRowDataRevision((n) => n + 1);
+  }, [hydratePayload, cellValuesRef, discardFill]);
+
   // Refs so stable AG Grid / keyboard closures always read the latest values
   const isPreviewActiveRef = useRef(isPreviewActive);
   isPreviewActiveRef.current = isPreviewActive;
@@ -146,7 +191,7 @@ export function ForecastAgGrid({
 
   // ── Scroll to today ────────────────────────────────────────────────────────
   const scrollToToday = useCallback(() => {
-    gridRef.current?.api.ensureColumnVisible(todayIso, "middle");
+    gridRef.current?.api?.ensureColumnVisible(todayIso, "middle");
   }, [todayIso]);
 
   // Expose to parent via ref
@@ -338,11 +383,11 @@ export function ForecastAgGrid({
           hasSelection={hasSelection}
           pendingFill={pendingFill}
           onAutofillAll={() => {
-            gridRef.current?.api.stopEditing();
+            gridRef.current?.api?.stopEditing();
             triggerAutofill("all");
           }}
           onAutofillSelection={() => {
-            gridRef.current?.api.stopEditing();
+            gridRef.current?.api?.stopEditing();
             triggerAutofill("selection");
           }}
           onApprove={approveFill}
@@ -384,14 +429,9 @@ export function ForecastAgGrid({
               if (isPreviewActiveRef.current) {
                 // During preview, route edits into the pending store instead of committing
                 addPendingChange(e.node.id, field, captured.value, e.newValue);
-                gridRef.current?.api.refreshCells({ force: true });
+                gridRef.current?.api?.refreshCells({ force: true });
               } else {
-                if (!cellValuesRef.current[e.node.id]) cellValuesRef.current[e.node.id] = {};
-                if (e.newValue == null) {
-                  delete cellValuesRef.current[e.node.id][field];
-                } else {
-                  cellValuesRef.current[e.node.id][field] = e.newValue;
-                }
+                setCellValue(e.node, field, e.newValue);
                 pushHistory([
                   { rowId: e.node.id, field, oldValue: captured.value, newValue: e.newValue },
                 ]);
@@ -455,7 +495,7 @@ export function ForecastAgGrid({
       </div>
     </>
   );
-}
+});
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
