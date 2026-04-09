@@ -5,6 +5,7 @@ import type { Project, ProjectDbRow } from "@/types/project";
 function rowToProject(r: ProjectDbRow): Project {
   return {
     id: r.id,
+    projectCode: r.project_code ?? null,
     name: r.name,
     client: r.client,
     office: r.office,

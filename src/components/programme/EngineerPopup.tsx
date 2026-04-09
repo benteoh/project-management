@@ -65,6 +65,7 @@ export function EngineerPopup({
         isLead: false,
         plannedHrs: null,
         forecastHrs: null,
+        rate: "A",
       },
     ]);
 

@@ -1532,6 +1532,7 @@ export function buildProgrammeNodesFromSeed(codeToId: Map<string, string>): Prog
       isLead: a.isLead,
       plannedHrs: a.plannedHrs,
       forecastHrs: a.forecastHrs,
+      rate: "A",
     };
   }
 
