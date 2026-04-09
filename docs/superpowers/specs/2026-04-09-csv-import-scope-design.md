@@ -84,14 +84,14 @@ A scope-level row always resets the parent stack to root before pushing itself. 
 
 ### Scope / Task / Subtask rows (no Activity ID)
 
-These are structural context only — they are never updated in-place.
+Matched by name. When found, `start` and `finish` are updated. Name is never updated (it is the match key). Engineer allocations and hours are untouched.
 
 - **Scope rows** — matched against existing tree by full name including prefix (e.g. `"1. GMA Scoping / Assumptions and CGMM"`).
 - **Task/subtask rows** — number prefix is stripped before matching (e.g. `"1.1 Phase 2 report..."` → match against `"Phase 2 report..."`).
 
 Match outcomes:
 
-- **Found** → use as current parent context, do not modify the node.
+- **Found** → update `start` and `finish`; use as current parent context.
 - **Not found** → create new node. Scopes stored with prefix; tasks/subtasks stored without prefix.
 
 ### Activity rows (has Activity ID)
