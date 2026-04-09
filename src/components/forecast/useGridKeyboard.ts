@@ -14,6 +14,8 @@ type Params = {
   dateColFieldsRef: React.MutableRefObject<string[]>;
   setCellValue: (node: IRowNode<RowData>, field: string, value: unknown) => void;
   pushHistory: (entry: HistoryEntry) => void;
+  /** Incremented every time pushHistory is called — used to detect stale discard stashes. */
+  pushVersionRef: React.RefObject<number>;
   // History operations — index management is encapsulated in useGridHistory
   undo: () => void;
   redo: () => void;
@@ -62,6 +64,7 @@ export function useGridKeyboard({
   dateColFieldsRef,
   setCellValue,
   pushHistory,
+  pushVersionRef,
   undo,
   redo,
   canRedo,
@@ -72,8 +75,10 @@ export function useGridKeyboard({
   pendingFillRef,
   restorePreviewRef,
 }: Params): void {
-  // Stash of the last discarded preview so redo can restore it
-  const discardedFillRef = useRef<PendingFill | null>(null);
+  // Stash of the last discarded preview (with the pushVersion at time of discard).
+  // Version-tagged so a manual edit after discard invalidates the stash and prevents
+  // the next Ctrl+Y from accidentally restoring a preview the user has moved past.
+  const discardedFillRef = useRef<{ fill: PendingFill; version: number } | null>(null);
 
   // ── Undo / Redo — document-level so they work regardless of focus ─────────
   // Skipped only when an external input (outside the grid) has focus.
@@ -93,11 +98,17 @@ export function useGridKeyboard({
       e.stopPropagation();
 
       if (isUndo) {
-        // While cell is editing, commit first then undo
-        if (api.getEditingCells().length > 0) api.stopEditing();
-        // While preview is active, undo = discard preview; stash it so redo can restore
+        // While cell is editing, commit the edit and stop — next Ctrl+Z handles undo/discard.
+        // Don't also discard the preview: the user's intent was to cancel the cell edit only.
+        if (api.getEditingCells().length > 0) {
+          api.stopEditing();
+          return;
+        }
+        // While preview is active, undo = discard preview; stash it so redo can restore.
+        // Tag with the current pushVersion so a subsequent manual edit invalidates the stash.
         if (isPreviewActiveRef.current) {
-          discardedFillRef.current = pendingFillRef.current;
+          const fill = pendingFillRef.current;
+          if (fill) discardedFillRef.current = { fill, version: pushVersionRef.current ?? 0 };
           discardFill();
           return;
         }
@@ -127,11 +138,15 @@ export function useGridKeyboard({
           }
           return;
         }
-        // Redo after discard = restore the stashed preview
+        // Redo after discard — only restore if no new history entry was pushed since the discard.
+        // A newer pushVersion means the user made a manual edit and has moved past this preview.
         if (discardedFillRef.current) {
-          restorePreviewRef.current?.(discardedFillRef.current);
-          discardedFillRef.current = null;
-          return;
+          if (discardedFillRef.current.version === (pushVersionRef.current ?? 0)) {
+            restorePreviewRef.current?.(discardedFillRef.current.fill);
+            discardedFillRef.current = null;
+            return;
+          }
+          discardedFillRef.current = null; // stale — fall through to normal redo
         }
         redo();
         return;

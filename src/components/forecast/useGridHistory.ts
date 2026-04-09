@@ -31,6 +31,11 @@ export function useGridHistory({ gridRef, setCellValue, onHistoryApplied }: Para
   // Keep ref in sync so applyHistory always calls the latest version
   onHistoryAppliedRef.current = onHistoryApplied;
 
+  // Incremented on every pushHistory call so useGridKeyboard can detect when a
+  // new history entry was added after a discard (prevents stale discardedFillRef
+  // from hijacking the next redo).
+  const pushVersionRef = useRef(0);
+
   // Stable — only touches refs. Safe to capture in useEffect([], []) closures.
   const pushHistory = useCallback((entry: HistoryEntry) => {
     if (entry.length === 0) return;
@@ -39,6 +44,7 @@ export function useGridHistory({ gridRef, setCellValue, onHistoryApplied }: Para
     if (stack.length > MAX_HISTORY) stack = stack.slice(stack.length - MAX_HISTORY);
     historyRef.current = stack;
     historyIndexRef.current = stack.length - 1;
+    pushVersionRef.current++;
   }, []);
 
   // Internal — applies a single entry in one direction. Not exported.
@@ -90,5 +96,5 @@ export function useGridHistory({ gridRef, setCellValue, onHistoryApplied }: Para
     historyIndexRef.current++;
   }, []);
 
-  return { editingOldValueRef, pushHistory, undo, redo, canRedo, advanceRedoIndex };
+  return { editingOldValueRef, pushHistory, pushVersionRef, undo, redo, canRedo, advanceRedoIndex };
 }

@@ -2,7 +2,7 @@
 // Determines which cells to fill, respecting capacity and eligibility constraints.
 //
 // DEBUG: set to true to log skip reasons to the browser console.
-const DEBUG = true;
+const DEBUG = false;
 
 import { DEFAULT_MAX_DAILY_HOURS, DEFAULT_MAX_WEEKLY_HOURS } from "@/types/engineer-pool";
 
@@ -166,6 +166,10 @@ export function autofill(input: AutofillInput): PendingFill {
       if (row.scopeStartDate && field < row.scopeStartDate) {
         if (DEBUG)
           console.log(`  [skip cell] ${field} — before scopeStartDate (${row.scopeStartDate})`);
+        continue;
+      }
+      if (row.scopeEndDate && field > row.scopeEndDate) {
+        if (DEBUG) console.log(`  [skip cell] ${field} — after scopeEndDate (${row.scopeEndDate})`);
         continue;
       }
 

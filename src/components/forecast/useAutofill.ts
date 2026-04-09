@@ -117,8 +117,9 @@ export function useAutofill({
         ];
         return {
           changes: merged,
-          warnings: result.warnings,
-          budgetWarnings: result.budgetWarnings,
+          // Union warnings from both runs so skipped rows from earlier selections stay visible
+          warnings: [...new Set([...(prev?.warnings ?? []), ...result.warnings])],
+          budgetWarnings: [...new Set([...(prev?.budgetWarnings ?? []), ...result.budgetWarnings])],
         };
       });
 

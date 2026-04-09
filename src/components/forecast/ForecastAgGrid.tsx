@@ -64,16 +64,15 @@ export function ForecastAgGrid({
     ((entry: HistoryEntry, direction: "undo" | "redo") => void) | null
   >(null);
 
-  const { editingOldValueRef, pushHistory, undo, redo, canRedo, advanceRedoIndex } = useGridHistory(
-    {
+  const { editingOldValueRef, pushHistory, pushVersionRef, undo, redo, canRedo, advanceRedoIndex } =
+    useGridHistory({
       gridRef,
       setCellValue,
       onHistoryApplied: (entry, direction) => {
         handleHistoryAppliedRef.current?.(entry, direction);
         setRowDataRevision((n) => n + 1);
       },
-    }
-  );
+    });
 
   const {
     selRef,
@@ -126,6 +125,7 @@ export function ForecastAgGrid({
     dateColFieldsRef,
     setCellValue,
     pushHistory,
+    pushVersionRef,
     undo,
     redo,
     canRedo,
