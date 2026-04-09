@@ -50,6 +50,8 @@ type Props = {
   hydratePayload: { key: number; values: CellValues } | null;
   /** Fired after committed edits (not preview). Parent uses for draft + unsaved. */
   onPersistableChange?: () => void;
+  /** When true, show Hour Rate and Total Spent columns. Default false (hidden). */
+  showRateAndSpendColumns?: boolean;
 };
 
 export const ForecastAgGrid = forwardRef<ForecastAgGridHandle, Props>(function ForecastAgGrid(
@@ -61,6 +63,7 @@ export const ForecastAgGrid = forwardRef<ForecastAgGridHandle, Props>(function F
     scrollToTodayRef,
     hydratePayload,
     onPersistableChange,
+    showRateAndSpendColumns = false,
   },
   ref
 ) {
@@ -183,7 +186,7 @@ export const ForecastAgGrid = forwardRef<ForecastAgGridHandle, Props>(function F
   });
 
   // Refresh all cells after pendingFill changes so value-getter columns
-  // (Total Hours, Total Spent) pick up the merged pending values from rowData.
+  // (Forecast hours, Total Spent) pick up the merged pending values from rowData.
   useEffect(() => {
     if (!pendingFill) return;
     gridRef.current?.api?.refreshCells({ force: true });
@@ -250,6 +253,7 @@ export const ForecastAgGrid = forwardRef<ForecastAgGridHandle, Props>(function F
           _scope: row.scope.label,
           _person: formatEngineerListLabel(row.engineer, row.engineer.code),
           _hourRate: row.engineer.rateA ?? null,
+          _plannedHrs: row.plannedHrs,
           _scopeDivider: idx > 0 && row.scope.id !== prevScopeId,
           _scopeLeadRow: scopeLeadRow,
           _scopeStartIso: row.scopeStartDate,
@@ -286,10 +290,11 @@ export const ForecastAgGrid = forwardRef<ForecastAgGridHandle, Props>(function F
         dateColFieldsRef,
         fillPreviewSel,
         pendingSet,
+        showRateAndSpendColumns,
       }),
     // selRef and dateColFieldsRef are stable refs — read at cell-render time, not here
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [dailyDates, bankHolidays, todayIso, fillPreviewSel, pendingSet]
+    [dailyDates, bankHolidays, todayIso, fillPreviewSel, pendingSet, showRateAndSpendColumns]
   );
 
   // ── Grid ready: scroll to today ────────────────────────────────────────────
@@ -303,13 +308,17 @@ export const ForecastAgGrid = forwardRef<ForecastAgGridHandle, Props>(function F
   );
 
   // Scroll to today and reposition the line whenever the date range changes
-  // (e.g. when the "show past" toggle fires and dailyDates shifts)
+  // (e.g. "show past", or pinned column count when Rate & spend is toggled).
   useEffect(() => {
     const api = gridRef.current?.api;
     if (!api) return;
     api.ensureColumnVisible(todayIso, "middle");
-    requestAnimationFrame(updateTodayLine);
-  }, [dailyDates, todayIso, updateTodayLine]);
+    // Double rAF: AG Grid applies new column defs / pinned width on the next frame(s).
+    const id = requestAnimationFrame(() => {
+      requestAnimationFrame(updateTodayLine);
+    });
+    return () => cancelAnimationFrame(id);
+  }, [dailyDates, todayIso, updateTodayLine, showRateAndSpendColumns]);
 
   return (
     <>
@@ -416,6 +425,15 @@ export const ForecastAgGrid = forwardRef<ForecastAgGridHandle, Props>(function F
             onCellMouseOver={onCellMouseOver}
             onBodyScroll={() => {
               onBodyScroll();
+              updateTodayLine();
+            }}
+            onGridColumnsChanged={() => {
+              gridRef.current?.api?.ensureColumnVisible(todayIso, "middle");
+              requestAnimationFrame(() => {
+                requestAnimationFrame(updateTodayLine);
+              });
+            }}
+            onGridSizeChanged={() => {
               updateTodayLine();
             }}
             onCellEditingStarted={(e) => {

@@ -73,6 +73,9 @@ export function ForecastTab({
   // Toggle: show only engineers assigned to each scope (default on)
   const [showAssignedOnly, setShowAssignedOnly] = useState(true);
 
+  /** Hour rate + Total Spent columns — default hidden */
+  const [showRateAndSpendColumns, setShowRateAndSpendColumns] = useState(false);
+
   // Set of "${scopeId}-${engineerId}" pairs for fast assignment lookup
   const assignedSet = useMemo<Set<string>>(() => {
     const set = new Set<string>();
@@ -431,6 +434,19 @@ export function ForecastTab({
 
         <button
           type="button"
+          onClick={() => setShowRateAndSpendColumns((v) => !v)}
+          title="Toggle hour rate and total spend columns"
+          className={`rounded-md border px-3 py-1 text-xs font-medium transition-colors ${
+            showRateAndSpendColumns
+              ? "border-gold text-gold"
+              : "border-border text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Rate & spend
+        </button>
+
+        <button
+          type="button"
           onClick={(e) => openFilterFor("scope", e)}
           className={`rounded-md border px-3 py-1 text-xs font-medium transition-colors ${
             scopeFilter !== null
@@ -528,6 +544,7 @@ export function ForecastTab({
               scrollToTodayRef={scrollToTodayRef}
               hydratePayload={hydratePayload}
               onPersistableChange={onPersistableChange}
+              showRateAndSpendColumns={showRateAndSpendColumns}
             />
           </div>
         )}

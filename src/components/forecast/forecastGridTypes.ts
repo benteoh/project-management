@@ -11,6 +11,8 @@ export type RowData = {
   _scope: string;
   _person: string;
   _hourRate: number | null;
+  /** Programme table: planned hours for this engineer on this scope (`scope_engineers`). */
+  _plannedHrs: number | null;
   _scopeDivider: boolean; // true on the first row of each new scope group
   /** First engineer row for this scope in the current (filtered) grid — used for scope date bracket. */
   _scopeLeadRow: boolean;

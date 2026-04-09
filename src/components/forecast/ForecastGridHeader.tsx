@@ -3,7 +3,7 @@ import type { MouseEvent } from "react";
 import { FilterFunnelIcon } from "@/components/ui/FilterFunnelIcon";
 import { cn } from "@/lib/utils";
 
-import { DATE_COL_W, NO_COL_W, SUMMARY_COL_W, SUMMARY_LABELS } from "./constants";
+import { DATE_COL_W, NO_COL_W, SUMMARY_COL_W, forecastSummaryColumnLabels } from "./constants";
 import type { ForecastFilterColumn } from "./types";
 import { toISODate } from "./utils";
 
@@ -13,6 +13,8 @@ type ForecastGridHeaderProps = {
   scopeFilterActive: boolean;
   personFilterActive: boolean;
   onOpenFilter: (column: ForecastFilterColumn, e: MouseEvent<HTMLButtonElement>) => void;
+  /** When true, header strip includes Hour Rate and Total Spent (must match grid). */
+  showRateAndSpendColumns?: boolean;
 };
 
 export function ForecastGridHeader({
@@ -21,7 +23,9 @@ export function ForecastGridHeader({
   scopeFilterActive,
   personFilterActive,
   onOpenFilter,
+  showRateAndSpendColumns = false,
 }: ForecastGridHeaderProps) {
+  const summaryLabels = forecastSummaryColumnLabels(showRateAndSpendColumns);
   return (
     <div className="border-border flex border-b">
       <div className={`border-border flex ${NO_COL_W} shrink-0 items-center border-r px-3 py-3`}>
@@ -30,7 +34,7 @@ export function ForecastGridHeader({
         </span>
       </div>
 
-      {SUMMARY_LABELS.map((label) => {
+      {summaryLabels.map((label) => {
         const isFilterable = label === "Scope" || label === "Person";
         const column: ForecastFilterColumn = label === "Scope" ? "scope" : "person";
         const isActive =

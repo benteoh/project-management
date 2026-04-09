@@ -26,6 +26,8 @@ type Params = {
   fillPreviewSel: SelRange | null;
   /** Set of "rowId:field" keys for cells with pending autofill values (ghost style). */
   pendingSet: Set<string>;
+  /** When false (default), Hour Rate and Total Spent columns are omitted. */
+  showRateAndSpendColumns: boolean;
 };
 
 export function forecastColumnDefs({
@@ -36,6 +38,7 @@ export function forecastColumnDefs({
   dateColFieldsRef,
   fillPreviewSel,
   pendingSet,
+  showRateAndSpendColumns,
 }: Params): ColDef<RowData>[] {
   const fixed: ColDef<RowData>[] = [
     {
@@ -85,19 +88,23 @@ export function forecastColumnDefs({
       suppressMovable: true,
       resizable: false,
     },
+    ...(showRateAndSpendColumns
+      ? ([
+          {
+            field: "_hourRate",
+            headerName: "Hour Rate",
+            width: 100,
+            minWidth: 80,
+            pinned: "left",
+            editable: false,
+            suppressMovable: true,
+            resizable: false,
+            valueFormatter: (p) => (p.value != null ? `£${Number(p.value).toFixed(2)}` : ""),
+          },
+        ] satisfies ColDef<RowData>[])
+      : []),
     {
-      field: "_hourRate",
-      headerName: "Hour Rate",
-      width: 100,
-      minWidth: 80,
-      pinned: "left",
-      editable: false,
-      suppressMovable: true,
-      resizable: false,
-      valueFormatter: (p) => (p.value != null ? `£${Number(p.value).toFixed(2)}` : ""),
-    },
-    {
-      headerName: "Total Hours",
+      headerName: "Forecast hours",
       width: 100,
       minWidth: 80,
       pinned: "left",
@@ -113,22 +120,42 @@ export function forecastColumnDefs({
       valueFormatter: (p) => (p.value != null ? String(p.value) : ""),
     },
     {
-      headerName: "Total Spent",
+      field: "_plannedHrs",
+      headerName: "Planned hours",
       width: 100,
       minWidth: 80,
       pinned: "left",
       editable: false,
       suppressMovable: true,
       resizable: false,
-      valueGetter: (p: ValueGetterParams<RowData>): string | null => {
+      valueGetter: (p: ValueGetterParams<RowData>): number | null => {
         if (!p.data) return null;
-        const rate = p.data._hourRate;
-        if (rate == null) return null;
-        let sum = 0;
-        for (const d of dailyDates) sum += cellNumeric(p.data[toISODate(d)]);
-        return sum > 0 ? `£${(sum * Number(rate)).toFixed(2)}` : null;
+        const v = p.data._plannedHrs;
+        return v != null && !Number.isNaN(v) ? Math.round(v * 100) / 100 : null;
       },
+      valueFormatter: (p) => (p.value != null ? String(p.value) : ""),
     },
+    ...(showRateAndSpendColumns
+      ? ([
+          {
+            headerName: "Total Spent",
+            width: 100,
+            minWidth: 80,
+            pinned: "left",
+            editable: false,
+            suppressMovable: true,
+            resizable: false,
+            valueGetter: (p: ValueGetterParams<RowData>): string | null => {
+              if (!p.data) return null;
+              const rate = p.data._hourRate;
+              if (rate == null) return null;
+              let sum = 0;
+              for (const d of dailyDates) sum += cellNumeric(p.data[toISODate(d)]);
+              return sum > 0 ? `£${(sum * Number(rate)).toFixed(2)}` : null;
+            },
+          },
+        ] satisfies ColDef<RowData>[])
+      : []),
   ];
 
   const dateCols: ColDef<RowData>[] = dailyDates.map((date) => {

@@ -78,7 +78,7 @@ export function AddNodeModal({
 
           {addForm.type !== "scope" && (
             <div>
-              <label className="text-muted-foreground mb-1 block text-xs">Total Hours</label>
+              <label className="text-muted-foreground mb-1 block text-xs">Planned Hours</label>
               <input
                 type="number"
                 className={`${inputCls} no-input-spinner`}

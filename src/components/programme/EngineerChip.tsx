@@ -44,7 +44,7 @@ export const EngineerChip = forwardRef<
   {
     engineers: EngineerAllocation[];
     engineerPool: EngineerPoolEntry[];
-    /** Scope row total hours — used to flag when planned allocation sum does not match. */
+    /** Scope row planned hours — used to flag when planned allocation sum does not match. */
     scopeTotalHours: number | null;
     onClick: (e: React.MouseEvent<HTMLDivElement>) => void;
   }

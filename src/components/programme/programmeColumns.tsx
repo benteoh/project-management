@@ -249,11 +249,11 @@ export const PROGRAMME_COLUMNS: ColumnDef[] = [
       node.type === "scope" ? forecastScopeProgrammeTsv(node.id, helpers.forecastHoursByScope) : "",
   },
 
-  // ── Total Hours ─────────────────────────────────────────────────────────────
+  // ── Planned Hours ─────────────────────────────────────────────────────────────
   {
     key: "totalHours",
     widthClass: "w-24 shrink-0",
-    header: { type: "sortable", label: "TOTAL HOURS", sortColumn: "total" },
+    header: { type: "sortable", label: "PLANNED HOURS", sortColumn: "total" },
     cell: (node, ctx) => {
       const fromChildren = isRollupTotalHoursParent(node);
       const editValue = ctx.editingCell?.value ?? "";
