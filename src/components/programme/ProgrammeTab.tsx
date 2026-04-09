@@ -299,7 +299,7 @@ export function ProgrammeTab({
   };
 
   function handleImportConfirm(importedTree: ProgrammeNode[]) {
-    commit(applyProgrammeRollups(importedTree));
+    commit(importedTree);
     setShowImportModal(false);
   }
 
