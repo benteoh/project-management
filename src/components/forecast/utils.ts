@@ -2,11 +2,11 @@ import type { ForecastProgrammeNode, ScopeItem } from "./types";
 
 export function cleanScopeLabel(name: string): string {
   return name
-    .replace(/[^a-zA-Z\s]/g, " ")
+    .replace(/^\d+\.\s*/, "") // strip leading index prefix ("13. ") only — never strip digits embedded in the title
     .replace(/\s+/g, " ")
     .trim()
     .split(" ")
-    .slice(0, 3)
+    .slice(0, 4)
     .join(" ");
 }
 
@@ -40,6 +40,23 @@ export function msUntilNextSaturdayMidnight(): number {
   nextSat.setDate(now.getDate() + daysUntilSat);
   nextSat.setHours(0, 0, 0, 0);
   return nextSat.getTime() - now.getTime();
+}
+
+// Returns the Monday of the week containing the given ISO date (or today).
+export function startOfWeek(isoDate?: string): string {
+  const d = isoDate ? new Date(isoDate) : new Date();
+  d.setHours(0, 0, 0, 0);
+  const day = d.getDay();
+  const daysToMonday = day === 0 ? 6 : day - 1;
+  d.setDate(d.getDate() - daysToMonday);
+  return toISODate(d);
+}
+
+// Returns the ISO date for today + N months.
+export function addMonths(isoDate: string, months: number): string {
+  const d = new Date(isoDate);
+  d.setMonth(d.getMonth() + months);
+  return toISODate(d);
 }
 
 export function generateDailyDates(startIso: string, endIso: string): Date[] {

@@ -5,6 +5,8 @@ export type ForecastProgrammeNode = {
   id: string;
   name: string;
   type: ProgrammeNodeType;
+  /** Engineer IDs assigned to this scope (scope nodes only). */
+  engineers?: { engineerId: string }[];
 };
 
 export type ScopeItem = {

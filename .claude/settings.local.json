@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash",
+      "Bash(git remote:*)",
+      "Bash(winget install:*)"
+    ]
+  }
+}

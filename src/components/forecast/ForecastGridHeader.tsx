@@ -30,7 +30,7 @@ export function ForecastGridHeader({
         </span>
       </div>
 
-      {SUMMARY_LABELS.map((label, i) => {
+      {SUMMARY_LABELS.map((label) => {
         const isFilterable = label === "Scope" || label === "Person";
         const column: ForecastFilterColumn = label === "Scope" ? "scope" : "person";
         const isActive =

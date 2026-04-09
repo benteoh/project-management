@@ -19,6 +19,8 @@ export interface EngineerPoolEntry {
   code: string;
   firstName?: string;
   lastName?: string;
+  /** Rate A (£/hr) from project_engineers for the current project. Null when not set. */
+  rateA?: number | null;
 }
 
 /** Raw row shape for `public.engineer_pool` (snake_case from Supabase). */

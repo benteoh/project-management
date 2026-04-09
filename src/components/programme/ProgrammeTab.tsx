@@ -20,6 +20,9 @@ import {
   addScopeToRoot,
   deleteNodeFromTree,
   findNodeInTree,
+  flattenVisibleNodes,
+  cloneNodesWithNewIds,
+  insertNodesAfter,
 } from "./treeUtils";
 import { MiniCalendar } from "./MiniCalendar";
 import { ProgrammeRow } from "./ProgrammeRow";
@@ -43,6 +46,8 @@ import {
   readCollapsedNodeIds,
   writeCollapsedNodeIds,
 } from "@/lib/programme/programmeCollapsedStorage";
+import { useRowSelection } from "./useRowSelection";
+import { useProgrammeClipboard } from "./useProgrammeClipboard";
 
 export type ProgrammeTabProps = {
   projectId: string;
@@ -74,7 +79,6 @@ export function ProgrammeTab({
   const engineerPool = initialEngineerPool;
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  /** Empty on server + first client paint — session restore runs in `useLayoutEffect` to avoid hydration mismatch. */
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const [addForm, setAddForm] = useState<AddFormState | null>(null);
   const [formValues, setFormValues] = useState<FormValues>(defaultForm);
@@ -91,6 +95,7 @@ export function ProgrammeTab({
     rect: DOMRect;
   } | null>(null);
   const engAnchorRef = useRef<HTMLDivElement | null>(null);
+  const tableRef = useRef<HTMLDivElement | null>(null);
   const didHydrateCollapsedFromSessionRef = useRef(false);
 
   const treeNodeIds = useMemo(() => collectProgrammeNodeIds(present), [present]);
@@ -147,21 +152,59 @@ export function ProgrammeTab({
     void persist(next);
   }, [onTreeChange, persist]);
 
+  // ─── Row selection ──────────────────────────────────────────────────────────
+  const getFlatNodes = useCallback(
+    () => flattenVisibleNodes(present, collapsed),
+    [present, collapsed]
+  );
+
+  const selection = useRowSelection(getFlatNodes);
+
+  // ─── Clipboard ──────────────────────────────────────────────────────────────
+  const clipboard = useProgrammeClipboard(present, selection.selectedIds, commit);
+
+  // ─── Deselect on click outside ───────────────────────────────────────────────
+  useEffect(() => {
+    const onMouseDown = (e: MouseEvent) => {
+      if (tableRef.current && !tableRef.current.contains(e.target as Node)) {
+        selection.clearSelection();
+      }
+    };
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, [selection]);
+
+  // ─── Keyboard shortcuts ──────────────────────────────────────────────────────
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!e.ctrlKey) return;
-      if (e.key === "z") {
+      const ctrl = e.ctrlKey || e.metaKey;
+      if (ctrl && e.key === "z") {
         e.preventDefault();
         undo();
+        return;
       }
-      if (e.key === "y") {
+      if (ctrl && e.key === "y") {
         e.preventDefault();
         redo();
+        return;
+      }
+      if (ctrl && e.key === "c") {
+        e.preventDefault();
+        void clipboard.copy();
+        return;
+      }
+      if (ctrl && e.key === "v") {
+        e.preventDefault();
+        clipboard.paste();
+        return;
+      }
+      if (e.key === "Escape") {
+        selection.clearSelection();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [undo, redo]);
+  }, [undo, redo, clipboard, selection]);
 
   const saveField = (nodeId: string, field: keyof ProgrammeNode, raw: string) => {
     if (field === "totalHours") {
@@ -277,6 +320,11 @@ export function ProgrammeTab({
     e.preventDefault();
     setEditingCell(null);
     setCalendar(null);
+    // If the right-clicked row isn't part of the current selection, select only it
+    if (!selection.selectedIds.has(node.id)) {
+      selection.clearSelection();
+      selection.onRowMouseDown(node.id, e as React.MouseEvent);
+    }
     setCtxMenu({ nodeId: node.id, nodeType: node.type, x: e.clientX, y: e.clientY });
   };
 
@@ -308,6 +356,16 @@ export function ProgrammeTab({
     onSaveField: saveField,
     onContextMenu: openCtxMenu,
     onOpenEngPinned: openEngPinned,
+    selectedIds: selection.selectedIds,
+    onRowMouseDown: (id: string, e: React.MouseEvent) => {
+      if (editingCell) {
+        commitEdit();
+        return;
+      }
+      selection.onRowMouseDown(id, e);
+    },
+    onRowMouseEnter: selection.onRowMouseEnter,
+    copiedIds: clipboard.copiedIds,
   };
 
   const statusFilterOptions: ActivityStatusValue[] = ["Not Started", "In Progress", "Completed"];
@@ -389,7 +447,11 @@ export function ProgrammeTab({
   }, [present, queriedActivityIds, hasAnyActivityFilter]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+    <div
+      ref={tableRef}
+      className="flex min-h-0 flex-1 flex-col overflow-hidden"
+      onMouseUp={selection.onMouseUp}
+    >
       {initialLoadError && (
         <div className="border-border bg-status-critical-bg text-status-critical shrink-0 border-b px-4 py-2 text-sm">
           {initialLoadError}
@@ -460,6 +522,18 @@ export function ProgrammeTab({
           onDelete={(nodeId) => {
             commit(deleteNodeFromTree(present, nodeId));
           }}
+          onCopy={() => void clipboard.copy()}
+          onPaste={() => clipboard.paste(ctxMenu.nodeId)}
+          onDuplicate={() => {
+            const nodes = [...selection.selectedIds]
+              .map((id) => findNodeInTree(present, id))
+              .filter((n): n is ProgrammeNode => n !== null);
+            if (nodes.length === 0) return;
+            const cloned = cloneNodesWithNewIds(nodes);
+            commit(insertNodesAfter(present, ctxMenu.nodeId, cloned));
+          }}
+          hasSelection={selection.selectedIds.size > 0}
+          hasStash={clipboard.hasStash}
         />
       )}
 

@@ -78,3 +78,13 @@ export interface ContextMenuState {
   x: number;
   y: number;
 }
+
+/** Flat node entry used for ordered traversal (e.g. range selection). */
+export interface FlatNode {
+  node: ProgrammeNode;
+  depth: number;
+  parentId: string | null;
+}
+
+/** Drag-over drop position relative to target row. */
+export type DropPosition = "before" | "after";

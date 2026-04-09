@@ -97,7 +97,13 @@ These rules exist so the codebase stays clean and understandable as it grows. Th
 
 **One responsibility per file.** A file either defines types, holds seed/fixture data (e.g. `supabase/seed.ts`, `seedProgrammeData.ts`), performs calculations, or renders UI. Not more than one. Never put large hardcoded data arrays inside a component.
 
+**Extract hooks and utilities before they're needed.** When adding behaviour to a component, ask whether it belongs in the component at all. Stateful logic with no JSX → custom hook (`use*.ts`). Pure functions with no React → utility module. Constants with no imports → constants file. Do not let components accumulate logic that could be split out. A component file that imports more than ~5 hooks or has more than ~150 lines of non-JSX logic is a sign that extraction is overdue.
+
+**Name files by what they contain, not where they're used.** `forecastCellUtils.ts` not `ForecastAgGridHelpers.ts`. `useCellStore.ts` not `useForecastGridState.ts`. The name should describe the responsibility, not the consumer.
+
 **Types first.** Before writing a new component or function, check `src/types/` to see if the data shape already exists. If it doesn't, define it there before writing the component. This prevents duplicate or conflicting shapes emerging in different files.
+
+**Internal types belong near their module, not in `src/types/`.** Domain types (shapes that cross feature boundaries or map to DB rows) go in `src/types/`. Implementation-specific types that are internal to a feature module (e.g. `RowData`, `SelRange` inside the forecast grid) go in a `*Types.ts` file co-located with that feature. Never pollute `src/types/` with library-specific or internal shapes.
 
 **Separate domain vs database types.** When data comes from Supabase, define two explicit shapes where needed: a domain/app type (camelCase, e.g. `Project`) and a DB row type (snake_case, suffixed `DbRow`, e.g. `ProjectDbRow`). Perform mapping at repository/DB boundary functions (e.g. `rowToProject`) so DB naming never leaks into UI/business code.
 

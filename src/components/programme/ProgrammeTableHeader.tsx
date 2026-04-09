@@ -1,18 +1,15 @@
 "use client";
 
 import type { MouseEvent } from "react";
+import { Plus } from "lucide-react";
 
 import { renderProgrammeHeaderLabel } from "./programmeHeaderLabel";
-import { PROGRAMME_SORTABLE_HEADER_COLUMNS } from "./programmeTableHeaderConfig";
 import {
-  PROGRAMME_HEADER_COL_WIDE,
+  PROGRAMME_HEADER_CELL_PAD,
+  PROGRAMME_HEADER_ROW_MIN_H,
   programmeHeaderInteractiveButtonClass,
   programmeTableHeaderRowClassName,
 } from "./programmeTableHeaderConstants";
-import {
-  ProgrammeTableHeaderForecastCell,
-  ProgrammeTableHeaderNameCell,
-} from "./programmeTableHeaderCells";
 import { ProgrammeHeaderFilterIcon, ProgrammeHeaderSortIcon } from "./programmeTableHeaderIcons";
 import type { ActivitySort } from "./activityQuery";
 import {
@@ -20,35 +17,7 @@ import {
   programmeSortDirectionFor,
   type ProgrammeSortColumn,
 } from "./programmeTableSort";
-
-type SortableHeaderButtonProps = (typeof PROGRAMME_SORTABLE_HEADER_COLUMNS)[number] & {
-  sort: ActivitySort;
-  onSort: (column: ProgrammeSortColumn) => void;
-};
-
-function SortableHeaderButton({
-  column,
-  label,
-  title,
-  widthClass,
-  sort,
-  onSort,
-}: SortableHeaderButtonProps) {
-  const direction = programmeSortDirectionFor(sort, column);
-  const active = programmeIsSortedColumn(sort, column);
-
-  return (
-    <button
-      type="button"
-      onClick={() => onSort(column)}
-      className={programmeHeaderInteractiveButtonClass(widthClass, active)}
-      title={title}
-    >
-      {renderProgrammeHeaderLabel(label)}
-      <ProgrammeHeaderSortIcon direction={direction} />
-    </button>
-  );
-}
+import { PROGRAMME_COLUMNS } from "./programmeColumns";
 
 type ProgrammeTableHeaderProps = {
   sort: ActivitySort;
@@ -67,26 +36,73 @@ export function ProgrammeTableHeader({
 }: ProgrammeTableHeaderProps) {
   return (
     <div className={programmeTableHeaderRowClassName}>
-      <ProgrammeTableHeaderNameCell onAddScope={onAddScope} />
+      {PROGRAMME_COLUMNS.map((col) => {
+        const h = col.header;
 
-      {PROGRAMME_SORTABLE_HEADER_COLUMNS.map((col) => (
-        <SortableHeaderButton key={col.column} {...col} sort={sort} onSort={onSort} />
-      ))}
+        if (h.type === "name") {
+          return (
+            <div
+              key={col.key}
+              className={`${col.widthClass} ${PROGRAMME_HEADER_ROW_MIN_H} flex items-center justify-between gap-2 px-2`}
+            >
+              <span className="min-w-0">Activity Name</span>
+              {onAddScope && (
+                <button
+                  type="button"
+                  onClick={onAddScope}
+                  className="text-foreground hover:bg-muted border-border inline-flex shrink-0 items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium"
+                >
+                  <Plus size={14} className="text-muted-foreground" aria-hidden />
+                  Scope
+                </button>
+              )}
+            </div>
+          );
+        }
 
-      <ProgrammeTableHeaderForecastCell />
+        if (h.type === "sortable") {
+          const direction = programmeSortDirectionFor(sort, h.sortColumn);
+          const active = programmeIsSortedColumn(sort, h.sortColumn);
+          return (
+            <button
+              key={col.key}
+              type="button"
+              onClick={() => onSort(h.sortColumn)}
+              className={programmeHeaderInteractiveButtonClass(col.widthClass, active)}
+              title={`Click to sort by ${h.label.toLowerCase()}`}
+            >
+              {renderProgrammeHeaderLabel(h.label)}
+              <ProgrammeHeaderSortIcon direction={direction} />
+            </button>
+          );
+        }
 
-      <button
-        type="button"
-        onClick={onStatusFilterClick}
-        className={programmeHeaderInteractiveButtonClass(
-          PROGRAMME_HEADER_COL_WIDE,
-          statusFilterActive
-        )}
-        title="Click to filter status"
-      >
-        {renderProgrammeHeaderLabel("STATUS")}
-        <ProgrammeHeaderFilterIcon active={statusFilterActive} />
-      </button>
+        if (h.type === "static") {
+          return (
+            <div
+              key={col.key}
+              className={`${col.widthClass} ${PROGRAMME_HEADER_ROW_MIN_H} ${PROGRAMME_HEADER_CELL_PAD} flex items-center justify-center text-center`}
+            >
+              {renderProgrammeHeaderLabel(h.label)}
+            </div>
+          );
+        }
+
+        if (h.type === "status-filter") {
+          return (
+            <button
+              key={col.key}
+              type="button"
+              onClick={onStatusFilterClick}
+              className={programmeHeaderInteractiveButtonClass(col.widthClass, statusFilterActive)}
+              title="Click to filter status"
+            >
+              {renderProgrammeHeaderLabel("STATUS")}
+              <ProgrammeHeaderFilterIcon active={statusFilterActive} />
+            </button>
+          );
+        }
+      })}
     </div>
   );
 }

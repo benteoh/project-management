@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import type { EngineerPoolEntry } from "@/types/engineer-pool";
 
 import { ProgrammeRow } from "./ProgrammeRow";
@@ -33,6 +33,10 @@ const baseProps = {
   onOpenCal: vi.fn(),
   onSaveField: vi.fn(),
   onContextMenu: vi.fn(),
+  selectedIds: new Set<string>(),
+  copiedIds: new Set<string>(),
+  onRowMouseDown: vi.fn(),
+  onRowMouseEnter: vi.fn(),
 };
 
 describe("ProgrammeRow", () => {
@@ -90,5 +94,51 @@ describe("ProgrammeRow", () => {
     };
     render(<ProgrammeRow node={parent} {...baseProps} collapsed={new Set(["s1"])} />);
     expect(screen.queryByText("Child Activity")).toBeNull();
+  });
+});
+
+describe("ProgrammeRow — selection", () => {
+  it("applies selected styles when row id is in selectedIds", () => {
+    const { container } = render(
+      <ProgrammeRow node={node} {...baseProps} selectedIds={new Set(["s1"])} />
+    );
+    const row = container.querySelector("[data-programme-row]");
+    expect(row?.className).toContain("bg-blue-50");
+  });
+
+  it("does not apply selected styles when row is not selected", () => {
+    const { container } = render(
+      <ProgrammeRow node={node} {...baseProps} selectedIds={new Set()} />
+    );
+    const row = container.querySelector("[data-programme-row]");
+    expect(row?.className).not.toContain("bg-blue-50");
+  });
+
+  it("applies copied styles when row id is in copiedIds", () => {
+    const { container } = render(
+      <ProgrammeRow node={node} {...baseProps} copiedIds={new Set(["s1"])} />
+    );
+    const row = container.querySelector("[data-programme-row]");
+    expect(row?.className).toContain("bg-blue-100");
+  });
+
+  it("calls onRowMouseDown with node id on mousedown", () => {
+    const onRowMouseDown = vi.fn();
+    const { container } = render(
+      <ProgrammeRow node={node} {...baseProps} onRowMouseDown={onRowMouseDown} />
+    );
+    const row = container.querySelector("[data-programme-row]") as HTMLElement;
+    row.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    expect(onRowMouseDown).toHaveBeenCalledWith("s1", expect.anything());
+  });
+
+  it("calls onRowMouseEnter with node id on mouseenter", () => {
+    const onRowMouseEnter = vi.fn();
+    const { container } = render(
+      <ProgrammeRow node={node} {...baseProps} onRowMouseEnter={onRowMouseEnter} />
+    );
+    const row = container.querySelector("[data-programme-row]") as HTMLElement;
+    fireEvent.mouseEnter(row);
+    expect(onRowMouseEnter).toHaveBeenCalledWith("s1");
   });
 });
