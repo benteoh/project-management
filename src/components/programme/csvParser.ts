@@ -30,7 +30,7 @@ const MONTHS = [
   "Nov",
   "Dec",
 ] as const;
-const VALID_STATUSES = new Set<string>(["Not Started", "In Progress", "Completed", ""]);
+const VALID_STATUSES = new Set<string>(["Not Started", "In Progress", "Completed"]);
 const REQUIRED_COLUMNS = [
   "Activity ID",
   "Activity Name",
@@ -69,9 +69,10 @@ function parseStatus(raw: string): ActivityStatus | undefined {
 function detectRowType(activityId: string, name: string): ParsedRowType {
   if (activityId.trim()) return "activity";
   const t = name.trim();
+  // Order matters: subtask (\d+.\d+.\d+) must be checked before task (\d+.\d+)
   if (/^\d+\.\d+\.\d+/.test(t)) return "subtask";
   if (/^\d+\.\d+/.test(t)) return "task";
-  if (/^\d+\.\s/.test(t)) return "scope";
+  if (/^\d+\.\s+/.test(t)) return "scope";
   return "skip";
 }
 
