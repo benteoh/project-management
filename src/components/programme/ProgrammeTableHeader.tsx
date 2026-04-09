@@ -25,6 +25,7 @@ type ProgrammeTableHeaderProps = {
   onSort: (column: ProgrammeSortColumn) => void;
   onStatusFilterClick: (e: MouseEvent<HTMLElement>) => void;
   onAddScope?: () => void;
+  onImportCsv?: () => void;
 };
 
 export function ProgrammeTableHeader({
@@ -33,6 +34,7 @@ export function ProgrammeTableHeader({
   onSort,
   onStatusFilterClick,
   onAddScope,
+  onImportCsv,
 }: ProgrammeTableHeaderProps) {
   return (
     <div className={programmeTableHeaderRowClassName}>
@@ -46,16 +48,27 @@ export function ProgrammeTableHeader({
               className={`${col.widthClass} ${PROGRAMME_HEADER_ROW_MIN_H} flex items-center justify-between gap-2 px-2`}
             >
               <span className="min-w-0">Activity Name</span>
-              {onAddScope && (
-                <button
-                  type="button"
-                  onClick={onAddScope}
-                  className="text-foreground hover:bg-muted border-border inline-flex shrink-0 items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium"
-                >
-                  <Plus size={14} className="text-muted-foreground" aria-hidden />
-                  Scope
-                </button>
-              )}
+              <div className="inline-flex shrink-0 items-center gap-1">
+                {onImportCsv && (
+                  <button
+                    type="button"
+                    onClick={onImportCsv}
+                    className="text-foreground hover:bg-muted border-border inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium"
+                  >
+                    Import CSV
+                  </button>
+                )}
+                {onAddScope && (
+                  <button
+                    type="button"
+                    onClick={onAddScope}
+                    className="text-foreground hover:bg-muted border-border inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium"
+                  >
+                    <Plus size={14} className="text-muted-foreground" aria-hidden />
+                    Scope
+                  </button>
+                )}
+              </div>
             </div>
           );
         }
