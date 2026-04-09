@@ -32,9 +32,14 @@ export function useGridSelection({
   const fillDragDirRef = useRef<"down" | "right" | null>(null);
   const fillDragEndRef = useRef<{ r: number; c: number } | null>(null);
 
+  const isHeaderDragRef = useRef(false);
+  const headerAnchorColRef = useRef<number | null>(null);
+
   // Direct DOM ref — no React state, so position updates skip the render cycle entirely
   const fillHandleRef = useRef<HTMLDivElement | null>(null);
   const [fillPreviewSel, setFillPreviewSel] = useState<SelRange | null>(null);
+  // Reactive flag so consumers can enable/disable UI that depends on selection existing
+  const [hasSelection, setHasSelection] = useState(false);
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -100,6 +105,7 @@ export function useGridSelection({
       const ci = colIndexOf(colId);
       if (ci === -1 || e.rowIndex == null) {
         selRef.current = null;
+        setHasSelection(false);
         hideFillHandle();
         gridRef.current?.api.refreshCells({ force: true });
         return;
@@ -107,6 +113,7 @@ export function useGridSelection({
       isDraggingSelRef.current = true;
       selAnchorRef.current = { r: e.rowIndex, c: ci };
       selRef.current = { r1: e.rowIndex, r2: e.rowIndex, c1: ci, c2: ci };
+      setHasSelection(true);
       refreshSelection();
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -134,6 +141,7 @@ export function useGridSelection({
   useEffect(() => {
     function onMouseUp() {
       isDraggingSelRef.current = false;
+      isHeaderDragRef.current = false;
     }
     document.addEventListener("mouseup", onMouseUp);
     return () => document.removeEventListener("mouseup", onMouseUp);
@@ -144,6 +152,7 @@ export function useGridSelection({
     function onDocMouseDown(e: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         selRef.current = null;
+        setHasSelection(false);
         hideFillHandle();
         gridRef.current?.api.refreshCells({ force: true });
       }
@@ -151,6 +160,84 @@ export function useGridSelection({
     document.addEventListener("mousedown", onDocMouseDown);
     return () => document.removeEventListener("mousedown", onDocMouseDown);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- containerRef/gridRef stable from parent
+
+  // ── Column header range selection ─────────────────────────────────────────
+  // Mousedown on a date column header selects all rows × that column.
+  // Dragging across headers extends the column range.
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    function onContainerMouseDown(e: MouseEvent) {
+      const headerEl = (e.target as Element)?.closest?.(
+        ".ag-header-cell[col-id]"
+      ) as HTMLElement | null;
+      if (!headerEl) return; // not a header — handled by onCellMouseDown or onDocMouseDown
+
+      const colId = headerEl.getAttribute("col-id") ?? "";
+      const ci = dateColFieldsRef.current.indexOf(colId);
+
+      if (ci === -1) {
+        // Non-date header (Scope, Person, etc.) — clear selection
+        selRef.current = null;
+        setHasSelection(false);
+        hideFillHandle();
+        gridRef.current?.api.refreshCells({ force: true });
+        return;
+      }
+
+      const api = gridRef.current?.api;
+      if (!api) return;
+      const rowCount = api.getDisplayedRowCount();
+      if (rowCount === 0) return;
+
+      isHeaderDragRef.current = true;
+      headerAnchorColRef.current = ci;
+      selRef.current = { r1: 0, r2: rowCount - 1, c1: ci, c2: ci };
+      setHasSelection(true);
+      refreshSelection();
+    }
+
+    container.addEventListener("mousedown", onContainerMouseDown);
+    return () => container.removeEventListener("mousedown", onContainerMouseDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Extend column range while dragging across headers
+  useEffect(() => {
+    function onMouseMove(e: MouseEvent) {
+      if (!isHeaderDragRef.current || headerAnchorColRef.current === null) return;
+      const container = containerRef.current;
+      const api = gridRef.current?.api;
+      if (!container || !api) return;
+
+      const colEls = container.querySelectorAll<HTMLElement>(".ag-header-cell[col-id]");
+      let hoveredCol = headerAnchorColRef.current;
+      for (const colEl of colEls) {
+        const ci = dateColFieldsRef.current.indexOf(colEl.getAttribute("col-id") ?? "");
+        if (ci === -1) continue;
+        const rect = colEl.getBoundingClientRect();
+        if (e.clientX >= rect.left && e.clientX <= rect.right) {
+          hoveredCol = ci;
+          break;
+        }
+      }
+
+      const anchor = headerAnchorColRef.current;
+      selRef.current = {
+        r1: 0,
+        r2: api.getDisplayedRowCount() - 1,
+        c1: Math.min(anchor, hoveredCol),
+        c2: Math.max(anchor, hoveredCol),
+      };
+      refreshSelection();
+    }
+
+    document.addEventListener("mousemove", onMouseMove);
+    return () => document.removeEventListener("mousemove", onMouseMove);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onBodyScroll = useCallback(() => {
     // Single rAF to wait for AG Grid to finish repositioning cells before reading DOM rects
@@ -292,6 +379,7 @@ export function useGridSelection({
 
   return {
     selRef,
+    hasSelection,
     fillHandleRef,
     fillPreviewSel,
     onCellMouseDown,

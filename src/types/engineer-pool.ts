@@ -21,6 +21,9 @@ export interface EngineerPoolEntry {
   lastName?: string;
   /** Rate A (£/hr) from project_engineers for the current project. Null when not set. */
   rateA?: number | null;
+  /** Capacity caps from engineer_pool. Null = use DEFAULT_MAX_DAILY/WEEKLY_HOURS. */
+  maxDailyHours?: number | null;
+  maxWeeklyHours?: number | null;
 }
 
 /** Raw row shape for `public.engineer_pool` (snake_case from Supabase). */

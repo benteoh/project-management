@@ -18,7 +18,10 @@ export async function loadProgrammeFromDb(
 ): Promise<{ tree: ProgrammeNode[]; engineerPool: EngineerPoolEntry[] } | { error: string }> {
   const [nodesRes, poolRes] = await Promise.all([
     client.from("programme_nodes").select("*").eq("project_id", projectId),
-    client.from("engineer_pool").select("id, code, first_name, last_name").eq("is_active", true),
+    client
+      .from("engineer_pool")
+      .select("id, code, first_name, last_name, max_daily_hours, max_weekly_hours")
+      .eq("is_active", true),
   ]);
 
   if (nodesRes.error) return { error: nodesRes.error.message };
@@ -43,12 +46,16 @@ export async function loadProgrammeFromDb(
         code: string;
         first_name: string;
         last_name: string;
+        max_daily_hours: number | null;
+        max_weekly_hours: number | null;
       };
       return {
         id: row.id,
         code: row.code,
         firstName: row.first_name,
         lastName: row.last_name,
+        maxDailyHours: row.max_daily_hours,
+        maxWeeklyHours: row.max_weekly_hours,
       };
     })
     .sort((a, b) => a.code.localeCompare(b.code));
