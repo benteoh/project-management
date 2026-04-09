@@ -1,17 +1,28 @@
 "use client";
 
-import { useRef, useState, type RefObject } from "react";
+import { useMemo, useRef, useState, type RefObject } from "react";
 import { Plus, X } from "lucide-react";
 
 import type { EngineerPoolEntry } from "@/types/engineer-pool";
+import type { ForecastHoursPerEngineer } from "@/types/forecast-scope";
 import { formatEngineerListLabel, formatEngineerPickerLabel } from "@/lib/engineer-pool-display";
 import { useAnchoredFixedPosition } from "@/components/ui/useAnchoredFixedPosition";
 
+import { renderProgrammeHeaderLabel } from "./programmeHeaderLabel";
+import { programmeTableHeaderRowClassName } from "./programmeTableHeaderConstants";
 import type { EngineerAllocation } from "./types";
+
+/** Match programme table rhythm; popup is slightly tighter than the main grid. */
+const COL_ENGINEER = "min-w-0 flex-1";
+const COL_HOURS = "w-20 min-w-[5rem] shrink-0 px-1.5 py-1 text-center";
+/** Icon-only control — keep narrow so hour columns stay visually under their headers. */
+const COL_ACTION = "w-7 shrink-0 flex items-center justify-center";
+const POPUP_HEADER_ROW = `${programmeTableHeaderRowClassName} !py-1`;
 
 export function EngineerPopup({
   engineers,
   engineerPool,
+  forecastByEngineer,
   rect,
   anchorRef,
   onChangeEngineers,
@@ -19,6 +30,8 @@ export function EngineerPopup({
 }: {
   engineers: EngineerAllocation[];
   engineerPool: EngineerPoolEntry[];
+  /** Per-engineer totals from `forecast_entries` (Demand Forecast grid) — read-only display. */
+  forecastByEngineer: ForecastHoursPerEngineer[];
   rect: { top: number; left: number; width: number; height: number };
   /** Live anchor (engineer chip); keeps the popup aligned while the programme scrolls. */
   anchorRef: RefObject<HTMLElement | null>;
@@ -27,6 +40,14 @@ export function EngineerPopup({
 }) {
   const [draft, setDraft] = useState<EngineerAllocation[]>(engineers);
   const popupRef = useRef<HTMLDivElement>(null);
+
+  const forecastHrsByEngineerId = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of forecastByEngineer) {
+      m.set(r.engineerId, r.hours);
+    }
+    return m;
+  }, [forecastByEngineer]);
 
   const changeEngineerId = (idx: number, engineerId: string) =>
     setDraft((prev) => prev.map((eng, i) => (i === idx ? { ...eng, engineerId } : eng)));
@@ -43,18 +64,6 @@ export function EngineerPopup({
     );
   };
 
-  const setForecastHrs = (idx: number, raw: string) => {
-    setDraft((prev) =>
-      prev.map((eng, i) => {
-        if (i !== idx) return eng;
-        if (raw.trim() === "") return { ...eng, forecastHrs: null };
-        const n = parseFloat(raw);
-        if (Number.isNaN(n)) return eng;
-        return { ...eng, forecastHrs: Math.round(n * 100) / 100 };
-      })
-    );
-  };
-
   const remove = (idx: number) => setDraft((prev) => prev.filter((_, i) => i !== idx));
 
   const addRow = () =>
@@ -64,7 +73,6 @@ export function EngineerPopup({
         engineerId: engineerPool[0]?.id ?? "",
         isLead: false,
         plannedHrs: null,
-        forecastHrs: null,
         rate: "A",
       },
     ]);
@@ -93,21 +101,38 @@ export function EngineerPopup({
         <p className="text-muted-foreground mb-2 text-xs font-semibold tracking-wide uppercase">
           Engineer Allocation
         </p>
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="border-border text-muted-foreground border-b">
-              <th className="pb-1.5 text-left font-medium">Engineer</th>
-              <th className="w-[4.5rem] pr-1 pb-1.5 text-right font-medium">Planned</th>
-              <th className="w-[4.5rem] pr-1 pb-1.5 text-right font-medium">Forecast</th>
-              <th className="w-5 pb-1.5" />
-            </tr>
-          </thead>
-          <tbody>
-            {draft.map((eng, idx) => (
-              <tr key={idx} className="border-border/60 border-b last:border-0">
-                <td className="py-1.5 pr-2">
+
+        {/* Header + rows share one full-bleed width — header used to sit in `p-3` while body used `-mx-3`, which misaligned columns. */}
+        <div className="border-border -mx-3 border-x border-b">
+          <div className={POPUP_HEADER_ROW}>
+            <div
+              className={`${COL_ENGINEER} flex min-h-[2.5rem] items-center px-1.5 text-left text-xs font-medium tracking-wide uppercase`}
+            >
+              Engineer
+            </div>
+            <div
+              className={`${COL_HOURS} flex min-h-[2.5rem] flex-col items-center justify-center text-xs font-medium tracking-wide uppercase`}
+            >
+              {renderProgrammeHeaderLabel("Forecast")}
+            </div>
+            <div
+              className={`${COL_HOURS} flex min-h-[2.5rem] flex-col items-center justify-center text-xs font-medium tracking-wide uppercase`}
+            >
+              {renderProgrammeHeaderLabel("Planned")}
+            </div>
+            <div className={`${COL_ACTION} min-h-[2.5rem]`} aria-hidden />
+          </div>
+
+          {draft.map((eng, idx) => {
+            const forecastHrs = forecastHrsByEngineerId.get(eng.engineerId);
+            return (
+              <div
+                key={idx}
+                className="border-border flex items-center border-b text-sm last:border-b-0"
+              >
+                <div className={`${COL_ENGINEER} px-1.5 py-1`}>
                   <select
-                    className="border-border bg-background focus:ring-ring max-w-full rounded border px-1 py-0.5 text-xs focus:ring-1 focus:outline-none"
+                    className="border-border bg-background focus:ring-ring w-full max-w-full min-w-0 rounded border px-1.5 py-0.5 text-xs focus:ring-1 focus:outline-none"
                     value={eng.engineerId}
                     onChange={(e) => changeEngineerId(idx, e.target.value)}
                   >
@@ -122,44 +147,41 @@ export function EngineerPopup({
                       </option>
                     )}
                   </select>
-                </td>
-                <td className="py-1.5 pr-1">
+                </div>
+                <div
+                  className={`text-muted-foreground ${COL_HOURS} text-sm tabular-nums`}
+                  title="From Demand Forecast grid (saved cells)"
+                >
+                  {forecastHrs != null && !Number.isNaN(forecastHrs)
+                    ? Math.round(forecastHrs)
+                    : "—"}
+                </div>
+                <div className={COL_HOURS}>
                   <input
                     type="number"
                     inputMode="decimal"
                     min={0}
                     step={0.01}
                     aria-label="Planned hours"
-                    className="border-border bg-background focus:ring-ring w-full min-w-0 rounded border px-1 py-0.5 text-right text-xs tabular-nums focus:ring-1 focus:outline-none"
+                    className="border-border bg-background focus:ring-ring no-input-spinner w-full rounded border px-1.5 py-0.5 text-center text-xs tabular-nums focus:ring-1 focus:outline-none"
                     value={eng.plannedHrs ?? ""}
                     onChange={(e) => setPlannedHrs(idx, e.target.value)}
                   />
-                </td>
-                <td className="py-1.5 pr-1">
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    min={0}
-                    step={0.01}
-                    aria-label="Forecast hours"
-                    className="border-border bg-background focus:ring-ring w-full min-w-0 rounded border px-1 py-0.5 text-right text-xs tabular-nums focus:ring-1 focus:outline-none"
-                    value={eng.forecastHrs ?? ""}
-                    onChange={(e) => setForecastHrs(idx, e.target.value)}
-                  />
-                </td>
-                <td className="py-1.5">
+                </div>
+                <div className={`${COL_ACTION} py-1`}>
                   <button
                     type="button"
                     onClick={() => remove(idx)}
-                    className="text-muted-foreground hover:text-destructive transition-colors"
+                    className="text-muted-foreground hover:text-destructive inline-flex size-7 shrink-0 items-center justify-center rounded transition-colors"
+                    aria-label="Remove engineer"
                   >
-                    <X size={11} />
+                    <X size={11} strokeWidth={2} />
                   </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                </div>
+              </div>
+            );
+          })}
+        </div>
 
         <button
           type="button"
@@ -181,9 +203,9 @@ export function EngineerPopup({
         <button
           type="button"
           onClick={handleAdd}
-          className="bg-primary text-primary-foreground rounded px-3 py-1.5 text-sm hover:opacity-90"
+          className="bg-foreground text-background rounded px-3 py-1.5 text-sm hover:opacity-90"
         >
-          Update
+          Save
         </button>
       </div>
     </div>

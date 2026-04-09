@@ -1,5 +1,6 @@
 import type { RefObject } from "react";
 import type { EngineerPoolEntry } from "@/types/engineer-pool";
+import type { ForecastHoursByScopeRecord } from "@/types/forecast-scope";
 
 import { cn } from "@/lib/utils";
 import { ProgrammeNode, EditableField, EditingCell } from "./types";
@@ -10,6 +11,7 @@ interface ProgrammeRowProps {
   node: ProgrammeNode;
   depth: number;
   engineerPool: EngineerPoolEntry[];
+  forecastHoursByScope: ForecastHoursByScopeRecord;
   namePrefix?: string;
   collapsed: Set<string>;
   editingCell: EditingCell | null;
@@ -46,6 +48,7 @@ export function ProgrammeRow({
   node,
   depth,
   engineerPool,
+  forecastHoursByScope,
   namePrefix,
   collapsed,
   editingCell,
@@ -85,6 +88,7 @@ export function ProgrammeRow({
     engPopupScopeId,
     engineerAnchorRef,
     engineerPool,
+    forecastHoursByScope,
   };
 
   const childProps = {
@@ -106,6 +110,7 @@ export function ProgrammeRow({
     onRowMouseDown,
     onRowMouseEnter,
     engineerPool,
+    forecastHoursByScope,
   };
 
   return (

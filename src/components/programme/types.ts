@@ -7,7 +7,6 @@ export interface EngineerAllocation {
   engineerId: string;
   isLead: boolean;
   plannedHrs: number | null;
-  forecastHrs: number | null;
   /** Rate slot (A–E) used to cost this engineer's hours on this scope. */
   rate: string;
 }
@@ -24,14 +23,13 @@ export interface ProgrammeNode {
   totalHours: number | null;
   start: string;
   finish: string;
-  forecastTotalHours: number | null;
   status: ActivityStatus;
   children: ProgrammeNode[];
   /** Scope rows only — persisted in `scope_engineers`. */
   engineers?: EngineerAllocation[];
 }
 
-export type EditableField = "name" | "activityId" | "totalHours" | "forecastTotalHours";
+export type EditableField = "name" | "activityId" | "totalHours";
 
 export interface EditingCell {
   nodeId: string;
@@ -58,7 +56,6 @@ export interface FormValues {
   totalHours: string;
   start: string;
   finish: string;
-  forecastTotalHours: string;
   status: ActivityStatus;
 }
 
@@ -68,7 +65,6 @@ export const defaultForm: FormValues = {
   totalHours: "",
   start: "",
   finish: "",
-  forecastTotalHours: "",
   status: "Not Started",
 };
 

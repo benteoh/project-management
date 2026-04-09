@@ -39,4 +39,11 @@ describe("StatusBadge", () => {
     expect(el.className).toContain("text-status-info");
     expect(el.className).toContain("bg-status-info-bg");
   });
+
+  it("matchControlWidth stretches to full width and fixed height like table controls", () => {
+    render(<StatusBadge status="Completed" matchControlWidth />);
+    const el = screen.getByText("Completed");
+    expect(el.className).toContain("w-full");
+    expect(el.className).toContain("h-7");
+  });
 });

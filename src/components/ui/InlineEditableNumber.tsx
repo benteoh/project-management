@@ -11,10 +11,10 @@ const DISPLAY_SURFACE_COMPACT =
   "w-full min-w-0 rounded-md border border-transparent bg-transparent px-1 py-0.5 text-left text-xs text-foreground tabular-nums transition-colors hover:border-border hover:bg-muted/50 focus-visible:border-ring focus-visible:bg-card focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/40";
 
 const EDIT_SURFACE =
-  "w-full min-w-0 rounded-md border border-ring bg-card px-2 py-1.5 text-sm text-foreground tabular-nums outline-none ring-1 ring-ring/20";
+  "no-input-spinner w-full min-w-0 rounded-md border border-ring bg-card px-2 py-1.5 text-sm text-foreground tabular-nums outline-none ring-1 ring-ring/20";
 
 const EDIT_SURFACE_COMPACT =
-  "w-full min-w-0 rounded-md border border-ring bg-card px-1 py-0.5 text-xs text-foreground tabular-nums outline-none ring-1 ring-ring/20";
+  "no-input-spinner w-full min-w-0 rounded-md border border-ring bg-card px-1 py-0.5 text-xs text-foreground tabular-nums outline-none ring-1 ring-ring/20";
 
 function formatDisplay(value: number | null): string {
   if (value === null || Number.isNaN(value)) return "";

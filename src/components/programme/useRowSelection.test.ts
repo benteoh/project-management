@@ -12,7 +12,6 @@ const makeFlat = (...ids: string[]): FlatNode[] =>
       totalHours: null,
       start: "",
       finish: "",
-      forecastTotalHours: null,
       status: "Not Started" as const,
       children: [],
     },

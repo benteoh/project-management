@@ -13,7 +13,8 @@ import {
   ContextMenuState,
 } from "./types";
 import { nextActivityIdFromTree } from "@/lib/programme/nextActivityId";
-import { isRollupTotalHoursParent, rollupTotalHoursInTree } from "@/lib/programme/totalHoursRollup";
+import { applyProgrammeRollups } from "@/lib/programme/applyProgrammeRollups";
+import { isRollupTotalHoursParent } from "@/lib/programme/totalHoursRollup";
 import {
   updateNodeInTree,
   addNodeToTree,
@@ -48,11 +49,15 @@ import {
 } from "@/lib/programme/programmeCollapsedStorage";
 import { useRowSelection } from "./useRowSelection";
 import { useProgrammeClipboard } from "./useProgrammeClipboard";
+import type { ProgrammeTsvHelpers } from "./programmeColumns";
+import type { ForecastHoursByScopeRecord } from "@/types/forecast-scope";
 
 export type ProgrammeTabProps = {
   projectId: string;
   initialTree: ProgrammeNode[];
   initialEngineerPool: EngineerPoolEntry[];
+  /** Sums from `forecast_entries` for programme scope rows (read-only). */
+  forecastHoursByScope: ForecastHoursByScopeRecord;
   /** Remote load failed (Supabase error, missing env, etc.) */
   loadError: string | null;
   saveProgramme: (tree: ProgrammeNode[]) => Promise<{ ok: true } | { ok: false; error: string }>;
@@ -64,18 +69,17 @@ export function ProgrammeTab({
   projectId,
   initialTree,
   initialEngineerPool,
+  forecastHoursByScope,
   loadError: initialLoadError,
   saveProgramme,
   onTreeChange,
   activityFilterIds,
 }: ProgrammeTabProps) {
   const histRef = useRef<{ stack: ProgrammeNode[][]; idx: number }>({
-    stack: [rollupTotalHoursInTree(initialTree)],
+    stack: [applyProgrammeRollups(initialTree)],
     idx: 0,
   });
-  const [present, setPresent] = useState<ProgrammeNode[]>(() =>
-    rollupTotalHoursInTree(initialTree)
-  );
+  const [present, setPresent] = useState<ProgrammeNode[]>(() => applyProgrammeRollups(initialTree));
   const engineerPool = initialEngineerPool;
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -120,7 +124,7 @@ export function ProgrammeTab({
 
   const commit = useCallback(
     (next: ProgrammeNode[]) => {
-      const rolled = rollupTotalHoursInTree(next);
+      const rolled = applyProgrammeRollups(next);
       const h = histRef.current;
       h.stack = h.stack.slice(0, h.idx + 1);
       h.stack.push(rolled);
@@ -160,8 +164,18 @@ export function ProgrammeTab({
 
   const selection = useRowSelection(getFlatNodes);
 
+  const clipboardTsvHelpers = useMemo<ProgrammeTsvHelpers>(
+    () => ({ forecastHoursByScope, engineerPool }),
+    [forecastHoursByScope, engineerPool]
+  );
+
   // ─── Clipboard ──────────────────────────────────────────────────────────────
-  const clipboard = useProgrammeClipboard(present, selection.selectedIds, commit);
+  const clipboard = useProgrammeClipboard(
+    present,
+    selection.selectedIds,
+    commit,
+    clipboardTsvHelpers
+  );
 
   // ─── Deselect on click outside ───────────────────────────────────────────────
   useEffect(() => {
@@ -207,6 +221,10 @@ export function ProgrammeTab({
   }, [undo, redo, clipboard, selection]);
 
   const saveField = (nodeId: string, field: keyof ProgrammeNode, raw: string) => {
+    if (field === "status") {
+      const node = findNodeInTree(present, nodeId);
+      if (node && node.type !== "activity") return;
+    }
     if (field === "totalHours") {
       const node = findNodeInTree(present, nodeId);
       if (node && isRollupTotalHoursParent(node)) return;
@@ -218,7 +236,7 @@ export function ProgrammeTab({
       commit(updateNodeInTree(present, nodeId, "activityId", value as ProgrammeNode["activityId"]));
       return;
     }
-    if (field === "totalHours" || field === "forecastTotalHours") {
+    if (field === "totalHours") {
       if (raw === "") value = null;
       else {
         const n = parseFloat(raw);
@@ -263,12 +281,6 @@ export function ProgrammeTab({
             : null,
       start: formValues.start,
       finish: formValues.finish,
-      forecastTotalHours:
-        addForm.type === "scope"
-          ? null
-          : formValues.forecastTotalHours
-            ? Number(formValues.forecastTotalHours)
-            : null,
       status: addForm.type === "scope" ? "" : formValues.status,
       children: [],
       ...(addForm.type === "scope"
@@ -402,6 +414,11 @@ export function ProgrammeTab({
     return findScope(present);
   }, [engPopup, present]);
 
+  const engPopupForecastByEngineer = useMemo(() => {
+    if (!engPopup) return [];
+    return forecastHoursByScope[engPopup.scopeId] ?? [];
+  }, [engPopup, forecastHoursByScope]);
+
   const hasExternalCardFilter = activityFilterIds != null;
   const hasAnyActivityFilter = hasExternalCardFilter || isActivityQueryActive(activityQuery);
 
@@ -483,6 +500,7 @@ export function ProgrammeTab({
               node={node}
               depth={0}
               engineerPool={engineerPool}
+              forecastHoursByScope={forecastHoursByScope}
               {...rowProps}
               collapsed={collapsed}
               engPopupScopeId={engPopup?.scopeId ?? null}
@@ -542,6 +560,7 @@ export function ProgrammeTab({
           key={engPopup.scopeId}
           engineers={engPopupScopeNode.engineers ?? []}
           engineerPool={engineerPool}
+          forecastByEngineer={engPopupForecastByEngineer}
           rect={engPopup.rect}
           anchorRef={engAnchorRef}
           onChangeEngineers={(engs) => updateScopeEngineers(engPopup.scopeId, engs)}

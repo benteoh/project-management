@@ -115,7 +115,7 @@ const ALERT_OPTIONS: { code: string; label: string }[] = [
   { code: "1", label: ">8: hours exceed 8" },
   { code: "2", label: "UE: unregistered employee" },
   { code: "3", label: "MS: mismatch scope" },
-  { code: "4", label: "MN: mismatch notes" },
+  { code: "4", label: "MN: wrong input code" },
 ];
 
 const ALERT_CODES = ALERT_OPTIONS.map((o) => o.code);
@@ -191,7 +191,7 @@ export function TimesheetTable({
 
         return { row, ri, alertCodes, detailLabels };
       }),
-     
+
     [sheet.rows, hoursIdx, employeeIdx, notesIdx, taskIdIdx, knownEmployees, scopeMatchResults]
   );
 

@@ -18,7 +18,6 @@ const leaf = (id: string): ProgrammeNode => ({
   totalHours: 10,
   start: "01-Jan-26",
   finish: "31-Jan-26",
-  forecastTotalHours: 10,
   status: "Not Started",
   children: [],
 });
@@ -30,7 +29,6 @@ const scope = (id: string, children: ProgrammeNode[] = []): ProgrammeNode => ({
   totalHours: 100,
   start: "01-Jan-26",
   finish: "31-Mar-26",
-  forecastTotalHours: 100,
   status: "",
   children,
 });

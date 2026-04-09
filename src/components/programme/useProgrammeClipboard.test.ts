@@ -4,6 +4,11 @@ import { renderHook, act } from "@testing-library/react";
 import { useProgrammeClipboard } from "./useProgrammeClipboard";
 import type { ProgrammeNode } from "./types";
 
+const TSV_HELPERS = {
+  forecastHoursByScope: {},
+  engineerPool: [] as { id: string; code: string }[],
+};
+
 // Stub navigator.clipboard.writeText — it doesn't exist in jsdom
 beforeEach(() => {
   Object.defineProperty(navigator, "clipboard", {
@@ -20,7 +25,6 @@ const activity = (id: string): ProgrammeNode => ({
   totalHours: 10,
   start: "01-Jan-26",
   finish: "31-Jan-26",
-  forecastTotalHours: 8,
   status: "Not Started",
   children: [],
 });
@@ -32,7 +36,6 @@ const scope = (id: string, children: ProgrammeNode[] = []): ProgrammeNode => ({
   totalHours: 100,
   start: "01-Jan-26",
   finish: "31-Mar-26",
-  forecastTotalHours: 80,
   status: "",
   children,
 });
@@ -41,7 +44,7 @@ describe("useProgrammeClipboard — copy", () => {
   it("does nothing when nothing is selected", async () => {
     const onCommit = vi.fn();
     const { result } = renderHook(() =>
-      useProgrammeClipboard([activity("a1")], new Set(), onCommit)
+      useProgrammeClipboard([activity("a1")], new Set(), onCommit, TSV_HELPERS)
     );
     await act(() => result.current.copy());
     expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
@@ -50,7 +53,9 @@ describe("useProgrammeClipboard — copy", () => {
   it("writes TSV to the system clipboard", async () => {
     const tree = [activity("a1")];
     const onCommit = vi.fn();
-    const { result } = renderHook(() => useProgrammeClipboard(tree, new Set(["a1"]), onCommit));
+    const { result } = renderHook(() =>
+      useProgrammeClipboard(tree, new Set(["a1"]), onCommit, TSV_HELPERS)
+    );
     await act(() => result.current.copy());
     expect(navigator.clipboard.writeText).toHaveBeenCalledOnce();
     const written = (navigator.clipboard.writeText as ReturnType<typeof vi.fn>).mock
@@ -62,14 +67,14 @@ describe("useProgrammeClipboard — copy", () => {
     const tree = [activity("a1"), activity("a2")];
     const onCommit = vi.fn();
     const { result } = renderHook(() =>
-      useProgrammeClipboard(tree, new Set(["a1", "a2"]), onCommit)
+      useProgrammeClipboard(tree, new Set(["a1", "a2"]), onCommit, TSV_HELPERS)
     );
     await act(() => result.current.copy());
     expect(result.current.copiedIds).toEqual(new Set(["a1", "a2"]));
   });
 
   it("copiedIds starts empty", () => {
-    const { result } = renderHook(() => useProgrammeClipboard([], new Set(), vi.fn()));
+    const { result } = renderHook(() => useProgrammeClipboard([], new Set(), vi.fn(), TSV_HELPERS));
     expect(result.current.copiedIds).toEqual(new Set());
   });
 
@@ -79,7 +84,9 @@ describe("useProgrammeClipboard — copy", () => {
     );
     const tree = [activity("a1")];
     const onCommit = vi.fn();
-    const { result } = renderHook(() => useProgrammeClipboard(tree, new Set(["a1"]), onCommit));
+    const { result } = renderHook(() =>
+      useProgrammeClipboard(tree, new Set(["a1"]), onCommit, TSV_HELPERS)
+    );
     await act(() => result.current.copy());
     // paste should still work from in-memory stash
     act(() => result.current.paste());
@@ -91,7 +98,7 @@ describe("useProgrammeClipboard — paste", () => {
   it("does nothing when nothing has been copied", () => {
     const onCommit = vi.fn();
     const { result } = renderHook(() =>
-      useProgrammeClipboard([activity("a1")], new Set(), onCommit)
+      useProgrammeClipboard([activity("a1")], new Set(), onCommit, TSV_HELPERS)
     );
     act(() => result.current.paste());
     expect(onCommit).not.toHaveBeenCalled();
@@ -103,7 +110,8 @@ describe("useProgrammeClipboard — paste", () => {
 
     // Copy with a1 selected
     const { result, rerender } = renderHook(
-      ({ selected }: { selected: Set<string> }) => useProgrammeClipboard(tree, selected, onCommit),
+      ({ selected }: { selected: Set<string> }) =>
+        useProgrammeClipboard(tree, selected, onCommit, TSV_HELPERS),
       { initialProps: { selected: new Set(["a1"]) } }
     );
     await act(() => result.current.copy());
@@ -120,7 +128,9 @@ describe("useProgrammeClipboard — paste", () => {
     const tree = [activity("a1"), activity("a2"), activity("a3")];
     const onCommit = vi.fn();
 
-    const { result } = renderHook(() => useProgrammeClipboard(tree, new Set(["a1"]), onCommit));
+    const { result } = renderHook(() =>
+      useProgrammeClipboard(tree, new Set(["a1"]), onCommit, TSV_HELPERS)
+    );
     await act(() => result.current.copy());
     act(() => result.current.paste());
 
@@ -138,7 +148,9 @@ describe("useProgrammeClipboard — paste", () => {
     const tree = [scope("s1", [activity("a1"), activity("a2")])];
     const onCommit = vi.fn();
 
-    const { result } = renderHook(() => useProgrammeClipboard(tree, new Set(["a1"]), onCommit));
+    const { result } = renderHook(() =>
+      useProgrammeClipboard(tree, new Set(["a1"]), onCommit, TSV_HELPERS)
+    );
     await act(() => result.current.copy());
     act(() => result.current.paste());
 
@@ -153,7 +165,9 @@ describe("useProgrammeClipboard — paste", () => {
     const tree = [activity("a1")];
     const onCommit = vi.fn();
 
-    const { result } = renderHook(() => useProgrammeClipboard(tree, new Set(["a1"]), onCommit));
+    const { result } = renderHook(() =>
+      useProgrammeClipboard(tree, new Set(["a1"]), onCommit, TSV_HELPERS)
+    );
     await act(() => result.current.copy());
     act(() => result.current.paste());
 
@@ -167,7 +181,9 @@ describe("useProgrammeClipboard — paste", () => {
     const tree = [activity("a1")];
     const onCommit = vi.fn();
 
-    const { result } = renderHook(() => useProgrammeClipboard(tree, new Set(["a1"]), onCommit));
+    const { result } = renderHook(() =>
+      useProgrammeClipboard(tree, new Set(["a1"]), onCommit, TSV_HELPERS)
+    );
     await act(() => result.current.copy());
     act(() => result.current.paste());
     act(() => result.current.paste());

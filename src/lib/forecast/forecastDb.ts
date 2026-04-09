@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { CellValues } from "@/components/forecast/forecastGridTypes";
 import type { ForecastEntryDbRow } from "@/types/forecast-entry";
+import type { ForecastHoursByScopeRecord, ForecastHoursPerEngineer } from "@/types/forecast-scope";
 
 import { forecastRowId, parseForecastRowId } from "./forecastRowId";
 
@@ -99,4 +100,46 @@ export async function saveForecastEntries(
   }
 
   return { ok: true };
+}
+
+/**
+ * Sums `forecast_entries.hours` per scope and per engineer for the programme table
+ * (read-only display on scope rows).
+ */
+export async function loadForecastHoursByScopeForProject(
+  client: SupabaseClient,
+  projectId: string
+): Promise<{ ok: true; byScope: ForecastHoursByScopeRecord } | { ok: false; error: string }> {
+  const { data, error } = await client
+    .from("forecast_entries")
+    .select("scope_id, engineer_id, hours")
+    .eq("project_id", projectId);
+
+  if (error) return { ok: false, error: error.message };
+
+  const acc = new Map<string, Map<string, number>>();
+  for (const row of (data ?? []) as Pick<
+    ForecastEntryDbRow,
+    "scope_id" | "engineer_id" | "hours"
+  >[]) {
+    const sid = row.scope_id;
+    const eid = row.engineer_id;
+    const h = Number(row.hours);
+    if (Number.isNaN(h)) continue;
+    if (!acc.has(sid)) acc.set(sid, new Map());
+    const m = acc.get(sid)!;
+    m.set(eid, (m.get(eid) ?? 0) + h);
+  }
+
+  const byScope: ForecastHoursByScopeRecord = {};
+  for (const [scopeId, engMap] of acc) {
+    const list: ForecastHoursPerEngineer[] = [...engMap.entries()].map(([engineerId, sum]) => ({
+      engineerId,
+      hours: Math.round(sum * 100) / 100,
+    }));
+    list.sort((a, b) => a.engineerId.localeCompare(b.engineerId));
+    byScope[scopeId] = list;
+  }
+
+  return { ok: true, byScope };
 }

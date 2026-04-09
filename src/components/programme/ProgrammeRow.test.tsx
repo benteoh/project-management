@@ -15,7 +15,6 @@ const node: ProgrammeNode = {
   totalHours: 100,
   start: "01-Jan-26",
   finish: "31-Mar-26",
-  forecastTotalHours: 100,
   status: "",
   children: [],
 };
@@ -23,6 +22,7 @@ const node: ProgrammeNode = {
 const baseProps = {
   depth: 0,
   engineerPool: [] as EngineerPoolEntry[],
+  forecastHoursByScope: {},
   collapsed: new Set<string>(),
   editingCell: null,
   onToggleCollapse: vi.fn(),
@@ -45,9 +45,9 @@ describe("ProgrammeRow", () => {
     expect(screen.getByText("Test Scope")).toBeTruthy();
   });
 
-  it("renders total and forecast hours", () => {
+  it("renders total hours once (forecast column is separate)", () => {
     render(<ProgrammeRow node={node} {...baseProps} />);
-    expect(screen.getAllByText("100")).toHaveLength(2);
+    expect(screen.getAllByText("100")).toHaveLength(1);
   });
 
   it("renders start and finish dates", () => {

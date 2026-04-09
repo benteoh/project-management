@@ -1,6 +1,7 @@
 "use client";
 
 import { type MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { parseFlexibleActivityDate } from "@/components/programme/dateUtils";
 import { cellValuesHasPositiveHours } from "@/lib/forecast/cellValuesUtils";
@@ -60,6 +61,7 @@ export function ForecastTab({
   programmeTree,
   bankHolidays: bankHolidayDates,
 }: ForecastTabProps) {
+  const router = useRouter();
   const [currentWeekStart, setCurrentWeekStart] = useState<string>(computeStartDate);
   const [engineers, setEngineers] = useState<EngineerPoolEntry[]>(initialEngineerPool);
   const [scopes, setScopes] = useState<ScopeItem[]>(() => scopesFromTree(programmeTree));
@@ -170,10 +172,11 @@ export function ForecastTab({
     if (res.ok) {
       clearDraft(projectId);
       setHasUnsaved(false);
+      router.refresh();
     } else {
       setSaveError(res.error);
     }
-  }, [projectId]);
+  }, [projectId, router]);
 
   // Advance current week every Saturday at midnight
   useEffect(() => {

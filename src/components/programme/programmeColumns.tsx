@@ -4,6 +4,11 @@ import type { RefObject } from "react";
 import { ChevronRight, ChevronDown } from "lucide-react";
 import { isRollupTotalHoursParent } from "@/lib/programme/totalHoursRollup";
 import type { EngineerPoolEntry } from "@/types/engineer-pool";
+import type { ForecastHoursByScopeRecord } from "@/types/forecast-scope";
+import {
+  forecastScopeProgrammeCell,
+  forecastScopeProgrammeTsv,
+} from "@/lib/forecast/forecastScopeProgrammeDisplay";
 import { cn } from "@/lib/utils";
 import type { ProgrammeNode, EditableField, EditingCell } from "./types";
 import { StatusBadge } from "./StatusBadge";
@@ -36,7 +41,7 @@ function EditInput({
     <input
       autoFocus
       type={type}
-      className={cn(EDIT_INPUT_CLS, className)}
+      className={cn(EDIT_INPUT_CLS, type === "number" && "no-input-spinner", className)}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       onBlur={onCommit}
@@ -54,6 +59,12 @@ function EditInput({
  * All row-level callbacks and state passed to each column's cell renderer.
  * ProgrammeRow builds this once and passes it to every column.
  */
+/** Passed to TSV export for columns that need data outside the node (e.g. forecast totals). */
+export type ProgrammeTsvHelpers = {
+  forecastHoursByScope: ForecastHoursByScopeRecord;
+  engineerPool: EngineerPoolEntry[];
+};
+
 export interface CellContext {
   depth: number;
   namePrefix?: string;
@@ -75,6 +86,8 @@ export interface CellContext {
   engPopupScopeId?: string | null;
   engineerAnchorRef?: RefObject<HTMLDivElement | null>;
   engineerPool: EngineerPoolEntry[];
+  /** Per-scope totals from `forecast_entries` (Demand Forecast grid). */
+  forecastHoursByScope: ForecastHoursByScopeRecord;
 }
 
 function isEditingField(
@@ -100,7 +113,7 @@ export interface ColumnDef {
   header: ColumnHeaderDef;
   cell: (node: ProgrammeNode, ctx: CellContext) => React.ReactNode;
   /** Value exported to TSV (omit to exclude from clipboard export). */
-  tsvValue?: (node: ProgrammeNode) => string;
+  tsvValue?: (node: ProgrammeNode, helpers: ProgrammeTsvHelpers) => string;
 }
 
 // ─── Row text styles by node type ─────────────────────────────────────────────
@@ -203,10 +216,40 @@ export const PROGRAMME_COLUMNS: ColumnDef[] = [
         </div>
       );
     },
-    tsvValue: (node) => node.name,
+    tsvValue: (node, helpers) => {
+      void helpers;
+      return node.name;
+    },
   },
 
-  // ── Total Hours ──────────────────────────────────────────────────────────────
+  // ── Forecast hours (Demand Forecast grid) ────────────────────────────────
+  {
+    key: "forecastFromGrid",
+    widthClass: "w-24 shrink-0",
+    header: { type: "static", label: "FORECAST HOURS" },
+    cell: (node, ctx) => {
+      if (node.type !== "scope") {
+        return <div className="w-24 shrink-0 px-2 py-1.5 text-center tabular-nums" aria-hidden />;
+      }
+      const { line, title } = forecastScopeProgrammeCell(
+        node.id,
+        ctx.forecastHoursByScope,
+        ctx.engineerPool
+      );
+      return (
+        <div
+          className="text-muted-foreground w-24 shrink-0 px-2 py-1.5 text-center text-sm tabular-nums"
+          title={title}
+        >
+          {line}
+        </div>
+      );
+    },
+    tsvValue: (node, helpers) =>
+      node.type === "scope" ? forecastScopeProgrammeTsv(node.id, helpers.forecastHoursByScope) : "",
+  },
+
+  // ── Total Hours ─────────────────────────────────────────────────────────────
   {
     key: "totalHours",
     widthClass: "w-24 shrink-0",
@@ -241,7 +284,10 @@ export const PROGRAMME_COLUMNS: ColumnDef[] = [
         </div>
       );
     },
-    tsvValue: (node) => String(node.totalHours ?? ""),
+    tsvValue: (node, helpers) => {
+      void helpers;
+      return String(node.totalHours ?? "");
+    },
   },
 
   // ── Start ────────────────────────────────────────────────────────────────────
@@ -260,7 +306,10 @@ export const PROGRAMME_COLUMNS: ColumnDef[] = [
         </span>
       </div>
     ),
-    tsvValue: (node) => node.start,
+    tsvValue: (node, helpers) => {
+      void helpers;
+      return node.start;
+    },
   },
 
   // ── Finish ───────────────────────────────────────────────────────────────────
@@ -279,46 +328,10 @@ export const PROGRAMME_COLUMNS: ColumnDef[] = [
         </span>
       </div>
     ),
-    tsvValue: (node) => node.finish,
-  },
-
-  // ── Forecast Hours ───────────────────────────────────────────────────────────
-  {
-    key: "forecastTotalHours",
-    widthClass: "w-28 shrink-0",
-    header: { type: "static", label: "FORECAST HOURS" },
-    cell: (node, ctx) => {
-      const editValue = ctx.editingCell?.value ?? "";
-
-      return (
-        <div className="text-muted-foreground w-28 shrink-0 px-2 py-1.5 text-center tabular-nums">
-          {isEditingField(ctx.editingCell, node.id, "forecastTotalHours") ? (
-            <EditInput
-              type="number"
-              value={editValue}
-              onChange={ctx.onEditingCellChange}
-              onCommit={ctx.onCommitEdit}
-              onCancel={ctx.onCancelEdit}
-              className="w-full text-center"
-            />
-          ) : (
-            <span
-              className={`inline-block ${HOVER_CLS}`}
-              onClick={() =>
-                ctx.onStartEdit(
-                  node.id,
-                  "forecastTotalHours",
-                  String(node.forecastTotalHours ?? "")
-                )
-              }
-            >
-              {node.forecastTotalHours ?? "—"}
-            </span>
-          )}
-        </div>
-      );
+    tsvValue: (node, helpers) => {
+      void helpers;
+      return node.finish;
     },
-    tsvValue: (node) => String(node.forecastTotalHours ?? ""),
   },
 
   // ── Status ───────────────────────────────────────────────────────────────────
@@ -328,15 +341,16 @@ export const PROGRAMME_COLUMNS: ColumnDef[] = [
     header: { type: "status-filter" },
     cell: (node, ctx) => (
       <div className="w-28 shrink-0 px-2 py-1.5 text-center">
-        {node.type === "activity" && node.status ? (
+        {node.type === "activity" ? (
           <select
             className={cn(
-              "focus:ring-ring/30 w-full max-w-full cursor-pointer rounded px-1.5 py-0.5 text-center text-xs font-medium ring-1 ring-transparent outline-none select-auto",
+              "focus:ring-ring/30 h-7 w-full max-w-full cursor-pointer rounded px-1.5 py-0 text-center text-xs font-medium ring-1 ring-transparent outline-none select-auto",
               node.status === "Completed" && "bg-status-healthy-bg text-status-healthy",
               node.status === "In Progress" && "bg-status-info-bg text-status-info",
-              node.status === "Not Started" && "bg-muted text-muted-foreground"
+              (node.status === "Not Started" || node.status === "") &&
+                "bg-muted text-muted-foreground"
             )}
-            value={node.status}
+            value={node.status || "Not Started"}
             onChange={(e) => ctx.onSaveField(node.id, "status", e.target.value)}
             title="Change status"
             aria-label="Activity status"
@@ -346,12 +360,13 @@ export const PROGRAMME_COLUMNS: ColumnDef[] = [
             <option value="Completed">Completed</option>
           </select>
         ) : node.status ? (
-          <span className="inline-flex justify-center">
-            <StatusBadge status={node.status} />
-          </span>
+          <StatusBadge status={node.status} matchControlWidth />
         ) : null}
       </div>
     ),
-    tsvValue: (node) => node.status ?? "",
+    tsvValue: (node, helpers) => {
+      void helpers;
+      return node.status ?? "";
+    },
   },
 ];

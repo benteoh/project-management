@@ -3,12 +3,15 @@
 import { useCallback, useRef, useState } from "react";
 import type { ProgrammeNode } from "./types";
 import { cloneNodesWithNewIds, findNodeInTree, insertNodesAfter } from "./treeUtils";
-import { PROGRAMME_COLUMNS } from "./programmeColumns";
+import type { ForecastHoursByScopeRecord } from "@/types/forecast-scope";
+import type { EngineerPoolEntry } from "@/types/engineer-pool";
 
-function nodesToTsv(nodes: ProgrammeNode[]): string {
+import { PROGRAMME_COLUMNS, type ProgrammeTsvHelpers } from "./programmeColumns";
+
+function nodesToTsv(nodes: ProgrammeNode[], helpers: ProgrammeTsvHelpers): string {
   const exportCols = PROGRAMME_COLUMNS.filter((c) => c.tsvValue != null);
   const header = exportCols.map((c) => c.key).join("\t");
-  const rows = nodes.map((n) => exportCols.map((c) => c.tsvValue!(n)).join("\t"));
+  const rows = nodes.map((n) => exportCols.map((c) => c.tsvValue!(n, helpers)).join("\t"));
   return [header, ...rows].join("\n");
 }
 
@@ -23,7 +26,11 @@ function nodesToTsv(nodes: ProgrammeNode[]): string {
 export function useProgrammeClipboard(
   tree: ProgrammeNode[],
   selectedIds: Set<string>,
-  onCommit: (next: ProgrammeNode[]) => void
+  onCommit: (next: ProgrammeNode[]) => void,
+  tsvHelpers: {
+    forecastHoursByScope: ForecastHoursByScopeRecord;
+    engineerPool: EngineerPoolEntry[];
+  }
 ) {
   const stashRef = useRef<ProgrammeNode[] | null>(null);
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -47,11 +54,11 @@ export function useProgrammeClipboard(
     flashTimerRef.current = setTimeout(() => setCopiedIds(new Set()), 800);
 
     try {
-      await navigator.clipboard.writeText(nodesToTsv(nodes));
+      await navigator.clipboard.writeText(nodesToTsv(nodes, tsvHelpers));
     } catch {
       // Clipboard write denied — in-memory stash still works for internal paste
     }
-  }, [tree, selectedIds]);
+  }, [tree, selectedIds, tsvHelpers]);
 
   const paste = useCallback(
     (insertAfterId?: string) => {

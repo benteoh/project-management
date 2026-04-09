@@ -17,6 +17,7 @@ import { formatDate } from "@/lib/utils";
 import type { EngineerPoolEntry } from "@/types/engineer-pool";
 import type { Project } from "@/types/project";
 import type { TimesheetUpload } from "@/types/timesheet";
+import type { ForecastHoursByScopeRecord } from "@/types/forecast-scope";
 
 import { saveProgrammeAction } from "./actions";
 
@@ -36,6 +37,7 @@ export default function ProjectPageClient({
   programmeLoadError,
   bankHolidays,
   initialTimesheetUploads,
+  forecastHoursByScope,
 }: {
   projectId: string;
   project: Project | null;
@@ -45,6 +47,7 @@ export default function ProjectPageClient({
   programmeLoadError: string | null;
   bankHolidays: string[];
   initialTimesheetUploads: TimesheetUpload[];
+  forecastHoursByScope: ForecastHoursByScopeRecord;
 }) {
   const [activeTab, setActiveTab] = useState<Tab>("Programme");
   const [programmeTree, setProgrammeTree] = useState<ProgrammeNode[]>(initialProgrammeTree);
@@ -156,6 +159,7 @@ export default function ProjectPageClient({
             projectId={projectId}
             initialTree={programmeTree}
             initialEngineerPool={engineerPool}
+            forecastHoursByScope={forecastHoursByScope}
             loadError={programmeLoadError}
             saveProgramme={saveProgramme}
             onTreeChange={setProgrammeTree}
