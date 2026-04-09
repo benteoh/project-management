@@ -86,6 +86,14 @@ function makeStructuralNode(
   };
 }
 
+/**
+ * Merges parsed CSV rows into an existing programme tree.
+ *
+ * Activities matched by `activityId` are updated in place — they are NOT
+ * reparented even if their position in the CSV implies a different parent.
+ * The diff records field changes only; the caller should not imply reparenting
+ * in any preview UI.
+ */
 export function mergeParsedRows(
   rows: ParsedRow[],
   tree: ProgrammeNode[]
@@ -171,6 +179,8 @@ export function mergeParsedRows(
     }
 
     if (row.rowType === "activity") {
+      // csvParser guarantees activityId presence on "activity" rows;
+      // guard retained for robustness in direct test construction.
       if (!row.activityId) continue;
       const currentParent = currentSubtask ?? currentTask ?? currentScope;
 
