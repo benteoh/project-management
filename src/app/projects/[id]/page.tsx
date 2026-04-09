@@ -1,11 +1,13 @@
 import type { ProgrammeNode } from "@/components/programme/types";
 import type { EngineerPoolEntry } from "@/types/engineer-pool";
 import type { Project } from "@/types/project";
+import type { TimesheetUpload } from "@/types/timesheet";
 import { getBankHolidays } from "@/lib/bank-holidays/bankHolidays";
 import { loadProjectById } from "@/lib/projects/projectDb";
 import { createSupabaseProgrammeRepository } from "@/lib/programme/supabaseProgrammeRepository";
 import { listProjectEngineersForProjectFromDb } from "@/lib/projectEngineers/projectEngineersDb";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { listTimesheetUploads } from "@/lib/timesheet/timesheetDb";
 
 import ProjectPageClient from "./project-page-client";
 
@@ -20,16 +22,19 @@ export default async function ProjectPage({ params }: Props) {
   let initialEngineerPool: EngineerPoolEntry[] = [];
 
   let bankHolidays: string[] = [];
+  let initialTimesheetUploads: TimesheetUpload[] = [];
 
   try {
     const client = await createServerSupabaseClient();
-    const [projectRes, programmeResult, holidays, projectEngineersRes] = await Promise.all([
+    const [projectRes, programmeResult, holidays, projectEngineersRes, uploadsRes] = await Promise.all([
       loadProjectById(client, id),
       createSupabaseProgrammeRepository(client, id).load(),
       getBankHolidays(),
       listProjectEngineersForProjectFromDb(client, id),
+      listTimesheetUploads(client, id),
     ]);
     bankHolidays = holidays;
+    if ("uploads" in uploadsRes) initialTimesheetUploads = uploadsRes.uploads;
 
     if ("project" in projectRes) {
       project = projectRes.project;
@@ -68,6 +73,7 @@ export default async function ProjectPage({ params }: Props) {
       initialEngineerPool={initialEngineerPool}
       programmeLoadError={programmeLoadError}
       bankHolidays={bankHolidays}
+      initialTimesheetUploads={initialTimesheetUploads}
     />
   );
 }

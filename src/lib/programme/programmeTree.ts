@@ -37,6 +37,7 @@ export function flattenTree(
           planned_hrs: eng.plannedHrs,
           forecast_hrs: eng.forecastHrs,
           position: i,
+          rate: eng.rate,
         });
       });
     }
@@ -61,6 +62,18 @@ export function collectScopeIds(nodes: ProgrammeNode[]): string[] {
   };
   walk(nodes);
   return ids;
+}
+
+export function collectScopeNames(nodes: ProgrammeNode[]): string[] {
+  const names: string[] = [];
+  const walk = (list: ProgrammeNode[]) => {
+    for (const n of list) {
+      if (n.type === "scope") names.push(n.name);
+      walk(n.children);
+    }
+  };
+  walk(nodes);
+  return names;
 }
 
 export function buildTreeFromRows(
@@ -92,6 +105,7 @@ export function buildTreeFromRows(
         isLead: e.is_lead,
         plannedHrs: e.planned_hrs !== null ? Number(e.planned_hrs) : null,
         forecastHrs: e.forecast_hrs !== null ? Number(e.forecast_hrs) : null,
+        rate: e.rate,
       }));
     }
 

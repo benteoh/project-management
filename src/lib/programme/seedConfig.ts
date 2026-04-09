@@ -11,6 +11,7 @@ export const SEED_PROJECT_ID = "1" as const;
 /** Sample project row for `public.projects`. */
 export const seedProjectRow: ProjectUpsertRow = {
   id: SEED_PROJECT_ID,
+  project_code: "DSP-EU-001",
   name: "Euston Underground",
   client: "HS2 Ltd",
   office: "London",
