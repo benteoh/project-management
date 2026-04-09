@@ -9,6 +9,7 @@ function row(overrides: Partial<ForecastGridRow> = {}): ForecastGridRow {
   return {
     scope: { id: "s1", label: "Scope 1" },
     engineer: { id: "e1", code: "ENG" },
+    hourRate: null,
     plannedHrs: 16,
     scopeStartDate: "2026-01-05", // Monday
     scopeEndDate: "2026-03-27",

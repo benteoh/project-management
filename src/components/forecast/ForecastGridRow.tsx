@@ -29,8 +29,8 @@ export function ForecastGridRow({ row, index, dailyDates, bankHolidays }: Foreca
         </span>
       </div>
       <div className={`border-border ${SUMMARY_COL_W} shrink-0 border-r px-4 py-2`}>
-        {engineer.rateA != null && (
-          <span className="text-foreground text-sm tabular-nums">£{engineer.rateA.toFixed(2)}</span>
+        {row.hourRate != null && (
+          <span className="text-foreground text-sm tabular-nums">£{row.hourRate.toFixed(2)}</span>
         )}
       </div>
       <div className={`border-border ${SUMMARY_COL_W} shrink-0 border-r px-4 py-2`} />

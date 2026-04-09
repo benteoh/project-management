@@ -4,6 +4,7 @@ import { type MouseEvent, useCallback, useEffect, useMemo, useRef, useState } fr
 import { useRouter } from "next/navigation";
 
 import { parseFlexibleActivityDate } from "@/components/programme/dateUtils";
+import { hourRateForScopeSlot } from "@/lib/forecast/hourRateForScopeSlot";
 import { cellValuesHasPositiveHours } from "@/lib/forecast/cellValuesUtils";
 import { loadForecastEntries, saveForecastEntries } from "@/lib/forecast/forecastDb";
 import {
@@ -287,6 +288,8 @@ export function ForecastTab({
       string,
       {
         plannedHrsByEngineer: Map<string, number | null>;
+        /** scope_engineers.rate (A–E) per engineer */
+        rateByEngineer: Map<string, string>;
         startDate: string | null;
         endDate: string | null;
         status: string;
@@ -295,9 +298,11 @@ export function ForecastTab({
     for (const node of programmeTree) {
       if (node.type !== "scope") continue;
       const plannedHrsByEngineer = new Map<string, number | null>();
+      const rateByEngineer = new Map<string, string>();
       if (node.engineers) {
         for (const e of node.engineers) {
           plannedHrsByEngineer.set(e.engineerId, e.plannedHrs ?? null);
+          rateByEngineer.set(e.engineerId, e.rate ?? "A");
         }
       }
       // Dates may be stored as "dd-Mon-yy" (programme format) — convert to ISO for comparisons
@@ -309,6 +314,7 @@ export function ForecastTab({
       };
       map.set(node.id, {
         plannedHrsByEngineer,
+        rateByEngineer,
         startDate: toIso(node.start),
         endDate: toIso(node.finish),
         status: node.status ?? "",
@@ -327,9 +333,11 @@ export function ForecastTab({
         if (seen.has(rid)) continue;
         seen.add(rid);
         const meta = scopeMetaMap.get(scope.id);
+        const rateSlot = meta?.rateByEngineer.get(engineer.id);
         out.push({
           scope,
           engineer,
+          hourRate: hourRateForScopeSlot(engineer, rateSlot),
           plannedHrs: meta?.plannedHrsByEngineer.get(engineer.id) ?? null,
           scopeStartDate: meta?.startDate ?? null,
           scopeEndDate: meta?.endDate ?? null,

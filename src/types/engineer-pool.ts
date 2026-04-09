@@ -13,14 +13,16 @@ export interface Engineer {
   maxWeeklyHours: number | null;
 }
 
+import type { ProjectEngineerRates } from "@/types/project-engineer";
+
 /** Programme / grid: pool row (identity + labels for pickers). */
 export interface EngineerPoolEntry {
   id: string;
   code: string;
   firstName?: string;
   lastName?: string;
-  /** Rate A (£/hr) from project_engineers for the current project. Null when not set. */
-  rateA?: number | null;
+  /** All five £/hr slots (A–E) from `project_engineers` for the current project. */
+  rates?: ProjectEngineerRates;
   /** Capacity caps from engineer_pool. Null = use DEFAULT_MAX_DAILY/WEEKLY_HOURS. */
   maxDailyHours?: number | null;
   maxWeeklyHours?: number | null;

@@ -12,7 +12,7 @@ export const SEED_PROJECT_ID = "1" as const;
 export const seedProjectRow: ProjectUpsertRow = {
   id: SEED_PROJECT_ID,
   project_code: "489",
-  name: "Euston",
+  name: "Euston Station",
   client: "HS2 Ltd",
   office: "London",
   status: "active",

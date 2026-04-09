@@ -8,6 +8,12 @@ import type { ForecastHoursPerEngineer } from "@/types/forecast-scope";
 import { formatEngineerListLabel, formatEngineerPickerLabel } from "@/lib/engineer-pool-display";
 import { useAnchoredFixedPosition } from "@/components/ui/useAnchoredFixedPosition";
 
+import {
+  SCOPE_RATE_SLOTS,
+  deriveScopeRateFromAllocations,
+  normalizeScopeRate,
+  type ScopeRateSlot,
+} from "@/lib/programme/scopeRateSlots";
 import { renderProgrammeHeaderLabel } from "./programmeHeaderLabel";
 import { programmeTableHeaderRowClassName } from "./programmeTableHeaderConstants";
 import type { EngineerAllocation } from "./types";
@@ -39,7 +45,15 @@ export function EngineerPopup({
   onClose: () => void;
 }) {
   const [draft, setDraft] = useState<EngineerAllocation[]>(engineers);
+  const [scopeRate, setScopeRate] = useState<ScopeRateSlot>(() =>
+    deriveScopeRateFromAllocations(engineers)
+  );
   const popupRef = useRef<HTMLDivElement>(null);
+
+  const applyScopeRate = (slot: ScopeRateSlot) => {
+    setScopeRate(slot);
+    setDraft((prev) => prev.map((e) => ({ ...e, rate: slot })));
+  };
 
   const forecastHrsByEngineerId = useMemo(() => {
     const m = new Map<string, number>();
@@ -73,7 +87,7 @@ export function EngineerPopup({
         engineerId: engineerPool[0]?.id ?? "",
         isLead: false,
         plannedHrs: null,
-        rate: "A",
+        rate: scopeRate,
       },
     ]);
 
@@ -98,9 +112,27 @@ export function EngineerPopup({
       onClick={(e) => e.stopPropagation()}
     >
       <div className="p-3">
-        <p className="text-muted-foreground mb-2 text-xs font-semibold tracking-wide uppercase">
-          Engineer Allocation
-        </p>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+            Engineer Allocation
+          </p>
+          <label className="text-muted-foreground flex items-center gap-2 text-xs font-medium">
+            <span className="shrink-0">Scope rate</span>
+            <select
+              className="border-border bg-background focus:ring-ring rounded border px-2 py-1 text-xs font-medium tabular-nums focus:ring-1 focus:outline-none"
+              value={scopeRate}
+              onChange={(e) => applyScopeRate(normalizeScopeRate(e.target.value))}
+              title="Costing rate band for this scope (applies to all engineers below)"
+              aria-label="Scope rate band A to E"
+            >
+              {SCOPE_RATE_SLOTS.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
 
         {/* Header + rows share one full-bleed width — header used to sit in `p-3` while body used `-mx-3`, which misaligned columns. */}
         <div className="border-border -mx-3 border-x border-b">

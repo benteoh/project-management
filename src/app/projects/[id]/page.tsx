@@ -11,6 +11,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { listTimesheetUploads } from "@/lib/timesheet/timesheetDb";
 
 import type { ForecastHoursByScopeRecord } from "@/types/forecast-scope";
+import type { ProjectEngineerRates } from "@/types/project-engineer";
 
 import ProjectPageClient from "./project-page-client";
 
@@ -57,16 +58,16 @@ export default async function ProjectPage({ params }: Props) {
 
     if (programmeResult.ok) {
       initialProgrammeTree = programmeResult.tree;
-      // Merge rate_a from project_engineers into each pool entry
-      const rateAByEngineerId = new Map<string, number | null>();
+      // Merge A–E rates from project_engineers into each pool entry (forecast uses scope rate band)
+      const ratesByEngineerId = new Map<string, ProjectEngineerRates>();
       if ("rows" in projectEngineersRes) {
         for (const pe of projectEngineersRes.rows) {
-          rateAByEngineerId.set(pe.engineerId, pe.rates[0]);
+          ratesByEngineerId.set(pe.engineerId, pe.rates);
         }
       }
       initialEngineerPool = programmeResult.engineerPool.map((e) => ({
         ...e,
-        rateA: rateAByEngineerId.get(e.id) ?? null,
+        rates: ratesByEngineerId.get(e.id),
       }));
     } else {
       programmeLoadError = programmeResult.error;

@@ -252,7 +252,7 @@ export const ForecastAgGrid = forwardRef<ForecastAgGridHandle, Props>(function F
           _scopeId: row.scope.id,
           _scope: row.scope.label,
           _person: formatEngineerListLabel(row.engineer, row.engineer.code),
-          _hourRate: row.engineer.rateA ?? null,
+          _hourRate: row.hourRate,
           _plannedHrs: row.plannedHrs,
           _scopeDivider: idx > 0 && row.scope.id !== prevScopeId,
           _scopeLeadRow: scopeLeadRow,
