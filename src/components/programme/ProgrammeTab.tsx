@@ -29,6 +29,7 @@ import { MiniCalendar } from "./MiniCalendar";
 import { ProgrammeRow } from "./ProgrammeRow";
 import { NodeContextMenu } from "./NodeContextMenu";
 import { AddNodeModal } from "./AddNodeModal";
+import { CsvImportModal } from "./CsvImportModal";
 import { EngineerPopup } from "./EngineerPopup";
 import {
   applyActivityQuery,
@@ -93,6 +94,7 @@ export function ProgrammeTab({
     scopeId: string;
     rect: { top: number; left: number; width: number; height: number };
   } | null>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [activityQuery, setActivityQuery] = useState<ActivityQueryState>(DEFAULT_ACTIVITY_QUERY);
   const [openFilter, setOpenFilter] = useState<{
     column: "status";
@@ -296,6 +298,11 @@ export function ProgrammeTab({
     setFormValues(defaultForm);
   };
 
+  function handleImportConfirm(importedTree: ProgrammeNode[]) {
+    commit(applyProgrammeRollups(importedTree));
+    setShowImportModal(false);
+  }
+
   const openAddScopeModal = () => {
     setCtxMenu(null);
     setEditingCell(null);
@@ -487,6 +494,7 @@ export function ProgrammeTab({
           onSort={toggleSort}
           onStatusFilterClick={(e) => openFilterFor("status", e)}
           onAddScope={openAddScopeModal}
+          onImportCsv={() => setShowImportModal(true)}
         />
 
         {visibleTree.length === 0 && hasAnyActivityFilter ? (
@@ -590,6 +598,14 @@ export function ProgrammeTab({
             setAddForm(null);
             setFormValues(defaultForm);
           }}
+        />
+      )}
+
+      {showImportModal && (
+        <CsvImportModal
+          tree={present}
+          onConfirm={handleImportConfirm}
+          onClose={() => setShowImportModal(false)}
         />
       )}
     </div>
