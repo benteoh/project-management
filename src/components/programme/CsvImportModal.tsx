@@ -36,7 +36,12 @@ export function CsvImportModal({ tree, onConfirm, onClose }: CsvImportModalProps
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
-        const rows = parseCsv(ev.target?.result as string);
+        const text = ev.target?.result;
+        if (typeof text !== "string") {
+          setError("Could not read file");
+          return;
+        }
+        const rows = parseCsv(text);
         const result = mergeParsedRows(rows, tree);
         setDiff(result.diff);
         setPendingTree(result.updatedTree);
@@ -45,6 +50,9 @@ export function CsvImportModal({ tree, onConfirm, onClose }: CsvImportModalProps
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to parse CSV");
       }
+    };
+    reader.onerror = () => {
+      setError("Could not read file");
     };
     reader.readAsText(file);
   }
