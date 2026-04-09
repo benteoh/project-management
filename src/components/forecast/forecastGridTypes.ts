@@ -23,3 +23,10 @@ export type HistoryChange = {
 };
 
 export type HistoryEntry = HistoryChange[];
+
+/** Result of a pending autofill — shown in the confirmation bar until approved or discarded. */
+export type PendingFill = {
+  changes: HistoryChange[];
+  warnings: string[];
+  budgetWarnings: string[];
+};

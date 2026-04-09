@@ -21,7 +21,8 @@ import { useCellStore } from "./useCellStore";
 import { useGridHistory } from "./useGridHistory";
 import { useGridSelection } from "./useGridSelection";
 import { useGridKeyboard } from "./useGridKeyboard";
-import type { RowData } from "./forecastGridTypes";
+import { useAutofill } from "./useAutofill";
+import type { HistoryEntry, PendingFill, RowData } from "./forecastGridTypes";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -54,11 +55,29 @@ export function ForecastAgGrid({
   // ── Feature hooks ──────────────────────────────────────────────────────────
   const { cellValuesRef, setCellValue } = useCellStore();
 
-  const { historyRef, historyIndexRef, editingOldValueRef, pushHistory, applyHistory } =
-    useGridHistory({ gridRef, setCellValue });
+  // Incremented on every undo/redo so rowData recomputes from the updated cellValuesRef.
+  const [rowDataRevision, setRowDataRevision] = useState(0);
+
+  // Stable ref so useGridHistory (empty-deps effect) can call the latest handleHistoryApplied
+  // without creating a circular hook dependency.
+  const handleHistoryAppliedRef = useRef<
+    ((entry: HistoryEntry, direction: "undo" | "redo") => void) | null
+  >(null);
+
+  const { editingOldValueRef, pushHistory, undo, redo, canRedo, advanceRedoIndex } = useGridHistory(
+    {
+      gridRef,
+      setCellValue,
+      onHistoryApplied: (entry, direction) => {
+        handleHistoryAppliedRef.current?.(entry, direction);
+        setRowDataRevision((n) => n + 1);
+      },
+    }
+  );
 
   const {
     selRef,
+    hasSelection,
     fillHandleRef,
     fillPreviewSel,
     onCellMouseDown,
@@ -67,17 +86,63 @@ export function ForecastAgGrid({
     onBodyScroll,
   } = useGridSelection({ gridRef, containerRef, dateColFieldsRef, setCellValue, pushHistory });
 
+  const {
+    pendingFill,
+    pendingFillRef,
+    pendingValuesRef,
+    triggerAutofill,
+    addPendingChange,
+    approveFill,
+    discardFill,
+    restorePreview,
+    isPreviewActive,
+    handleHistoryApplied,
+  } = useAutofill({
+    rows,
+    dateColFields,
+    selRef,
+    gridRef,
+    cellValuesRef,
+    bankHolidays,
+    setCellValue,
+    pushHistory,
+  });
+
+  // Keep the ref in sync so the history callback above always calls the latest version
+  handleHistoryAppliedRef.current = handleHistoryApplied;
+
+  // Refs so stable AG Grid / keyboard closures always read the latest values
+  const isPreviewActiveRef = useRef(isPreviewActive);
+  isPreviewActiveRef.current = isPreviewActive;
+  const approveFillRef = useRef<() => void>(() => {});
+  approveFillRef.current = approveFill;
+  const restorePreviewRef = useRef<(fill: PendingFill) => void>(() => {});
+  restorePreviewRef.current = restorePreview;
+
   useGridKeyboard({
     containerRef,
     gridRef,
     selRef,
     dateColFieldsRef,
-    historyRef,
-    historyIndexRef,
     setCellValue,
     pushHistory,
-    applyHistory,
+    undo,
+    redo,
+    canRedo,
+    advanceRedoIndex,
+    isPreviewActiveRef,
+    discardFill,
+    approveFillRef,
+    pendingFillRef,
+    restorePreviewRef,
   });
+
+  // Refresh all cells after pendingFill changes so value-getter columns
+  // (Total Hours, Total Spent) pick up the merged pending values from rowData.
+  useEffect(() => {
+    if (!pendingFill) return;
+    gridRef.current?.api?.refreshCells({ force: true });
+  }, [pendingFill]);
 
   // ── Scroll to today ────────────────────────────────────────────────────────
   const scrollToToday = useCallback(() => {
@@ -123,11 +188,14 @@ export function ForecastAgGrid({
   }, [todayIso]);
 
   // ── Row data ───────────────────────────────────────────────────────────────
+  // pendingFill in deps ensures a re-render when preview is set/cleared so
+  // cells pick up pending values from pendingValuesRef for ghost display.
   const rowData = useMemo<RowData[]>(
     () =>
       rows.map((row, idx) => {
         const id = `${row.scope.id}-${row.engineer.id}`;
         const saved = cellValuesRef.current[id] ?? {};
+        const pending = pendingValuesRef.current[id] ?? {};
         const prevScopeId = idx > 0 ? rows[idx - 1].scope.id : null;
         const base: RowData = {
           _id: id,
@@ -140,13 +208,23 @@ export function ForecastAgGrid({
         };
         for (const d of dailyDates) {
           const field = toISODate(d);
-          base[field] = (saved[field] ?? null) as string | number | null;
+          // Pending wins for ghost display; committed value is the fallback
+          base[field] = (pending[field] ?? saved[field] ?? null) as string | number | null;
         }
         return base;
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [rows, dailyDates]
+    [rows, dailyDates, pendingFill, rowDataRevision]
   );
+
+  // ── Pending set — fast lookup for ghost cell styling ──────────────────────
+  const pendingSet = useMemo<Set<string>>(() => {
+    const s = new Set<string>();
+    if (pendingFill) {
+      for (const c of pendingFill.changes) s.add(`${c.rowId}:${c.field}`);
+    }
+    return s;
+  }, [pendingFill]);
 
   // ── Column definitions ─────────────────────────────────────────────────────
   const columnDefs = useMemo(
@@ -158,10 +236,11 @@ export function ForecastAgGrid({
         selRef,
         dateColFieldsRef,
         fillPreviewSel,
+        pendingSet,
       }),
     // selRef and dateColFieldsRef are stable refs — read at cell-render time, not here
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [dailyDates, bankHolidays, todayIso, fillPreviewSel]
+    [dailyDates, bankHolidays, todayIso, fillPreviewSel, pendingSet]
   );
 
   // ── Grid ready: scroll to today ────────────────────────────────────────────
@@ -196,6 +275,7 @@ export function ForecastAgGrid({
         }
         .forecast-year-header .ag-header-group-cell-label { justify-content: flex-start; padding-left: 4px; }
         /* Date column headers */
+        .forecast-date-header { cursor: pointer; }
         .forecast-date-header .ag-header-cell-text {
           writing-mode: vertical-rl;
           transform: rotate(180deg);
@@ -216,6 +296,7 @@ export function ForecastAgGrid({
           user-select: none;
         }
         .forecast-date-cell--has-value  { font-weight: 500; }
+        .forecast-date-cell--pending    { color: var(--chart-1); opacity: 0.7; font-style: italic; }
         /* Suppress AG Grid's focused-cell border everywhere — date cells use custom selection */
         .ag-cell-focus:not(.ag-cell-inline-editing) {
           border-color: transparent !important;
@@ -251,103 +332,253 @@ export function ForecastAgGrid({
         }
       `}</style>
 
-      {/* Container needs tabIndex to receive keyboard / paste events */}
-      <div
-        ref={containerRef}
-        tabIndex={-1}
-        style={{ height: "100%", width: "100%", position: "relative", outline: "none" }}
-      >
-        <AgGridReact<RowData>
-          ref={gridRef}
-          theme={forecastTheme}
-          groupHeaderHeight={20}
-          rowData={rowData}
-          columnDefs={columnDefs}
-          getRowId={(p: GetRowIdParams<RowData>) => String(p.data._id)}
-          onGridReady={onGridReady}
-          onCellMouseDown={onCellMouseDown}
-          onCellMouseOver={onCellMouseOver}
-          onBodyScroll={() => {
-            onBodyScroll();
-            updateTodayLine();
+      <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+        {/* Autofill toolbar — also shows inline preview/confirm when active */}
+        <AutofillToolbar
+          hasSelection={hasSelection}
+          pendingFill={pendingFill}
+          onAutofillAll={() => {
+            gridRef.current?.api.stopEditing();
+            triggerAutofill("all");
           }}
-          onCellEditingStarted={(e) => {
-            const field = e.colDef.field;
-            if (!field || !e.node.id || !/^\d{4}-\d{2}-\d{2}$/.test(field)) return;
-            editingOldValueRef.current = { rowId: e.node.id, field, value: e.value };
+          onAutofillSelection={() => {
+            gridRef.current?.api.stopEditing();
+            triggerAutofill("selection");
           }}
-          onCellValueChanged={(e: CellValueChangedEvent<RowData>) => {
-            const captured = editingOldValueRef.current;
-            editingOldValueRef.current = null;
-            if (!captured) return;
-            const field = e.colDef.field;
-            if (!field || !e.node.id || !/^\d{4}-\d{2}-\d{2}$/.test(field)) return;
-            if (captured.rowId !== e.node.id || captured.field !== field) return;
-            if (!cellValuesRef.current[e.node.id]) cellValuesRef.current[e.node.id] = {};
-            if (e.newValue == null) {
-              delete cellValuesRef.current[e.node.id][field];
-            } else {
-              cellValuesRef.current[e.node.id][field] = e.newValue;
-            }
-            pushHistory([
-              { rowId: e.node.id, field, oldValue: captured.value, newValue: e.newValue },
-            ]);
-          }}
-          getRowStyle={(p) =>
-            p.data?._scopeDivider ? { borderTop: "2px solid var(--border)" } : undefined
-          }
-          rowDragManaged
-          defaultColDef={{
-            sortable: false,
-            filter: false,
-            resizable: false,
-            suppressHeaderMenuButton: true,
-          }}
-          singleClickEdit
-          stopEditingWhenCellsLoseFocus
-          enterNavigatesVertically
-          enterNavigatesVerticallyAfterEdit
-          suppressScrollOnNewData
-          animateRows={false}
+          onApprove={approveFill}
+          onDiscard={discardFill}
         />
 
-        {/* Today line — vertical overlay independent of cell borders */}
-        {todayLinePos !== null && (
+        {/* Grid container — needs tabIndex to receive keyboard / paste events */}
+        <div
+          ref={containerRef}
+          tabIndex={-1}
+          style={{ flex: 1, position: "relative", outline: "none", minHeight: 0 }}
+        >
+          <AgGridReact<RowData>
+            ref={gridRef}
+            theme={forecastTheme}
+            groupHeaderHeight={20}
+            rowData={rowData}
+            columnDefs={columnDefs}
+            getRowId={(p: GetRowIdParams<RowData>) => String(p.data._id)}
+            onGridReady={onGridReady}
+            onCellMouseDown={onCellMouseDown}
+            onCellMouseOver={onCellMouseOver}
+            onBodyScroll={() => {
+              onBodyScroll();
+              updateTodayLine();
+            }}
+            onCellEditingStarted={(e) => {
+              const field = e.colDef.field;
+              if (!field || !e.node.id || !/^\d{4}-\d{2}-\d{2}$/.test(field)) return;
+              editingOldValueRef.current = { rowId: e.node.id, field, value: e.value };
+            }}
+            onCellValueChanged={(e: CellValueChangedEvent<RowData>) => {
+              const captured = editingOldValueRef.current;
+              editingOldValueRef.current = null;
+              if (!captured) return;
+              const field = e.colDef.field;
+              if (!field || !e.node.id || !/^\d{4}-\d{2}-\d{2}$/.test(field)) return;
+              if (captured.rowId !== e.node.id || captured.field !== field) return;
+              if (isPreviewActiveRef.current) {
+                // During preview, route edits into the pending store instead of committing
+                addPendingChange(e.node.id, field, captured.value, e.newValue);
+                gridRef.current?.api.refreshCells({ force: true });
+              } else {
+                if (!cellValuesRef.current[e.node.id]) cellValuesRef.current[e.node.id] = {};
+                if (e.newValue == null) {
+                  delete cellValuesRef.current[e.node.id][field];
+                } else {
+                  cellValuesRef.current[e.node.id][field] = e.newValue;
+                }
+                pushHistory([
+                  { rowId: e.node.id, field, oldValue: captured.value, newValue: e.newValue },
+                ]);
+              }
+            }}
+            getRowStyle={(p) =>
+              p.data?._scopeDivider ? { borderTop: "2px solid var(--border)" } : undefined
+            }
+            rowDragManaged
+            defaultColDef={{
+              sortable: false,
+              filter: false,
+              resizable: false,
+              suppressHeaderMenuButton: true,
+            }}
+            singleClickEdit
+            stopEditingWhenCellsLoseFocus
+            enterNavigatesVertically
+            enterNavigatesVerticallyAfterEdit
+            suppressScrollOnNewData
+            animateRows={false}
+          />
+
+          {/* Today line — vertical overlay independent of cell borders */}
+          {todayLinePos !== null && (
+            <div
+              style={{
+                position: "absolute",
+                top: todayLinePos.top,
+                bottom: 0,
+                left: todayLinePos.x,
+                width: 2,
+                backgroundColor: "var(--chart-1)",
+                opacity: 0.5,
+                pointerEvents: "none",
+                zIndex: 1,
+              }}
+            />
+          )}
+
+          {/* Fill handle — always in DOM, shown/hidden via direct style.display by useGridSelection */}
           <div
+            ref={fillHandleRef}
+            onMouseDown={onFillHandleMouseDown}
             style={{
+              display: "none",
               position: "absolute",
-              top: todayLinePos.top,
-              bottom: 0,
-              left: todayLinePos.x,
-              width: 2,
+              left: 0,
+              top: 0,
+              width: FILL_HANDLE_SIZE,
+              height: FILL_HANDLE_SIZE,
               backgroundColor: "var(--chart-1)",
-              opacity: 0.5,
-              pointerEvents: "none",
+              border: "1px solid var(--card)",
+              borderRadius: 1,
+              cursor: "crosshair",
               zIndex: 1,
+              pointerEvents: "all",
             }}
           />
-        )}
-
-        {/* Fill handle — always in DOM, shown/hidden via direct style.display by useGridSelection */}
-        <div
-          ref={fillHandleRef}
-          onMouseDown={onFillHandleMouseDown}
-          style={{
-            display: "none",
-            position: "absolute",
-            left: 0,
-            top: 0,
-            width: FILL_HANDLE_SIZE,
-            height: FILL_HANDLE_SIZE,
-            backgroundColor: "var(--chart-1)",
-            border: "1px solid var(--card)",
-            borderRadius: 1,
-            cursor: "crosshair",
-            zIndex: 1,
-            pointerEvents: "all",
-          }}
-        />
+        </div>
       </div>
     </>
+  );
+}
+
+// ── Sub-components ─────────────────────────────────────────────────────────────
+
+function AutofillToolbar({
+  hasSelection,
+  pendingFill,
+  onAutofillAll,
+  onAutofillSelection,
+  onApprove,
+  onDiscard,
+}: {
+  hasSelection: boolean;
+  pendingFill: PendingFill | null;
+  onAutofillAll: () => void;
+  onAutofillSelection: () => void;
+  onApprove: () => void;
+  onDiscard: () => void;
+}) {
+  const btnBase =
+    "rounded-md border px-3 py-1 text-xs font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
+  const btnDefault = `${btnBase} border-border text-muted-foreground hover:text-foreground`;
+
+  const hasChanges = (pendingFill?.changes.length ?? 0) > 0;
+  const warnings = pendingFill?.warnings ?? [];
+  const budgetWarnings = pendingFill?.budgetWarnings ?? [];
+
+  return (
+    <div className="border-border flex shrink-0 flex-wrap items-center gap-2 border-b px-4 py-1.5">
+      <span className="text-muted-foreground flex items-center gap-1 text-xs font-medium">
+        <SparklesIcon />
+        Auto-fill
+      </span>
+      <button
+        type="button"
+        onClick={onAutofillAll}
+        className={btnDefault}
+        title="Fill all unallocated cells respecting planned hours and capacity"
+      >
+        All rows
+      </button>
+      <button
+        type="button"
+        onMouseDown={(e) => {
+          // Must fire on mousedown, not click — the document mousedown listener in
+          // useGridSelection clears selRef before the click event reaches here.
+          e.preventDefault();
+          if (hasSelection) onAutofillSelection();
+        }}
+        disabled={!hasSelection}
+        className={btnDefault}
+        title="Fill selected cells only"
+      >
+        Selection
+      </button>
+
+      {pendingFill !== null && (
+        <>
+          <span className="text-border mx-1 select-none">|</span>
+          <span className="text-muted-foreground text-xs">
+            {hasChanges ? (
+              <>
+                <span className="font-medium">{pendingFill.changes.length} cells</span>
+                {" across "}
+                <span className="font-medium">
+                  {new Set(pendingFill.changes.map((c) => c.rowId)).size} rows
+                </span>
+              </>
+            ) : (
+              "Nothing to fill"
+            )}
+          </span>
+          {warnings.length > 0 &&
+            (() => {
+              const noHrs = warnings.filter((w) => w.includes("No planned hours"));
+              const atCap = warnings.filter((w) => w.includes("capacity reached"));
+              const parts: string[] = [];
+              if (atCap.length) parts.push(`${atCap.length} at capacity`);
+              if (noHrs.length) parts.push(`${noHrs.length} no planned hrs`);
+              if (!parts.length) parts.push(`${warnings.length} skipped`);
+              return (
+                <span
+                  className="text-status-warning cursor-help text-xs"
+                  title={warnings.join("\n")}
+                >
+                  ⚠ {parts.join(", ")}
+                </span>
+              );
+            })()}
+          {budgetWarnings.length > 0 && (
+            <span
+              className="text-status-critical cursor-help text-xs"
+              title={budgetWarnings.join("\n")}
+            >
+              ⚠ {budgetWarnings.length} exceed planned hrs
+            </span>
+          )}
+          <button type="button" onClick={onDiscard} className={btnDefault}>
+            ✕ Discard
+          </button>
+          {hasChanges && (
+            <button
+              type="button"
+              onClick={onApprove}
+              className="bg-chart-1 hover:bg-chart-1/90 rounded-md border-0 px-3 py-1 text-xs font-medium text-white transition-colors"
+            >
+              ✓ Apply
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function SparklesIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width={14} height={14} fill="currentColor" aria-hidden>
+      {/* Large spark — centre */}
+      <path d="M8 1 L8.6 6.4 L14 7 L8.6 7.6 L8 13 L7.4 7.6 L2 7 L7.4 6.4 Z" />
+      {/* Small spark — top right */}
+      <path d="M12.5 1 L12.8 3.2 L15 3.5 L12.8 3.8 L12.5 6 L12.2 3.8 L10 3.5 L12.2 3.2 Z" />
+      {/* Small spark — bottom left */}
+      <path d="M3.5 10 L3.8 12.2 L6 12.5 L3.8 12.8 L3.5 15 L3.2 12.8 L1 12.5 L3.2 12.2 Z" />
+    </svg>
   );
 }
