@@ -93,6 +93,29 @@ export function useGridSelection({
     });
   }
 
+  /** Select all displayed rows × all visible date columns (used by Ctrl/Cmd+A). */
+  function selectAllVisible() {
+    const api = gridRef.current?.api;
+    if (!api) return;
+    const rowCount = api.getDisplayedRowCount();
+    const fields = dateColFieldsRef.current;
+    if (rowCount === 0 || fields.length === 0) {
+      selRef.current = null;
+      setHasSelection(false);
+      hideFillHandle();
+      api.refreshCells({ force: true });
+      return;
+    }
+    selRef.current = {
+      r1: 0,
+      r2: rowCount - 1,
+      c1: 0,
+      c2: fields.length - 1,
+    };
+    setHasSelection(true);
+    refreshSelection();
+  }
+
   // ── Mouse-based range selection (date cells only) ──────────────────────────
 
   function colIndexOf(colId: string): number {
@@ -382,6 +405,7 @@ export function useGridSelection({
     hasSelection,
     fillHandleRef,
     fillPreviewSel,
+    selectAllVisible,
     onCellMouseDown,
     onCellMouseOver,
     onFillHandleMouseDown,

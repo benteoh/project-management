@@ -16,6 +16,7 @@ import {
   type CellValueChangedEvent,
   type GetRowIdParams,
   type GridReadyEvent,
+  type SuppressKeyboardEventParams,
 } from "ag-grid-community";
 
 import { formatEngineerListLabel } from "@/lib/engineer-pool-display";
@@ -104,11 +105,26 @@ export const ForecastAgGrid = forwardRef<ForecastAgGridHandle, Props>(function F
     hasSelection,
     fillHandleRef,
     fillPreviewSel,
+    selectAllVisible,
     onCellMouseDown,
     onCellMouseOver,
     onFillHandleMouseDown,
     onBodyScroll,
   } = useGridSelection({ gridRef, containerRef, dateColFieldsRef, setCellValue, pushHistory });
+
+  const selectAllVisibleRef = useRef(selectAllVisible);
+  selectAllVisibleRef.current = selectAllVisible;
+
+  /** Let our handler own Ctrl/Cmd+A (range select all), including while a cell editor is open. */
+  const suppressKeyboardEvent = useCallback(
+    (params: SuppressKeyboardEventParams<RowData, unknown>) => {
+      const { event } = params;
+      const ev = event;
+      if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "a") return true;
+      return false;
+    },
+    []
+  );
 
   const {
     pendingFill,
@@ -171,6 +187,7 @@ export const ForecastAgGrid = forwardRef<ForecastAgGridHandle, Props>(function F
     gridRef,
     selRef,
     dateColFieldsRef,
+    selectAllVisibleRef,
     setCellValue,
     pushHistory,
     pushVersionRef,
@@ -469,6 +486,7 @@ export const ForecastAgGrid = forwardRef<ForecastAgGridHandle, Props>(function F
               filter: false,
               resizable: false,
               suppressHeaderMenuButton: true,
+              suppressKeyboardEvent,
             }}
             singleClickEdit
             stopEditingWhenCellsLoseFocus

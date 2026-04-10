@@ -12,6 +12,8 @@ type Params = {
   gridRef: React.RefObject<AgGridReact<RowData> | null>;
   selRef: React.MutableRefObject<SelRange | null>;
   dateColFieldsRef: React.MutableRefObject<string[]>;
+  /** Latest select-all handler from useGridSelection (stable ref). */
+  selectAllVisibleRef: React.RefObject<(() => void) | null>;
   setCellValue: (node: IRowNode<RowData>, field: string, value: unknown) => void;
   pushHistory: (entry: HistoryEntry) => void;
   /** Incremented every time pushHistory is called — used to detect stale discard stashes. */
@@ -55,13 +57,15 @@ function redoShortcut(e: KeyboardEvent): boolean {
   return false;
 }
 
-// Registers keydown (capture phase) and paste listeners on the grid container.
+// Grid shortcuts: keydown on document (capture) so Ctrl+A/C/D/R reach us before AG Grid / browser
+// default "select all"; scoped with container.contains(target). Paste stays on the container.
 // All params are stable refs/callbacks — safe inside a single useEffect([], []).
 export function useGridKeyboard({
   containerRef,
   gridRef,
   selRef,
   dateColFieldsRef,
+  selectAllVisibleRef,
   setCellValue,
   pushHistory,
   pushVersionRef,
@@ -158,15 +162,29 @@ export function useGridKeyboard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── All other grid shortcuts — container-level, skipped while editing ─────
+  // ── All other grid shortcuts — document capture, scoped to grid container ──
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
     const onKeyDown = (e: KeyboardEvent) => {
+      const container = containerRef.current;
+      if (!container) return;
+      const t = e.target;
+      if (!t || !(t instanceof Node) || !container.contains(t)) return;
+
       const api = gridRef.current?.api;
       if (!api) return;
-      // Never intercept keys while a cell is actively being edited
+
+      // Cmd/Ctrl+A — select all visible date cells (runs even while a cell editor is focused)
+      if (primaryMod(e) && e.key.toLowerCase() === "a") {
+        e.preventDefault();
+        e.stopPropagation();
+        if (api.getEditingCells().length > 0) {
+          api.stopEditing();
+        }
+        selectAllVisibleRef.current?.();
+        return;
+      }
+
+      // Never intercept other keys while a cell is actively being edited
       if (api.getEditingCells().length > 0) return;
 
       // Cmd/Ctrl+C — copy selection as TSV
@@ -316,11 +334,13 @@ export function useGridKeyboard({
       api.refreshCells({ force: true });
     };
 
-    container.addEventListener("keydown", onKeyDown, true);
-    container.addEventListener("paste", onPaste);
+    document.addEventListener("keydown", onKeyDown, true);
+
+    const containerEl = containerRef.current;
+    containerEl?.addEventListener("paste", onPaste);
     return () => {
-      container.removeEventListener("keydown", onKeyDown, true);
-      container.removeEventListener("paste", onPaste);
+      document.removeEventListener("keydown", onKeyDown, true);
+      containerEl?.removeEventListener("paste", onPaste);
     };
     // All params are stable refs/callbacks — intentional empty deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
