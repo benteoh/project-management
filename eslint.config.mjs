@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Local Claude Code worktrees — not part of this repo
     ".claude/worktrees/**",
+    // Git worktrees (may contain nested .next)
+    ".worktrees/**",
   ]),
 ]);
 
