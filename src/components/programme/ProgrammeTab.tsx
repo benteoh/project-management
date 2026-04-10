@@ -102,6 +102,8 @@ export function ProgrammeTab({
   } | null>(null);
   const engAnchorRef = useRef<HTMLDivElement | null>(null);
   const tableRef = useRef<HTMLDivElement | null>(null);
+  const programmeScrollRef = useRef<HTMLDivElement | null>(null);
+  const pendingScrollToNodeIdRef = useRef<string | null>(null);
   const didHydrateCollapsedFromSessionRef = useRef(false);
 
   const treeNodeIds = useMemo(() => collectProgrammeNodeIds(present), [present]);
@@ -189,6 +191,16 @@ export function ProgrammeTab({
     document.addEventListener("mousedown", onMouseDown);
     return () => document.removeEventListener("mousedown", onMouseDown);
   }, [selection]);
+
+  useLayoutEffect(() => {
+    const id = pendingScrollToNodeIdRef.current;
+    if (!id) return;
+    pendingScrollToNodeIdRef.current = null;
+    const el = programmeScrollRef.current?.querySelector(
+      `[data-programme-node-id="${CSS.escape(id)}"]`
+    );
+    el?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [present]);
 
   // ─── Keyboard shortcuts ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -290,6 +302,7 @@ export function ProgrammeTab({
         : {}),
     };
     if (addForm.type === "scope") {
+      pendingScrollToNodeIdRef.current = newNode.id;
       commit(addScopeToRoot(present, newNode));
     } else if (addForm.parentId != null) {
       commit(addNodeToTree(present, addForm.parentId, newNode));
@@ -487,7 +500,7 @@ export function ProgrammeTab({
         </div>
       )}
 
-      <div className="relative min-h-0 flex-1 overflow-y-auto">
+      <div ref={programmeScrollRef} className="relative min-h-0 flex-1 overflow-y-auto">
         <ProgrammeTableHeader
           sort={activityQuery.sort}
           statusFilterActive={Boolean(activityQuery.statuses)}

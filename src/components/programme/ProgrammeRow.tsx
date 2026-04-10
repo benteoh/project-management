@@ -117,6 +117,7 @@ export function ProgrammeRow({
     <div>
       <div
         data-programme-row
+        data-programme-node-id={node.id}
         className={cn(
           "border-border flex items-center border-b text-sm select-none",
           ROW_BG[node.type],

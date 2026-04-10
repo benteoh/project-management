@@ -16,7 +16,6 @@ import {
 import { supabase } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { EngineerPoolEntry } from "@/types/engineer-pool";
-import type { ProgrammeNodeDbRow } from "@/types/programme";
 import { formatEngineerListLabel } from "@/lib/engineer-pool-display";
 
 import { ColumnFilter } from "./ColumnFilter";
@@ -26,11 +25,9 @@ import type {
   ForecastFilterColumn,
   ForecastGridRow as ForecastGridRowType,
   ForecastProgrammeNode,
-  ScopeItem,
 } from "./types";
 import {
   addMonths,
-  cleanScopeLabel,
   computeStartDate,
   generateDailyDates,
   msUntilNextSaturdayMidnight,
@@ -65,7 +62,8 @@ export function ForecastTab({
   const router = useRouter();
   const [currentWeekStart, setCurrentWeekStart] = useState<string>(computeStartDate);
   const [engineers, setEngineers] = useState<EngineerPoolEntry[]>(initialEngineerPool);
-  const [scopes, setScopes] = useState<ScopeItem[]>(() => scopesFromTree(programmeTree));
+  /** Must derive from programmeTree so new scopes from the Programme tab appear without a full page reload. */
+  const scopes = useMemo(() => scopesFromTree(programmeTree), [programmeTree]);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Toggle: show all dates from project start, or only from current week onward
@@ -231,34 +229,6 @@ export function ForecastTab({
       supabase.removeChannel(channel);
     };
   }, []);
-
-  // Live-update scope list on INSERT into programme_nodes for this project
-  useEffect(() => {
-    const channel = supabase
-      .channel("forecast_programme_nodes")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "programme_nodes",
-          filter: `project_id=eq.${projectId}`,
-        },
-        (payload) => {
-          const row = payload.new as ProgrammeNodeDbRow;
-          if (row.type === "scope") {
-            const label = cleanScopeLabel(row.name);
-            setScopes((prev) =>
-              prev.some((s) => s.id === row.id) ? prev : [...prev, { id: row.id, label }]
-            );
-          }
-        }
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [projectId]);
 
   // ── Date range ─────────────────────────────────────────────────────────────
   const todayIso = toISODate(new Date());
