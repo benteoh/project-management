@@ -14,6 +14,24 @@ describe("parseCsv - header validation", () => {
   it("throws on empty file", () => {
     expect(() => parseCsv("   ")).toThrow("File is empty");
   });
+
+  it("accepts comma-separated headers with extra Primavera columns", () => {
+    const header =
+      "Activity ID,Activity Name,Original Duration,Start,Finish,BL1 Duration,BL1 Start,BL1 Finish,Activity Status,Activity % Complete";
+    const csv = `${header}\nA1000,Collect info,10,12/05/2025 9:00,26/05/2025 09:00,10,12/05/2025 9:00,26/05/2025 09:00,Completed,100%`;
+    const row = parseCsv(csv)[0];
+    expect(row.activityId).toBe("A1000");
+    expect(row.name).toBe("Collect info");
+    expect(row.status).toBe("Completed");
+  });
+
+  it("parses quoted activity names that contain commas", () => {
+    const header = "Activity ID,Activity Name,Original Duration,Start,Finish,Activity Status";
+    const csv = `${header}\n,"1.1 Report (Buildings, Utilities, NR)",,25/06/2025 09:00,01-Sep-25 16:00 A,`;
+    const row = parseCsv(csv)[0];
+    expect(row.rowType).toBe("task");
+    expect(row.name).toContain("Buildings, Utilities");
+  });
 });
 
 describe("parseCsv - row type detection", () => {
@@ -22,14 +40,40 @@ describe("parseCsv - row type detection", () => {
     expect(parseCsv(csv)[0].rowType).toBe("skip");
   });
 
+  it("skips EPS / programme title in Activity ID (long text with spaces)", () => {
+    const csv = `${HDR}\nDSP HS2 Euston Design - CL32 Programme\t\t\t\t`;
+    expect(parseCsv(csv)[0].rowType).toBe("skip");
+  });
+
+  it("treats unnumbered P6 summary with acronym + parentheses as scope", () => {
+    const csv = `${HDR}\nAIP (Agreement in Principle)\t\t12/05/2025 9:00\t01-Sep-25 16:00 A\t`;
+    const row = parseCsv(csv)[0];
+    expect(row.rowType).toBe("scope");
+    expect(row.name).toBe("AIP (Agreement in Principle)");
+  });
+
   it("identifies scope row by '1. ' pattern", () => {
     const csv = `${HDR}\n\t1. GMA Scoping\t12/05/2025 9:00\t01-Sep-25 16:00 A\t`;
     expect(parseCsv(csv)[0].rowType).toBe("scope");
   });
 
+  it("identifies scope when Primavera puts the WBS label in Activity ID (Activity Name empty)", () => {
+    const csv = `${HDR}\n1. GMA Scoping / Assumptions\t\t12/05/2025 9:00\t01-Sep-25 16:00 A\t`;
+    const row = parseCsv(csv)[0];
+    expect(row.rowType).toBe("scope");
+    expect(row.name).toBe("1. GMA Scoping / Assumptions");
+  });
+
   it("identifies task row by '1.1 ' pattern", () => {
     const csv = `${HDR}\n\t1.1 Phase 2 report\t25/06/2025 09:00\t01-Sep-25 16:00 A\t`;
     expect(parseCsv(csv)[0].rowType).toBe("task");
+  });
+
+  it("identifies task when the label is only in Activity ID (P6 export)", () => {
+    const csv = `${HDR}\n1.1 Phase 2 report for CGMM (Buildings)\t\t25/06/2025 09:00\t01-Sep-25 16:00 A\t`;
+    const row = parseCsv(csv)[0];
+    expect(row.rowType).toBe("task");
+    expect(row.name).toContain("Phase 2 report");
   });
 
   it("identifies subtask row by '1.1.1 ' pattern", () => {

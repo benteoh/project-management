@@ -55,6 +55,42 @@ function activity(
 
 // --- tests ---
 
+describe("mergeParsedRows - activity reparent", () => {
+  it("moves an existing activity when CSV places it under a different task or scope", () => {
+    const tree = [
+      scope("s1", "1. GMA", [
+        activity("a1", "A1000", "Act", {}),
+        task("t1", "1.1 Phase 2 report", []),
+      ]),
+    ];
+    const rows: ParsedRow[] = [
+      { rowType: "scope", name: "1. GMA" },
+      { rowType: "task", name: "1.1 Phase 2 report" },
+      {
+        rowType: "activity",
+        name: "Act",
+        activityId: "A1000",
+        start: "12-May-25",
+        finish: "26-May-25",
+        status: "Not Started",
+      },
+    ];
+    const { updatedTree, diff } = mergeParsedRows(rows, tree);
+    const scopeNode = updatedTree[0];
+    expect(scopeNode.children).toHaveLength(1);
+    const taskNode = scopeNode.children[0];
+    expect(taskNode.type).toBe("task");
+    const actUnderScope = scopeNode.children.find((c) => c.type === "activity");
+    expect(actUnderScope).toBeUndefined();
+    expect(taskNode.children).toHaveLength(1);
+    expect(taskNode.children[0].activityId).toBe("A1000");
+    expect(diff.updatedActivities.some((u) => u.changedFields.includes("parent"))).toBe(true);
+    expect(diff.updatedActivities.find((u) => u.activityId === "A1000")?.newParentName).toContain(
+      "Phase 2"
+    );
+  });
+});
+
 describe("mergeParsedRows - activity update", () => {
   it("updates name, start, finish and status when Activity ID matches", () => {
     const tree = [scope("s1", "1. GMA", [activity("a1", "A1000", "Old Name")])];
@@ -172,6 +208,24 @@ describe("mergeParsedRows - structural nodes", () => {
     expect(diff.updatedStructural[0].type).toBe("scope");
   });
 
+  it("matches scope by WBS number only — same scope when title text changes", () => {
+    const tree = [scope("s1", "1. GMA Scoping")];
+    const rows: ParsedRow[] = [
+      {
+        rowType: "scope",
+        name: "1. GMA Scoping — updated title",
+        start: "12-May-25",
+        finish: "01-Sep-25",
+      },
+    ];
+    const { updatedTree, diff } = mergeParsedRows(rows, tree);
+    expect(updatedTree).toHaveLength(1);
+    expect(updatedTree[0].id).toBe("s1");
+    expect(updatedTree[0].name).toBe("1. GMA Scoping — updated title");
+    expect(diff.addedStructural).toHaveLength(0);
+    expect(diff.updatedStructural).toHaveLength(1);
+  });
+
   it("creates new scope when not found in tree", () => {
     const rows: ParsedRow[] = [
       { rowType: "scope", name: "3. New Scope", start: "12-May-25", finish: "01-Sep-25" },
@@ -191,19 +245,19 @@ describe("mergeParsedRows - structural nodes", () => {
     ];
     const { updatedTree, diff } = mergeParsedRows(rows, tree);
     expect(updatedTree[0].children[0].finish).toBe("15-Oct-25");
-    expect(updatedTree[0].children[0].name).toBe("Phase 2 report"); // name unchanged
-    expect(diff.updatedStructural[0].name).toBe("Phase 2 report");
+    expect(updatedTree[0].children[0].name).toBe("1.1 Phase 2 report");
+    expect(diff.updatedStructural[0].name).toBe("1.1 Phase 2 report");
   });
 
-  it("creates new task stored without number prefix", () => {
+  it("creates new task with full WBS label in name", () => {
     const tree = [scope("s1", "1. GMA")];
     const rows: ParsedRow[] = [
       { rowType: "scope", name: "1. GMA" },
       { rowType: "task", name: "1.1 New Task", start: "25-Jun-25", finish: "01-Sep-25" },
     ];
     const { updatedTree, diff } = mergeParsedRows(rows, tree);
-    expect(updatedTree[0].children[0].name).toBe("New Task");
-    expect(diff.addedStructural[0].name).toBe("New Task");
+    expect(updatedTree[0].children[0].name).toBe("1.1 New Task");
+    expect(diff.addedStructural[0].name).toBe("1.1 New Task");
   });
 
   it("resets task context when a new scope is encountered", () => {

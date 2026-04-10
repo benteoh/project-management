@@ -1,11 +1,18 @@
 // src/components/programme/csvMerge.ts
 import type { ProgrammeNode } from "@/components/programme/types";
+import {
+  sortProgrammeNodesByWbs,
+  wbsKeysEqual,
+  wbsSortKeyFromLabel,
+} from "@/lib/programme/wbsSort";
 import type { ParsedRow } from "./csvParser";
 
 export interface ActivityChange {
   activityId: string;
   name: string;
-  changedFields: Array<"name" | "start" | "finish" | "status">;
+  changedFields: Array<"name" | "start" | "finish" | "status" | "parent">;
+  /** When `parent` is in changedFields — CSV implied parent after import. */
+  newParentName?: string;
 }
 
 export interface NewActivity {
@@ -32,8 +39,44 @@ export interface ImportDiff {
   warnings: ImportWarning[];
 }
 
-function stripNumberPrefix(name: string): string {
+/** Text after leading `1. ` / `1.1 ` style prefix (for legacy nodes saved without WBS in the name). */
+function stripLeadingWbsPrefix(name: string): string {
   return name.replace(/^\s*[\d.]+\s+/, "").trim();
+}
+
+/**
+ * Match structural nodes by WBS numeric segments (1., 1.1, …), not the full title — names can change.
+ * If both sides parse to the same key, they match. Otherwise: exact string match, or stripped-title
+ * match only when at least one side has no WBS key (legacy task stored as "Phase 2" vs CSV "1.1 Phase 2").
+ */
+function structuralMatchByWbs(stored: string, csvRow: string): boolean {
+  const k1 = wbsSortKeyFromLabel(stored);
+  const k2 = wbsSortKeyFromLabel(csvRow);
+  if (k1 !== null && k2 !== null) {
+    if (wbsKeysEqual(k1, k2)) return true;
+    return false;
+  }
+  if (stored.trim() === csvRow.trim()) return true;
+  const s1 = stripLeadingWbsPrefix(stored);
+  const s2 = stripLeadingWbsPrefix(csvRow);
+  return s1 !== "" && s1 === s2;
+}
+
+function applyStructuralFields(node: ProgrammeNode, row: ParsedRow, label: string): boolean {
+  let changed = false;
+  if (node.name !== label) {
+    node.name = label;
+    changed = true;
+  }
+  if (row.start !== undefined && row.start !== node.start) {
+    node.start = row.start;
+    changed = true;
+  }
+  if (row.finish !== undefined && row.finish !== node.finish) {
+    node.finish = row.finish;
+    changed = true;
+  }
+  return changed;
 }
 
 function deepClone(nodes: ProgrammeNode[]): ProgrammeNode[] {
@@ -55,17 +98,29 @@ function buildActivityMap(
   return map;
 }
 
-function applyDates(node: ProgrammeNode, row: ParsedRow): boolean {
-  let changed = false;
-  if (row.start !== undefined && row.start !== node.start) {
-    node.start = row.start;
-    changed = true;
+function findActivityWithParent(
+  list: ProgrammeNode[],
+  activityId: string,
+  parent: ProgrammeNode | null = null
+): { parent: ProgrammeNode | null; node: ProgrammeNode } | null {
+  for (const n of list) {
+    if (n.type === "activity" && n.activityId === activityId) {
+      return { parent, node: n };
+    }
+    const r = findActivityWithParent(n.children, activityId, n);
+    if (r) return r;
   }
-  if (row.finish !== undefined && row.finish !== node.finish) {
-    node.finish = row.finish;
-    changed = true;
-  }
-  return changed;
+  return null;
+}
+
+function removeActivityFromParent(
+  root: ProgrammeNode[],
+  parent: ProgrammeNode | null,
+  activityId: string
+): void {
+  const list = parent ? parent.children : root;
+  const idx = list.findIndex((c) => c.type === "activity" && c.activityId === activityId);
+  if (idx >= 0) list.splice(idx, 1);
 }
 
 function makeStructuralNode(
@@ -89,10 +144,15 @@ function makeStructuralNode(
 /**
  * Merges parsed CSV rows into an existing programme tree.
  *
- * Activities matched by `activityId` are updated in place — they are NOT
- * reparented even if their position in the CSV implies a different parent.
- * The diff records field changes only; the caller should not imply reparenting
- * in any preview UI.
+ * Activities matched by `activityId` are updated in place. If the CSV hierarchy implies a
+ * different parent (scope / task / subtask) than the current tree, the activity is moved.
+ *
+ * After merge, siblings are ordered by WBS numbers in the node name (e.g. 1. before 2.,
+ * 1.1 before 1.2). Task/subtask names keep the full CSV label (including "1.1 …") so ordering
+ * matches Primavera.
+ *
+ * Scopes, tasks, and subtasks are matched to existing nodes by **WBS prefix** (numeric segments),
+ * not the full title, so renames in Primavera still update the same node.
  */
 export function mergeParsedRows(
   rows: ParsedRow[],
@@ -119,13 +179,17 @@ export function mergeParsedRows(
     if (row.rowType === "skip") continue;
 
     if (row.rowType === "scope") {
-      let node = root.find((n) => n.name === row.name && n.type === "scope") ?? null;
+      const label = row.name.trim();
+      let node =
+        root.find((n) => n.type === "scope" && structuralMatchByWbs(n.name, label)) ?? null;
       if (node) {
-        if (applyDates(node, row)) diff.updatedStructural.push({ name: row.name, type: "scope" });
+        if (applyStructuralFields(node, row, label)) {
+          diff.updatedStructural.push({ name: label, type: "scope" });
+        }
       } else {
-        node = makeStructuralNode(row.name, "scope", row);
+        node = makeStructuralNode(label, "scope", row);
         root.push(node);
-        diff.addedStructural.push({ name: row.name, type: "scope" });
+        diff.addedStructural.push({ name: label, type: "scope" });
       }
       currentScope = node;
       currentTask = null;
@@ -141,15 +205,19 @@ export function mergeParsedRows(
         });
         continue;
       }
-      const stripped = stripNumberPrefix(row.name);
+      const label = row.name.trim();
       let node =
-        currentScope.children.find((n) => n.name === stripped && n.type === "task") ?? null;
+        currentScope.children.find(
+          (n) => n.type === "task" && structuralMatchByWbs(n.name, label)
+        ) ?? null;
       if (node) {
-        if (applyDates(node, row)) diff.updatedStructural.push({ name: stripped, type: "task" });
+        if (applyStructuralFields(node, row, label)) {
+          diff.updatedStructural.push({ name: label, type: "task" });
+        }
       } else {
-        node = makeStructuralNode(stripped, "task", row);
+        node = makeStructuralNode(label, "task", row);
         currentScope.children.push(node);
-        diff.addedStructural.push({ name: stripped, type: "task" });
+        diff.addedStructural.push({ name: label, type: "task" });
       }
       currentTask = node;
       currentSubtask = null;
@@ -165,14 +233,18 @@ export function mergeParsedRows(
         });
         continue;
       }
-      const stripped = stripNumberPrefix(row.name);
-      let node = parent.children.find((n) => n.name === stripped && n.type === "subtask") ?? null;
+      const label = row.name.trim();
+      let node =
+        parent.children.find((n) => n.type === "subtask" && structuralMatchByWbs(n.name, label)) ??
+        null;
       if (node) {
-        if (applyDates(node, row)) diff.updatedStructural.push({ name: stripped, type: "subtask" });
+        if (applyStructuralFields(node, row, label)) {
+          diff.updatedStructural.push({ name: label, type: "subtask" });
+        }
       } else {
-        node = makeStructuralNode(stripped, "subtask", row);
+        node = makeStructuralNode(label, "subtask", row);
         parent.children.push(node);
-        diff.addedStructural.push({ name: stripped, type: "subtask" });
+        diff.addedStructural.push({ name: label, type: "subtask" });
       }
       currentSubtask = node;
       continue;
@@ -198,6 +270,14 @@ export function mergeParsedRows(
       const existing = activityMap.get(row.activityId);
       if (existing) {
         const changedFields: ActivityChange["changedFields"] = [];
+        if (currentParent) {
+          const loc = findActivityWithParent(root, row.activityId);
+          if (loc && loc.parent?.id !== currentParent.id) {
+            removeActivityFromParent(root, loc.parent, row.activityId);
+            currentParent.children.push(existing);
+            changedFields.push("parent");
+          }
+        }
         if (row.name && row.name !== existing.name) {
           existing.name = row.name;
           changedFields.push("name");
@@ -219,6 +299,9 @@ export function mergeParsedRows(
             activityId: row.activityId,
             name: existing.name,
             changedFields,
+            ...(changedFields.includes("parent") && currentParent
+              ? { newParentName: currentParent.name }
+              : {}),
           });
         }
       } else {
@@ -251,5 +334,5 @@ export function mergeParsedRows(
     }
   }
 
-  return { updatedTree: root, diff };
+  return { updatedTree: sortProgrammeNodesByWbs(root), diff };
 }

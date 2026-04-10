@@ -39,6 +39,74 @@ const REQUIRED_COLUMNS = [
   "Activity Status",
 ] as const;
 
+/** RFC 4180-style: commas split fields; doubled quotes escape; quoted fields may contain commas. */
+function splitCommaCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let i = 0;
+  let field = "";
+  let inQuotes = false;
+  while (i < line.length) {
+    const c = line[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (line[i + 1] === '"') {
+          field += '"';
+          i += 2;
+          continue;
+        }
+        inQuotes = false;
+        i++;
+        continue;
+      }
+      field += c;
+      i++;
+      continue;
+    }
+    if (c === '"') {
+      inQuotes = true;
+      i++;
+      continue;
+    }
+    if (c === ",") {
+      out.push(field);
+      field = "";
+      i++;
+      continue;
+    }
+    field += c;
+    i++;
+  }
+  out.push(field);
+  return out.map((s) => s.trimEnd().replace(/\r$/, ""));
+}
+
+function headersHaveRequired(headers: string[]): boolean {
+  return REQUIRED_COLUMNS.every((c) => headers.includes(c));
+}
+
+function detectDelimiterAndHeaders(headerLine: string): {
+  delimiter: "\t" | ",";
+  headers: string[];
+} {
+  const tabHeaders = headerLine.split("\t").map((h) => h.trim());
+  if (headersHaveRequired(tabHeaders)) {
+    return { delimiter: "\t", headers: tabHeaders };
+  }
+  const commaHeaders = splitCommaCsvLine(headerLine).map((h) => h.trim());
+  if (headersHaveRequired(commaHeaders)) {
+    return { delimiter: ",", headers: commaHeaders };
+  }
+  const missing = REQUIRED_COLUMNS.filter((c) => !commaHeaders.includes(c));
+  throw new Error(`Missing required columns: ${missing.join(", ")}`);
+}
+
+function splitDataLine(line: string, delimiter: "\t" | ","): string[] {
+  if (delimiter === "\t") {
+    return line.split("\t").map((c) => c.trimEnd().replace(/\r$/, ""));
+  }
+  return splitCommaCsvLine(line);
+}
+
 function parseDate(raw: string): string | undefined {
   if (!raw.trim()) return undefined;
 
@@ -66,13 +134,55 @@ function parseStatus(raw: string): ActivityStatus | undefined {
   return VALID_STATUSES.has(s) ? (s as ActivityStatus) : undefined;
 }
 
-function detectRowType(activityId: string, name: string): ParsedRowType {
-  if (activityId.trim()) return "activity";
-  const t = name.trim();
-  // Order matters: subtask (\d+.\d+.\d+) must be checked before task (\d+.\d+)
+/**
+ * WBS / summary rows from Primavera often put the full label in **Activity ID** with **Activity Name**
+ * empty. Classify structure from either column before treating Activity ID as an activity code.
+ * Order: subtask (1.2.3) before task (1.2) before scope (1. ).
+ */
+function classifyStructural(text: string): ParsedRowType | null {
+  const t = text.trim();
+  if (!t) return null;
   if (/^\d+\.\d+\.\d+/.test(t)) return "subtask";
   if (/^\d+\.\d+/.test(t)) return "task";
   if (/^\d+\.\s+/.test(t)) return "scope";
+  return null;
+}
+
+/**
+ * P6 sometimes omits WBS numbers on summary rows (e.g. "AIP (Agreement in Principle)").
+ * Must run after numbered structural checks; must not match activity codes or EPS-style titles.
+ */
+function classifyUnnumberedScope(text: string): boolean {
+  const t = text.trim();
+  if (t.length < 8 || t.length > 120) return false;
+  if (classifyStructural(t)) return false;
+  if (looksLikeActivityCode(t)) return false;
+  // Short token + parenthetical (e.g. "AIP (Agreement in Principle)"); not "Phase 2 (…)" task titles
+  return /^[A-Za-z]{2,6}\s*\([^)]+\)/.test(t);
+}
+
+/**
+ * True when Activity ID looks like a P6 activity code (e.g. A1000), not a WBS title or EPS name.
+ * Must contain a digit; prose titles without digits are rejected.
+ */
+function looksLikeActivityCode(activityId: string): boolean {
+  const t = activityId.trim();
+  if (t.length < 2 || t.length > 32) return false;
+  if (/\s/.test(t)) return false;
+  if (!/\d/.test(t)) return false;
+  if (/^[A-Za-z]{1,4}\d{1,6}$/.test(t)) return true;
+  if (/^\d{4,}$/.test(t)) return true;
+  if (/^[A-Za-z0-9][A-Za-z0-9_-]{0,30}$/.test(t)) return true;
+  return false;
+}
+
+function detectRowType(activityId: string, name: string): ParsedRowType {
+  const id = activityId.trim();
+  const nm = name.trim();
+  const structural = classifyStructural(id) ?? classifyStructural(nm);
+  if (structural) return structural;
+  if (classifyUnnumberedScope(id) || classifyUnnumberedScope(nm)) return "scope";
+  if (id && looksLikeActivityCode(id)) return "activity";
   return "skip";
 }
 
@@ -80,9 +190,7 @@ export function parseCsv(csvString: string): ParsedRow[] {
   const lines = csvString.split(/\r?\n/).filter((l) => l.trim());
   if (lines.length === 0) throw new Error("File is empty");
 
-  const headers = lines[0].split("\t");
-  const missing = REQUIRED_COLUMNS.filter((c) => !headers.includes(c));
-  if (missing.length > 0) throw new Error(`Missing required columns: ${missing.join(", ")}`);
+  const { delimiter, headers } = detectDelimiterAndHeaders(lines[0]);
 
   const idx = {
     id: headers.indexOf("Activity ID"),
@@ -93,14 +201,16 @@ export function parseCsv(csvString: string): ParsedRow[] {
   };
 
   return lines.slice(1).map((line): ParsedRow => {
-    const cols = line.split("\t");
+    const cols = splitDataLine(line, delimiter);
     const activityId = cols[idx.id]?.trim() ?? "";
-    const name = cols[idx.name]?.trim() ?? "";
+    const nameCol = cols[idx.name]?.trim() ?? "";
     const startRaw = cols[idx.start]?.trim() ?? "";
     const finishRaw = cols[idx.finish]?.trim() ?? "";
     const statusRaw = cols[idx.status]?.trim() ?? "";
 
-    const rowType = detectRowType(activityId, name);
+    const rowType = detectRowType(activityId, nameCol);
+    /** Structural / skip rows may carry the WBS label in Activity ID when Activity Name is empty (P6). */
+    const name = rowType === "activity" ? nameCol : nameCol || activityId;
     const start = parseDate(startRaw);
     const finish = parseDate(finishRaw);
     const status = parseStatus(statusRaw);
@@ -108,7 +218,7 @@ export function parseCsv(csvString: string): ParsedRow[] {
     return {
       rowType,
       name,
-      ...(activityId ? { activityId } : {}),
+      ...(rowType === "activity" && activityId ? { activityId } : {}),
       ...(start !== undefined ? { start } : {}),
       ...(finish !== undefined ? { finish } : {}),
       ...(status !== undefined ? { status } : {}),
