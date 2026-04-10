@@ -350,6 +350,13 @@ export const ForecastAgGrid = forwardRef<ForecastAgGridHandle, Props>(function F
           background-color: var(--muted) !important;
         }
         .forecast-year-header .ag-header-group-cell-label { justify-content: flex-start; padding-left: 4px; }
+        /* Pinned summary columns — explicit line breaks in headerName */
+        .forecast-header-multiline .ag-header-cell-text {
+          white-space: pre-line;
+          line-height: 1.2;
+          text-align: center;
+        }
+        .forecast-header-multiline .ag-header-cell-label { justify-content: center; }
         /* Date column headers */
         .forecast-date-header { cursor: pointer; }
         .forecast-date-header .ag-header-cell-text {

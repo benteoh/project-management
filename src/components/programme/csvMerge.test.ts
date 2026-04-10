@@ -137,7 +137,13 @@ describe("mergeParsedRows - activity update", () => {
     const scopeWithEng: ProgrammeNode = {
       ...scope("s1", "1. GMA"),
       engineers: [
-        { engineerId: "eng-1", isLead: true, plannedHrs: 100, weeklyLimitHrs: null, rate: "A" },
+        {
+          engineerId: "eng-1",
+          isLead: true,
+          plannedHrs: 100,
+          weeklyScopeLimitHrs: null,
+          rate: "A",
+        },
       ],
     };
     const tree = [{ ...scopeWithEng, children: [activity("a1", "A1000", "Act")] }];

@@ -14,7 +14,7 @@ export type ForecastProgrammeNode = {
   engineers?: {
     engineerId: string;
     plannedHrs?: number | null;
-    weeklyLimitHrs?: number | null;
+    weeklyScopeLimitHrs?: number | null;
     rate?: string;
   }[];
 };
@@ -42,9 +42,9 @@ export type ForecastGridRow = {
   maxDailyHours: number | null;
   /**
    * Max hours per week on this scope for this engineer (from `scope_engineers`, else pool default).
-   * Autofill uses this for weekly capacity on this row (not the engineer global weekly cap).
+   * Autofill applies this together with {@link maxWeeklyHours} (total across scopes per week).
    */
   weeklyScopeLimit: number;
-  /** Engineer pool default weekly cap (reference). */
+  /** Engineer pool weekly cap — autofill also limits total hours per week across all scopes. */
   maxWeeklyHours: number | null;
 };

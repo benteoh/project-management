@@ -72,12 +72,12 @@ export function EngineerPopup({
         return {
           ...eng,
           engineerId,
-          weeklyLimitHrs: defaultWeeklyLimit(pool),
+          weeklyScopeLimitHrs: defaultWeeklyScopeLimit(pool),
         };
       })
     );
 
-  const defaultWeeklyLimit = (pool: EngineerPoolEntry | undefined) =>
+  const defaultWeeklyScopeLimit = (pool: EngineerPoolEntry | undefined) =>
     pool?.maxWeeklyHours ?? DEFAULT_MAX_WEEKLY_HOURS;
 
   const setPlannedHrs = (idx: number, raw: string) => {
@@ -92,15 +92,15 @@ export function EngineerPopup({
     );
   };
 
-  const setWeeklyLimit = (idx: number, raw: string) => {
+  const setWeeklyScopeLimit = (idx: number, raw: string) => {
     setDraft((prev) =>
       prev.map((eng, i) => {
         if (i !== idx) return eng;
         // Empty = inherit engineer default on save; keep null so the field stays clear while editing
-        if (raw.trim() === "") return { ...eng, weeklyLimitHrs: null };
+        if (raw.trim() === "") return { ...eng, weeklyScopeLimitHrs: null };
         const n = parseFloat(raw);
         if (Number.isNaN(n)) return eng;
-        return { ...eng, weeklyLimitHrs: Math.max(0, Math.round(n)) };
+        return { ...eng, weeklyScopeLimitHrs: Math.max(0, Math.round(n)) };
       })
     );
   };
@@ -114,7 +114,7 @@ export function EngineerPopup({
         engineerId: engineerPool[0]?.id ?? "",
         isLead: false,
         plannedHrs: null,
-        weeklyLimitHrs: defaultWeeklyLimit(engineerPool[0]),
+        weeklyScopeLimitHrs: defaultWeeklyScopeLimit(engineerPool[0]),
         rate: scopeRate,
       },
     ]);
@@ -125,7 +125,7 @@ export function EngineerPopup({
         const pool = engineerPool.find((p) => p.id === eng.engineerId);
         return {
           ...eng,
-          weeklyLimitHrs: eng.weeklyLimitHrs ?? defaultWeeklyLimit(pool),
+          weeklyScopeLimitHrs: eng.weeklyScopeLimitHrs ?? defaultWeeklyScopeLimit(pool),
         };
       })
     );
@@ -190,9 +190,9 @@ export function EngineerPopup({
             </div>
             <div
               className={`${COL_HOURS} flex min-h-[2.5rem] flex-col items-center justify-center text-xs font-medium tracking-wide uppercase`}
-              title="Max hours per week on this scope (forecast autofill uses this instead of the engineer global weekly cap)"
+              title="Weekly scope limit — max hours per week on this scope (forecast autofill uses this together with the engineer’s global weekly cap)"
             >
-              Wk limit
+              Wk sc limit
             </div>
             <div className={`${COL_ACTION} min-h-[2.5rem]`} aria-hidden />
           </div>
@@ -248,14 +248,14 @@ export function EngineerPopup({
                     inputMode="numeric"
                     min={0}
                     step={1}
-                    aria-label="Weekly limit on this scope"
-                    title="Hours per week on this scope. Leave empty to use the engineer’s default weekly hours."
+                    aria-label="Weekly scope limit"
+                    title="Weekly scope limit (hours per week on this scope). Leave empty to use the engineer’s default weekly hours from the pool."
                     placeholder={String(
-                      defaultWeeklyLimit(engineerPool.find((p) => p.id === eng.engineerId))
+                      defaultWeeklyScopeLimit(engineerPool.find((p) => p.id === eng.engineerId))
                     )}
                     className="border-border bg-background focus:ring-ring no-input-spinner w-full rounded border px-1 py-0.5 text-center text-xs tabular-nums focus:ring-1 focus:outline-none"
-                    value={eng.weeklyLimitHrs ?? ""}
-                    onChange={(e) => setWeeklyLimit(idx, e.target.value)}
+                    value={eng.weeklyScopeLimitHrs ?? ""}
+                    onChange={(e) => setWeeklyScopeLimit(idx, e.target.value)}
                   />
                 </div>
                 <div className={`${COL_ACTION} py-1`}>

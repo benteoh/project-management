@@ -90,7 +90,10 @@ export function forecastColumnDefs({
     },
     {
       field: "_weeklyScopeLimit",
-      headerName: "Weekly limit",
+      headerName: "Weekly\nscope limit",
+      wrapHeaderText: true,
+      autoHeaderHeight: true,
+      headerClass: "forecast-header-multiline",
       width: 100,
       minWidth: 80,
       pinned: "left",
@@ -98,7 +101,7 @@ export function forecastColumnDefs({
       suppressMovable: true,
       resizable: false,
       tooltipValueGetter: () =>
-        "Max hours per week on this scope for this engineer (autofill uses this instead of the engineer global weekly cap)",
+        "Weekly scope limit — max hours per week on this scope for this engineer (autofill applies this together with the engineer global weekly cap across scopes)",
       valueGetter: (p: ValueGetterParams<RowData>): number | null => {
         if (!p.data) return null;
         const v = p.data._weeklyScopeLimit;

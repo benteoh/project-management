@@ -35,7 +35,7 @@ export function flattenTree(
           engineer_id: eng.engineerId,
           is_lead: eng.isLead,
           planned_hrs: eng.plannedHrs,
-          weekly_limit_hrs: eng.weeklyLimitHrs ?? null,
+          weekly_limit_hrs: eng.weeklyScopeLimitHrs ?? null,
           position: i,
           rate: eng.rate,
         });
@@ -99,16 +99,20 @@ export function buildTreeFromRows(
       const eng = engineerRows
         .filter((e) => e.scope_id === r.id)
         .sort((a, b) => a.position - b.position);
-      node.engineers = eng.map((e) => ({
-        engineerId: e.engineer_id,
-        isLead: e.is_lead,
-        plannedHrs: e.planned_hrs !== null ? Number(e.planned_hrs) : null,
-        weeklyLimitHrs:
-          e.weekly_limit_hrs !== null && e.weekly_limit_hrs !== undefined
-            ? Number(e.weekly_limit_hrs)
-            : null,
-        rate: e.rate,
-      }));
+      node.engineers = eng.map((e) => {
+        const rawWeekly =
+          e.weekly_limit_hrs ??
+          (e as ScopeEngineerDbRow & { weekly_scope_limit_hrs?: number | null })
+            .weekly_scope_limit_hrs;
+        return {
+          engineerId: e.engineer_id,
+          isLead: e.is_lead,
+          plannedHrs: e.planned_hrs !== null ? Number(e.planned_hrs) : null,
+          weeklyScopeLimitHrs:
+            rawWeekly !== null && rawWeekly !== undefined ? Number(rawWeekly) : null,
+          rate: e.rate,
+        };
+      });
     }
 
     byId.set(r.id, node);

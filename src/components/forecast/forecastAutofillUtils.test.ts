@@ -219,6 +219,29 @@ describe("autofill — capacity constraints", () => {
     expect(sumForRow("s1-e1") + sumForRow("s2-e1")).toBe(10);
   });
 
+  it("respects engineer global weekly cap across all scopes (in addition to per-scope limits)", () => {
+    const r1 = row({
+      scope: { id: "s1", label: "S1" },
+      plannedHrs: 100,
+      weeklyScopeLimit: 50,
+      maxWeeklyHours: 12,
+    });
+    const r2 = row({
+      scope: { id: "s2", label: "S2" },
+      plannedHrs: 100,
+      weeklyScopeLimit: 50,
+      maxWeeklyHours: 12,
+    });
+    const result = autofill({
+      rows: [r1, r2],
+      dateColFields: WEEK1,
+      currentValues: {},
+      bankHolidays: new Set(),
+    });
+    const weekTotal = result.changes.reduce((s, c) => s + (c.newValue as number), 0);
+    expect(weekTotal).toBeLessThanOrEqual(12);
+  });
+
   it("accounts for pre-existing hours when computing daily cap", () => {
     // Engineer already has 6h on Monday from another scope (not in rows)
     const rowId = "s2-e1"; // different scope, same engineer

@@ -4,14 +4,14 @@ export function forecastSummaryColumnLabels(showRateAndSpendColumns: boolean): s
     return [
       "Scope",
       "Person",
-      "Weekly limit",
+      "Weekly scope limit",
       "Hour Rate",
       "Forecast hours",
       "Planned hours",
       "Total Spent",
     ];
   }
-  return ["Scope", "Person", "Weekly limit", "Forecast hours", "Planned hours"];
+  return ["Scope", "Person", "Weekly scope limit", "Forecast hours", "Planned hours"];
 }
 export const NO_COL_W = "w-12";
 export const SUMMARY_COL_W = "w-36";

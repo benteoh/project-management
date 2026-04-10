@@ -1413,7 +1413,7 @@ export function buildProgrammeNodesFromSeed(codeToId: Map<string, string>): Prog
       engineerId,
       isLead: a.isLead,
       plannedHrs: a.plannedHrs,
-      weeklyLimitHrs: null,
+      weeklyScopeLimitHrs: null,
       rate: "A",
     };
   }

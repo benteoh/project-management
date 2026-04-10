@@ -5,7 +5,10 @@ export interface ScopeEngineerDbRow {
   engineer_id: string;
   is_lead: boolean;
   planned_hrs: number | null;
-  /** Max hours per week on this scope for this engineer; null = use engineer_pool.max_weekly_hours. */
+  /**
+   * Max hours per week on this scope for this engineer; null = use engineer_pool.max_weekly_hours.
+   * Column name is `weekly_limit_hrs` (per-scope cap; distinct from engineer_pool.max_weekly_hours).
+   */
   weekly_limit_hrs?: number | null;
   position: number;
   /** Rate slot (A–E) used to cost this engineer's hours on this scope. Defaults to 'A'. */

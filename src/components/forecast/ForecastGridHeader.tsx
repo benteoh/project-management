@@ -47,9 +47,16 @@ export function ForecastGridHeader({
               `border-border flex ${SUMMARY_COL_W} shrink-0 items-center justify-between border-r px-4 py-3`
             )}
           >
-            <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-              {label}
-            </span>
+            {label === "Weekly scope limit" ? (
+              <span className="text-muted-foreground flex flex-col text-xs leading-tight font-medium tracking-wide uppercase">
+                <span>Weekly</span>
+                <span>scope limit</span>
+              </span>
+            ) : (
+              <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                {label}
+              </span>
+            )}
             {isFilterable && (
               <button
                 type="button"

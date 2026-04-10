@@ -267,7 +267,7 @@ export function ForecastTab({
       {
         plannedHrsByEngineer: Map<string, number | null>;
         /** scope_engineers.weekly_limit_hrs per engineer (null = inherit pool) */
-        weeklyLimitHrsByEngineer: Map<string, number | null>;
+        weeklyScopeLimitHrsByEngineer: Map<string, number | null>;
         /** scope_engineers.rate (A–E) per engineer */
         rateByEngineer: Map<string, string>;
         startDate: string | null;
@@ -278,12 +278,12 @@ export function ForecastTab({
     for (const node of programmeTree) {
       if (node.type !== "scope") continue;
       const plannedHrsByEngineer = new Map<string, number | null>();
-      const weeklyLimitHrsByEngineer = new Map<string, number | null>();
+      const weeklyScopeLimitHrsByEngineer = new Map<string, number | null>();
       const rateByEngineer = new Map<string, string>();
       if (node.engineers) {
         for (const e of node.engineers) {
           plannedHrsByEngineer.set(e.engineerId, e.plannedHrs ?? null);
-          weeklyLimitHrsByEngineer.set(e.engineerId, e.weeklyLimitHrs ?? null);
+          weeklyScopeLimitHrsByEngineer.set(e.engineerId, e.weeklyScopeLimitHrs ?? null);
           rateByEngineer.set(e.engineerId, e.rate ?? "A");
         }
       }
@@ -296,7 +296,7 @@ export function ForecastTab({
       };
       map.set(node.id, {
         plannedHrsByEngineer,
-        weeklyLimitHrsByEngineer,
+        weeklyScopeLimitHrsByEngineer,
         rateByEngineer,
         startDate: toIso(node.start),
         endDate: toIso(node.finish),
@@ -317,7 +317,7 @@ export function ForecastTab({
         seen.add(rid);
         const meta = scopeMetaMap.get(scope.id);
         const rateSlot = meta?.rateByEngineer.get(engineer.id);
-        const storedWeekly = meta?.weeklyLimitHrsByEngineer.get(engineer.id) ?? null;
+        const storedWeekly = meta?.weeklyScopeLimitHrsByEngineer.get(engineer.id) ?? null;
         out.push({
           scope,
           engineer,

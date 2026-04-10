@@ -4,7 +4,7 @@
 // DEBUG: set to true to log skip reasons to the browser console.
 const DEBUG = false;
 
-import { DEFAULT_MAX_DAILY_HOURS } from "@/types/engineer-pool";
+import { DEFAULT_MAX_DAILY_HOURS, DEFAULT_MAX_WEEKLY_HOURS } from "@/types/engineer-pool";
 
 import type { ForecastGridRow } from "./types";
 import type { CellValues, HistoryChange, PendingFill } from "./forecastGridTypes";
@@ -95,9 +95,10 @@ export function autofill(input: AutofillInput): PendingFill {
   });
 
   // Seed running totals from ALL rows' current values (cross-row capacity tracking).
-  // Keys: "engineerId:dateField" (daily) / "engineerId:weekKey" (weekly)
+  // Daily: engineerId:date. Weekly scope: scopeId:engineerId:week. Weekly global: engineerId:week (all scopes).
   const runningDaily = new Map<string, number>();
-  const runningWeekly = new Map<string, number>();
+  const runningWeeklyScope = new Map<string, number>();
+  const runningWeeklyGlobal = new Map<string, number>();
 
   for (const [rowId, row] of rowById) {
     const engId = row.engineer.id;
@@ -108,10 +109,12 @@ export function autofill(input: AutofillInput): PendingFill {
       const hrs = typeof v === "number" && v > 0 ? v : 0;
       if (hrs === 0) continue;
       const dk = `${engId}:${field}`;
-      // Weekly cap is per scope × engineer × week (not global across scopes).
-      const wk = `${scopeId}:${engId}:${isoWeekKey(field)}`;
+      const wk = isoWeekKey(field);
+      const scopeKey = `${scopeId}:${engId}:${wk}`;
+      const globalKey = `${engId}:${wk}`;
       runningDaily.set(dk, (runningDaily.get(dk) ?? 0) + hrs);
-      runningWeekly.set(wk, (runningWeekly.get(wk) ?? 0) + hrs);
+      runningWeeklyScope.set(scopeKey, (runningWeeklyScope.get(scopeKey) ?? 0) + hrs);
+      runningWeeklyGlobal.set(globalKey, (runningWeeklyGlobal.get(globalKey) ?? 0) + hrs);
     }
   }
 
@@ -150,11 +153,12 @@ export function autofill(input: AutofillInput): PendingFill {
 
     const maxDaily = row.maxDailyHours ?? DEFAULT_MAX_DAILY_HOURS;
     const maxWeeklyScope = row.weeklyScopeLimit;
+    const maxWeeklyGlobal = row.maxWeeklyHours ?? DEFAULT_MAX_WEEKLY_HOURS;
     const engId = row.engineer.id;
 
     if (DEBUG)
       console.log(
-        `[ROW] ${label} | planned=${row.plannedHrs} forecasted=${forecastedSoFar} remaining=${remaining} | caps: daily=${maxDaily} weeklyOnScope=${maxWeeklyScope}`
+        `[ROW] ${label} | planned=${row.plannedHrs} forecasted=${forecastedSoFar} remaining=${remaining} | caps: daily=${maxDaily} weeklyScope=${maxWeeklyScope} weeklyGlobal=${maxWeeklyGlobal}`
       );
 
     for (const field of dateColFields) {
@@ -180,19 +184,24 @@ export function autofill(input: AutofillInput): PendingFill {
         continue;
       }
 
-      // Cross-row capacity: daily = global per engineer; weekly = per scope row (this scope only).
+      // Cross-row capacity: daily = global per engineer; weekly scope = this row's cap;
+      // weekly global = engineer's max across all scopes in the same ISO week.
       const dk = `${engId}:${field}`;
-      const wk = `${row.scope.id}:${engId}:${isoWeekKey(field)}`;
+      const weekK = isoWeekKey(field);
+      const scopeWkKey = `${row.scope.id}:${engId}:${weekK}`;
+      const globalWkKey = `${engId}:${weekK}`;
       const dailyUsed = runningDaily.get(dk) ?? 0;
-      const weeklyUsed = runningWeekly.get(wk) ?? 0;
+      const weeklyScopeUsed = runningWeeklyScope.get(scopeWkKey) ?? 0;
+      const weeklyGlobalUsed = runningWeeklyGlobal.get(globalWkKey) ?? 0;
       const dailyCap = Math.max(0, maxDaily - dailyUsed);
-      const weeklyCap = Math.max(0, maxWeeklyScope - weeklyUsed);
+      const weeklyScopeCap = Math.max(0, maxWeeklyScope - weeklyScopeUsed);
+      const weeklyGlobalCap = Math.max(0, maxWeeklyGlobal - weeklyGlobalUsed);
 
-      const toFill = Math.floor(Math.min(remaining, dailyCap, weeklyCap));
+      const toFill = Math.floor(Math.min(remaining, dailyCap, weeklyScopeCap, weeklyGlobalCap));
       if (toFill <= 0) {
         if (DEBUG)
           console.log(
-            `  [skip cell] ${field} — capacity 0 (dailyUsed=${dailyUsed}/${maxDaily}, weeklyOnScopeUsed=${weeklyUsed}/${maxWeeklyScope})`
+            `  [skip cell] ${field} — capacity 0 (daily ${dailyUsed}/${maxDaily}, scopeWeek ${weeklyScopeUsed}/${maxWeeklyScope}, globalWeek ${weeklyGlobalUsed}/${maxWeeklyGlobal})`
           );
         continue;
       }
@@ -202,7 +211,8 @@ export function autofill(input: AutofillInput): PendingFill {
 
       // Update running totals so later rows in this pass see reduced capacity
       runningDaily.set(dk, dailyUsed + toFill);
-      runningWeekly.set(wk, weeklyUsed + toFill);
+      runningWeeklyScope.set(scopeWkKey, weeklyScopeUsed + toFill);
+      runningWeeklyGlobal.set(globalWkKey, weeklyGlobalUsed + toFill);
       // Fix: accumulate from current map value, not stale alreadyQueued
       queuedPerRow.set(rowId, (queuedPerRow.get(rowId) ?? 0) + toFill);
       remaining -= toFill;
