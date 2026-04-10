@@ -7,6 +7,11 @@ export interface EngineerAllocation {
   engineerId: string;
   isLead: boolean;
   plannedHrs: number | null;
+  /**
+   * Max hours per week this engineer may book on this scope (forecast autofill).
+   * Null = use engineer's pool max weekly hours.
+   */
+  weeklyLimitHrs: number | null;
   /** Rate slot (A–E) used to cost this engineer's hours on this scope. */
   rate: string;
 }

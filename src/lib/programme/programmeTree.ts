@@ -35,6 +35,7 @@ export function flattenTree(
           engineer_id: eng.engineerId,
           is_lead: eng.isLead,
           planned_hrs: eng.plannedHrs,
+          weekly_limit_hrs: eng.weeklyLimitHrs ?? null,
           position: i,
           rate: eng.rate,
         });
@@ -102,6 +103,10 @@ export function buildTreeFromRows(
         engineerId: e.engineer_id,
         isLead: e.is_lead,
         plannedHrs: e.planned_hrs !== null ? Number(e.planned_hrs) : null,
+        weeklyLimitHrs:
+          e.weekly_limit_hrs !== null && e.weekly_limit_hrs !== undefined
+            ? Number(e.weekly_limit_hrs)
+            : null,
         rate: e.rate,
       }));
     }

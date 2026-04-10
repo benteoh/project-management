@@ -88,6 +88,24 @@ export function forecastColumnDefs({
       suppressMovable: true,
       resizable: false,
     },
+    {
+      field: "_weeklyScopeLimit",
+      headerName: "Weekly limit",
+      width: 100,
+      minWidth: 80,
+      pinned: "left",
+      editable: false,
+      suppressMovable: true,
+      resizable: false,
+      tooltipValueGetter: () =>
+        "Max hours per week on this scope for this engineer (autofill uses this instead of the engineer global weekly cap)",
+      valueGetter: (p: ValueGetterParams<RowData>): number | null => {
+        if (!p.data) return null;
+        const v = p.data._weeklyScopeLimit;
+        return typeof v === "number" && !Number.isNaN(v) ? v : null;
+      },
+      valueFormatter: (p) => (p.value != null ? String(p.value) : ""),
+    },
     ...(showRateAndSpendColumns
       ? ([
           {

@@ -4,7 +4,7 @@
 // DEBUG: set to true to log skip reasons to the browser console.
 const DEBUG = false;
 
-import { DEFAULT_MAX_DAILY_HOURS, DEFAULT_MAX_WEEKLY_HOURS } from "@/types/engineer-pool";
+import { DEFAULT_MAX_DAILY_HOURS } from "@/types/engineer-pool";
 
 import type { ForecastGridRow } from "./types";
 import type { CellValues, HistoryChange, PendingFill } from "./forecastGridTypes";
@@ -101,13 +101,15 @@ export function autofill(input: AutofillInput): PendingFill {
 
   for (const [rowId, row] of rowById) {
     const engId = row.engineer.id;
+    const scopeId = row.scope.id;
     const vals = currentValues[rowId] ?? {};
     for (const field of dateColFields) {
       const v = vals[field];
       const hrs = typeof v === "number" && v > 0 ? v : 0;
       if (hrs === 0) continue;
       const dk = `${engId}:${field}`;
-      const wk = `${engId}:${isoWeekKey(field)}`;
+      // Weekly cap is per scope × engineer × week (not global across scopes).
+      const wk = `${scopeId}:${engId}:${isoWeekKey(field)}`;
       runningDaily.set(dk, (runningDaily.get(dk) ?? 0) + hrs);
       runningWeekly.set(wk, (runningWeekly.get(wk) ?? 0) + hrs);
     }
@@ -147,12 +149,12 @@ export function autofill(input: AutofillInput): PendingFill {
     }
 
     const maxDaily = row.maxDailyHours ?? DEFAULT_MAX_DAILY_HOURS;
-    const maxWeekly = row.maxWeeklyHours ?? DEFAULT_MAX_WEEKLY_HOURS;
+    const maxWeeklyScope = row.weeklyScopeLimit;
     const engId = row.engineer.id;
 
     if (DEBUG)
       console.log(
-        `[ROW] ${label} | planned=${row.plannedHrs} forecasted=${forecastedSoFar} remaining=${remaining} | caps: daily=${maxDaily} weekly=${maxWeekly}`
+        `[ROW] ${label} | planned=${row.plannedHrs} forecasted=${forecastedSoFar} remaining=${remaining} | caps: daily=${maxDaily} weeklyOnScope=${maxWeeklyScope}`
       );
 
     for (const field of dateColFields) {
@@ -178,19 +180,19 @@ export function autofill(input: AutofillInput): PendingFill {
         continue;
       }
 
-      // Cross-row capacity check
+      // Cross-row capacity: daily = global per engineer; weekly = per scope row (this scope only).
       const dk = `${engId}:${field}`;
-      const wk = `${engId}:${isoWeekKey(field)}`;
+      const wk = `${row.scope.id}:${engId}:${isoWeekKey(field)}`;
       const dailyUsed = runningDaily.get(dk) ?? 0;
       const weeklyUsed = runningWeekly.get(wk) ?? 0;
       const dailyCap = Math.max(0, maxDaily - dailyUsed);
-      const weeklyCap = Math.max(0, maxWeekly - weeklyUsed);
+      const weeklyCap = Math.max(0, maxWeeklyScope - weeklyUsed);
 
       const toFill = Math.floor(Math.min(remaining, dailyCap, weeklyCap));
       if (toFill <= 0) {
         if (DEBUG)
           console.log(
-            `  [skip cell] ${field} — capacity 0 (dailyUsed=${dailyUsed}/${maxDaily}, weeklyUsed=${weeklyUsed}/${maxWeekly})`
+            `  [skip cell] ${field} — capacity 0 (dailyUsed=${dailyUsed}/${maxDaily}, weeklyOnScopeUsed=${weeklyUsed}/${maxWeeklyScope})`
           );
         continue;
       }

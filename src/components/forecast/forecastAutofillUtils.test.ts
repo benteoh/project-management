@@ -15,6 +15,7 @@ function row(overrides: Partial<ForecastGridRow> = {}): ForecastGridRow {
     scopeEndDate: "2026-03-27",
     scopeStatus: "Not Started",
     maxDailyHours: 8,
+    weeklyScopeLimit: 40,
     maxWeeklyHours: 40,
     ...overrides,
   };
@@ -57,7 +58,7 @@ describe("isoWeekKey", () => {
 
 describe("autofill — basic allocation", () => {
   it("fills cells front-loaded up to plannedHrs", () => {
-    const r = row({ plannedHrs: 10, maxDailyHours: 8, maxWeeklyHours: 40 });
+    const r = row({ plannedHrs: 10, maxDailyHours: 8, weeklyScopeLimit: 40 });
     const result = autofill({
       rows: [r],
       dateColFields: DATES,
@@ -181,7 +182,7 @@ describe("autofill — capacity constraints", () => {
   });
 
   it("respects weekly cap", () => {
-    const r = row({ plannedHrs: 100, maxDailyHours: 8, maxWeeklyHours: 20 });
+    const r = row({ plannedHrs: 100, maxDailyHours: 8, weeklyScopeLimit: 20 });
     const result = autofill({
       rows: [r],
       dateColFields: WEEK1,
@@ -190,6 +191,32 @@ describe("autofill — capacity constraints", () => {
     });
     const weekTotal = result.changes.reduce((s, c) => s + (c.newValue as number), 0);
     expect(weekTotal).toBeLessThanOrEqual(20);
+  });
+
+  it("tracks weekly hours per scope (same engineer can use full cap on each scope)", () => {
+    const r1 = row({
+      scope: { id: "s1", label: "S1" },
+      plannedHrs: 8,
+      weeklyScopeLimit: 5,
+    });
+    const r2 = row({
+      scope: { id: "s2", label: "S2" },
+      plannedHrs: 8,
+      weeklyScopeLimit: 5,
+    });
+    const result = autofill({
+      rows: [r1, r2],
+      dateColFields: WEEK1,
+      currentValues: {},
+      bankHolidays: new Set(),
+    });
+    const sumForRow = (rowId: string) =>
+      result.changes
+        .filter((c) => c.rowId === rowId)
+        .reduce((s, c) => s + (c.newValue as number), 0);
+    expect(sumForRow("s1-e1")).toBeLessThanOrEqual(5);
+    expect(sumForRow("s2-e1")).toBeLessThanOrEqual(5);
+    expect(sumForRow("s1-e1") + sumForRow("s2-e1")).toBe(10);
   });
 
   it("accounts for pre-existing hours when computing daily cap", () => {

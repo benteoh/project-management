@@ -1,11 +1,16 @@
 "use client";
 
 import { type MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { parseFlexibleActivityDate } from "@/components/programme/dateUtils";
+import { effectiveWeeklyScopeLimit } from "@/lib/forecast/effectiveWeeklyScopeLimit";
 import { hourRateForScopeSlot } from "@/lib/forecast/hourRateForScopeSlot";
-import { cellValuesHasPositiveHours } from "@/lib/forecast/cellValuesUtils";
+import {
+  cellValuesHasPositiveHours,
+  filterCellValuesToValidProgramme,
+} from "@/lib/forecast/cellValuesUtils";
 import { loadForecastEntries, saveForecastEntries } from "@/lib/forecast/forecastDb";
 import {
   clearDraft,
@@ -168,7 +173,10 @@ export function ForecastTab({
   const handleSaveForecast = useCallback(async () => {
     setSavePending(true);
     setSaveError(null);
-    const vals = gridRef.current?.getCellValues() ?? {};
+    const allowedScopeIds = new Set(scopes.map((s) => s.id));
+    const allowedEngineerIds = new Set(engineers.map((e) => e.id));
+    const raw = gridRef.current?.getCellValues() ?? {};
+    const vals = filterCellValuesToValidProgramme(raw, allowedScopeIds, allowedEngineerIds);
     const res = await saveForecastEntries(supabase, projectId, vals);
     setSavePending(false);
     if (res.ok) {
@@ -178,7 +186,7 @@ export function ForecastTab({
     } else {
       setSaveError(res.error);
     }
-  }, [projectId, router]);
+  }, [projectId, router, scopes, engineers]);
 
   // Advance current week every Saturday at midnight
   useEffect(() => {
@@ -258,6 +266,8 @@ export function ForecastTab({
       string,
       {
         plannedHrsByEngineer: Map<string, number | null>;
+        /** scope_engineers.weekly_limit_hrs per engineer (null = inherit pool) */
+        weeklyLimitHrsByEngineer: Map<string, number | null>;
         /** scope_engineers.rate (A–E) per engineer */
         rateByEngineer: Map<string, string>;
         startDate: string | null;
@@ -268,10 +278,12 @@ export function ForecastTab({
     for (const node of programmeTree) {
       if (node.type !== "scope") continue;
       const plannedHrsByEngineer = new Map<string, number | null>();
+      const weeklyLimitHrsByEngineer = new Map<string, number | null>();
       const rateByEngineer = new Map<string, string>();
       if (node.engineers) {
         for (const e of node.engineers) {
           plannedHrsByEngineer.set(e.engineerId, e.plannedHrs ?? null);
+          weeklyLimitHrsByEngineer.set(e.engineerId, e.weeklyLimitHrs ?? null);
           rateByEngineer.set(e.engineerId, e.rate ?? "A");
         }
       }
@@ -284,6 +296,7 @@ export function ForecastTab({
       };
       map.set(node.id, {
         plannedHrsByEngineer,
+        weeklyLimitHrsByEngineer,
         rateByEngineer,
         startDate: toIso(node.start),
         endDate: toIso(node.finish),
@@ -304,6 +317,7 @@ export function ForecastTab({
         seen.add(rid);
         const meta = scopeMetaMap.get(scope.id);
         const rateSlot = meta?.rateByEngineer.get(engineer.id);
+        const storedWeekly = meta?.weeklyLimitHrsByEngineer.get(engineer.id) ?? null;
         out.push({
           scope,
           engineer,
@@ -313,6 +327,7 @@ export function ForecastTab({
           scopeEndDate: meta?.endDate ?? null,
           scopeStatus: (meta?.status ?? "") as ForecastGridRowType["scopeStatus"],
           maxDailyHours: engineer.maxDailyHours ?? null,
+          weeklyScopeLimit: effectiveWeeklyScopeLimit(storedWeekly, engineer),
           maxWeeklyHours: engineer.maxWeeklyHours ?? null,
         });
       }
@@ -485,21 +500,26 @@ export function ForecastTab({
         <div className="ml-auto flex items-center gap-2">
           <button
             type="button"
+            aria-label={savePending ? "Saving forecast" : "Save forecast to database"}
             onClick={() => void handleSaveForecast()}
             disabled={forecastLoading || savePending || draftConflict !== null}
             className={cn(
-              "relative rounded-md border px-3 py-1 text-xs font-medium transition-colors",
+              "relative inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
               savePending || forecastLoading || draftConflict
-                ? "border-border text-muted-foreground cursor-not-allowed opacity-60"
-                : "border-border text-foreground hover:bg-muted/50"
+                ? "bg-muted text-muted-foreground cursor-not-allowed"
+                : hasUnsaved
+                  ? "bg-gold text-foreground hover:opacity-90"
+                  : "border-gold/50 bg-gold/15 text-foreground hover:bg-gold/25 border"
             )}
           >
             {hasUnsaved && (
               <span
-                className="bg-status-warning absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full"
+                className="border-background bg-status-warning absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full border border-solid"
+                title="Unsaved changes"
                 aria-hidden
               />
             )}
+            <Save className="size-3.5 shrink-0" strokeWidth={2} aria-hidden />
             {savePending ? "Saving…" : "Save"}
           </button>
         </div>

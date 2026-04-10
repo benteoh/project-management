@@ -4,6 +4,7 @@ import { useMemo, useRef, useState, type RefObject } from "react";
 import { Plus, X } from "lucide-react";
 
 import type { EngineerPoolEntry } from "@/types/engineer-pool";
+import { DEFAULT_MAX_WEEKLY_HOURS } from "@/types/engineer-pool";
 import type { ForecastHoursPerEngineer } from "@/types/forecast-scope";
 import { formatEngineerListLabel, formatEngineerPickerLabel } from "@/lib/engineer-pool-display";
 import { useAnchoredFixedPosition } from "@/components/ui/useAnchoredFixedPosition";
@@ -20,7 +21,7 @@ import type { EngineerAllocation } from "./types";
 
 /** Match programme table rhythm; popup is slightly tighter than the main grid. */
 const COL_ENGINEER = "min-w-0 flex-1";
-const COL_HOURS = "w-20 min-w-[5rem] shrink-0 px-1.5 py-1 text-center";
+const COL_HOURS = "w-[4.5rem] min-w-[4.5rem] shrink-0 px-1 py-1 text-center";
 /** Icon-only control — keep narrow so hour columns stay visually under their headers. */
 const COL_ACTION = "w-7 shrink-0 flex items-center justify-center";
 const POPUP_HEADER_ROW = `${programmeTableHeaderRowClassName} !py-1`;
@@ -64,7 +65,20 @@ export function EngineerPopup({
   }, [forecastByEngineer]);
 
   const changeEngineerId = (idx: number, engineerId: string) =>
-    setDraft((prev) => prev.map((eng, i) => (i === idx ? { ...eng, engineerId } : eng)));
+    setDraft((prev) =>
+      prev.map((eng, i) => {
+        if (i !== idx) return eng;
+        const pool = engineerPool.find((p) => p.id === engineerId);
+        return {
+          ...eng,
+          engineerId,
+          weeklyLimitHrs: defaultWeeklyLimit(pool),
+        };
+      })
+    );
+
+  const defaultWeeklyLimit = (pool: EngineerPoolEntry | undefined) =>
+    pool?.maxWeeklyHours ?? DEFAULT_MAX_WEEKLY_HOURS;
 
   const setPlannedHrs = (idx: number, raw: string) => {
     setDraft((prev) =>
@@ -78,6 +92,19 @@ export function EngineerPopup({
     );
   };
 
+  const setWeeklyLimit = (idx: number, raw: string) => {
+    setDraft((prev) =>
+      prev.map((eng, i) => {
+        if (i !== idx) return eng;
+        // Empty = inherit engineer default on save; keep null so the field stays clear while editing
+        if (raw.trim() === "") return { ...eng, weeklyLimitHrs: null };
+        const n = parseFloat(raw);
+        if (Number.isNaN(n)) return eng;
+        return { ...eng, weeklyLimitHrs: Math.max(0, Math.round(n)) };
+      })
+    );
+  };
+
   const remove = (idx: number) => setDraft((prev) => prev.filter((_, i) => i !== idx));
 
   const addRow = () =>
@@ -87,12 +114,21 @@ export function EngineerPopup({
         engineerId: engineerPool[0]?.id ?? "",
         isLead: false,
         plannedHrs: null,
+        weeklyLimitHrs: defaultWeeklyLimit(engineerPool[0]),
         rate: scopeRate,
       },
     ]);
 
   const handleAdd = () => {
-    onChangeEngineers(draft);
+    onChangeEngineers(
+      draft.map((eng) => {
+        const pool = engineerPool.find((p) => p.id === eng.engineerId);
+        return {
+          ...eng,
+          weeklyLimitHrs: eng.weeklyLimitHrs ?? defaultWeeklyLimit(pool),
+        };
+      })
+    );
     onClose();
   };
 
@@ -107,7 +143,7 @@ export function EngineerPopup({
   return (
     <div
       ref={popupRef}
-      className="border-border bg-card shadow-elevated pointer-events-auto fixed z-[119] w-[min(100vw-1rem,26rem)] rounded-lg border sm:max-w-none"
+      className="border-border bg-card shadow-elevated pointer-events-auto fixed z-[119] w-[min(100vw-1rem,32rem)] rounded-lg border sm:max-w-none"
       style={{ top, left }}
       onClick={(e) => e.stopPropagation()}
     >
@@ -151,6 +187,12 @@ export function EngineerPopup({
               className={`${COL_HOURS} flex min-h-[2.5rem] flex-col items-center justify-center text-xs font-medium tracking-wide uppercase`}
             >
               {renderProgrammeHeaderLabel("Planned")}
+            </div>
+            <div
+              className={`${COL_HOURS} flex min-h-[2.5rem] flex-col items-center justify-center text-xs font-medium tracking-wide uppercase`}
+              title="Max hours per week on this scope (forecast autofill uses this instead of the engineer global weekly cap)"
+            >
+              Wk limit
             </div>
             <div className={`${COL_ACTION} min-h-[2.5rem]`} aria-hidden />
           </div>
@@ -198,6 +240,22 @@ export function EngineerPopup({
                     className="border-border bg-background focus:ring-ring no-input-spinner w-full rounded border px-1.5 py-0.5 text-center text-xs tabular-nums focus:ring-1 focus:outline-none"
                     value={eng.plannedHrs ?? ""}
                     onChange={(e) => setPlannedHrs(idx, e.target.value)}
+                  />
+                </div>
+                <div className={COL_HOURS}>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    step={1}
+                    aria-label="Weekly limit on this scope"
+                    title="Hours per week on this scope. Leave empty to use the engineer’s default weekly hours."
+                    placeholder={String(
+                      defaultWeeklyLimit(engineerPool.find((p) => p.id === eng.engineerId))
+                    )}
+                    className="border-border bg-background focus:ring-ring no-input-spinner w-full rounded border px-1 py-0.5 text-center text-xs tabular-nums focus:ring-1 focus:outline-none"
+                    value={eng.weeklyLimitHrs ?? ""}
+                    onChange={(e) => setWeeklyLimit(idx, e.target.value)}
                   />
                 </div>
                 <div className={`${COL_ACTION} py-1`}>

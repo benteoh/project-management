@@ -13,6 +13,7 @@ function leadRow(overrides: Partial<RowData> = {}): RowData {
     _person: "P",
     _hourRate: null,
     _plannedHrs: null,
+    _weeklyScopeLimit: 40,
     _scopeDivider: false,
     _scopeLeadRow: true,
     _scopeStartIso: "2026-01-05",

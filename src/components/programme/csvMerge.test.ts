@@ -136,7 +136,9 @@ describe("mergeParsedRows - activity update", () => {
   it("preserves engineer allocations on existing activity's parent scope", () => {
     const scopeWithEng: ProgrammeNode = {
       ...scope("s1", "1. GMA"),
-      engineers: [{ engineerId: "eng-1", isLead: true, plannedHrs: 100, rate: "A" }],
+      engineers: [
+        { engineerId: "eng-1", isLead: true, plannedHrs: 100, weeklyLimitHrs: null, rate: "A" },
+      ],
     };
     const tree = [{ ...scopeWithEng, children: [activity("a1", "A1000", "Act")] }];
     const rows: ParsedRow[] = [

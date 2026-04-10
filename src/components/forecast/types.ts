@@ -11,7 +11,12 @@ export type ForecastProgrammeNode = {
   finish?: string;
   status?: ActivityStatus;
   /** Engineer assignments for this scope (scope nodes only). */
-  engineers?: { engineerId: string; plannedHrs?: number | null; rate?: string }[];
+  engineers?: {
+    engineerId: string;
+    plannedHrs?: number | null;
+    weeklyLimitHrs?: number | null;
+    rate?: string;
+  }[];
 };
 
 export type ScopeItem = {
@@ -33,7 +38,13 @@ export type ForecastGridRow = {
   /** ISO finish date of the scope — used for deadline-priority sort. */
   scopeEndDate: string | null;
   scopeStatus: ActivityStatus;
-  /** Per-engineer daily/weekly caps. Null = use DEFAULT_MAX_*_HOURS. */
+  /** Per-engineer daily cap (global). Null = use DEFAULT_MAX_DAILY_HOURS. */
   maxDailyHours: number | null;
+  /**
+   * Max hours per week on this scope for this engineer (from `scope_engineers`, else pool default).
+   * Autofill uses this for weekly capacity on this row (not the engineer global weekly cap).
+   */
+  weeklyScopeLimit: number;
+  /** Engineer pool default weekly cap (reference). */
   maxWeeklyHours: number | null;
 };

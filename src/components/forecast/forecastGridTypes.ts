@@ -13,6 +13,8 @@ export type RowData = {
   _hourRate: number | null;
   /** Programme table: planned hours for this engineer on this scope (`scope_engineers`). */
   _plannedHrs: number | null;
+  /** Max hours per week on this scope (`scope_engineers.weekly_limit_hrs`, resolved). */
+  _weeklyScopeLimit: number;
   _scopeDivider: boolean; // true on the first row of each new scope group
   /** First engineer row for this scope in the current (filtered) grid — used for scope date bracket. */
   _scopeLeadRow: boolean;
