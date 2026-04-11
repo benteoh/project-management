@@ -282,9 +282,11 @@ async function seed() {
       project_id: SEED_PROJECT_ID,
       row_index: i,
       engineer_id: engineerId,
-      engineer_code: e.code,
       entry_date: e.date,
       hours: e.hours,
+      scope_id: null,
+      activity_id: null,
+      notes: e.description,
       raw_data,
     };
   });

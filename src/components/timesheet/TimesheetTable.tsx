@@ -5,72 +5,40 @@ import { useMemo, useState } from "react";
 import { ColumnFilter } from "@/components/forecast/ColumnFilter";
 import { FilterFunnelIcon } from "@/components/ui/FilterFunnelIcon";
 import type { EngineerPoolEntry } from "@/types/engineer-pool";
+import {
+  buildEmployeeCellMatchSetFromGridPool,
+  employeeCellIsKnown,
+} from "@/lib/timesheet/employeeCellMatch";
+import { normalise, sigWords, wordCoverage } from "@/lib/timesheet/timesheetImportResolve";
 import { findCol } from "@/lib/xlsx/xlsxUtils";
 
 import type { SheetData } from "./types";
 
 // ---------------------------------------------------------------------------
-// Employee lookup
-// ---------------------------------------------------------------------------
-
-function buildEmployeeSet(pool: EngineerPoolEntry[]): Set<string> {
-  const set = new Set<string>();
-  for (const eng of pool) {
-    if (eng.lastName && eng.firstName) {
-      set.add(`${eng.lastName} ${eng.firstName[0]}.`.toLowerCase());
-    }
-  }
-  return set;
-}
-
-// ---------------------------------------------------------------------------
 // Scope matching
 // ---------------------------------------------------------------------------
 
-const STOP_WORDS = new Set(["of", "the", "and", "for", "in", "at", "to", "a", "an"]);
-
-function normalise(s: string): string {
-  return s
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-/** Returns significant words: length > 2 and not a stop word. */
-function sigWords(s: string): string[] {
-  return normalise(s)
-    .split(" ")
-    .filter((w) => w.length > 2 && !STOP_WORDS.has(w));
-}
+const SCOPE_TASK_MIN_COVERAGE = 0.8;
 
 /**
- * Returns the fraction of `queryWords` that appear in `targetText`.
- * Used by both scope and notes matching (≥0.9 = match, <0.9 = mismatch).
- */
-function wordCoverage(queryWords: string[], targetText: string): number {
-  const targetSet = new Set(sigWords(targetText));
-  return queryWords.filter((w) => targetSet.has(w)).length / queryWords.length;
-}
-
-/**
- * A scope matches if ≥90% of the task ID's significant words appear in the
- * scope name. Direction matters: we ask "does the scope contain the task ID
- * words?" not "how similar are both strings?". This means a short task ID like
- * "+17mOD +13mOD" correctly matches a longer scope name that contains those
- * tokens, while "Utilities North Soil" correctly fails against a scope that
- * only shares one word.
+ * A scope matches if ≥80% of the task ID's significant words appear in the
+ * scope name (same rule as import). Direction: task ID words must appear in scope name.
  */
 function matchesAnyScope(csvValue: string, scopeNames: string[]): boolean {
-  const aWords = sigWords(csvValue);
-  if (aWords.length === 0) return false;
+  const t = csvValue.trim();
+  if (!t) return false;
+  const aWords = sigWords(t);
+  if (aWords.length === 0) {
+    return scopeNames.some((name) => t.toLowerCase() === name.trim().toLowerCase());
+  }
   return scopeNames.some(
-    (name) => normalise(csvValue) === normalise(name) || wordCoverage(aWords, name) >= 0.9
+    (name) =>
+      normalise(t) === normalise(name) || wordCoverage(aWords, name) >= SCOPE_TASK_MIN_COVERAGE
   );
 }
 
 /**
- * Returns true if ≥90% of the task ID's significant words appear in the notes
+ * Returns true if ≥80% of the task ID's significant words appear in the notes
  * text. Returns null when either value is empty (excluded from alert logic).
  */
 function notesMatchTaskId(notes: string, taskId: string): boolean | null {
@@ -78,13 +46,13 @@ function notesMatchTaskId(notes: string, taskId: string): boolean | null {
   if (taskWords.length === 0) return null;
   const noteWords = sigWords(notes);
   if (noteWords.length === 0) return null;
-  return wordCoverage(taskWords, notes) >= 0.9;
+  return wordCoverage(taskWords, notes) >= SCOPE_TASK_MIN_COVERAGE;
 }
 
 /**
  * Per-row scope match results:
  *   null  → empty task ID value, excluded from all counts
- *   true  → matched a scope (≥90% of task ID words found in a scope name)
+ *   true  → matched a scope (≥80% of task ID words found in a scope name)
  *   false → task ID words could not be matched to any scope — flag as 3
  *
  * Every non-empty task ID is checked, including short codes and single words.
@@ -140,16 +108,19 @@ export function TimesheetTable({
   const hoursIdx = findCol(sheet.headers, ["hours", "hrs", "hours worked"]);
   const employeeIdx = findCol(sheet.headers, [
     "employee",
+    "engineer",
     "employee code",
     "emp code",
     "engineer code",
     "code",
-    "engineer",
   ]);
   const taskIdIdx = findCol(sheet.headers, ["task id", "task_id", "taskid", "scope id", "scope"]);
   const notesIdx = findCol(sheet.headers, ["notes", "note", "description", "comments", "comment"]);
 
-  const knownEmployees = useMemo(() => buildEmployeeSet(engineerPool), [engineerPool]);
+  const knownEmployees = useMemo(
+    () => buildEmployeeCellMatchSetFromGridPool(engineerPool),
+    [engineerPool]
+  );
 
   const scopeMatchResults = useMemo(
     () => computeScopeMatchResults(sheet.rows, taskIdIdx, scopeNames),
@@ -169,8 +140,8 @@ export function TimesheetTable({
         }
 
         if (employeeIdx >= 0) {
-          const empRaw = (row[employeeIdx] ?? "").trim().toLowerCase();
-          if (empRaw && !knownEmployees.has(empRaw)) {
+          const empCell = (row[employeeIdx] ?? "").trim();
+          if (empCell && !employeeCellIsKnown(empCell, knownEmployees)) {
             alertCodes.push("2");
             detailLabels.push("UE");
           }

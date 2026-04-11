@@ -17,22 +17,30 @@ export interface TimesheetUpload {
 /**
  * One row from an uploaded timesheet file.
  *
- * Key fields are extracted and validated against the engineer pool when the
- * upload is saved. `rawData` preserves the entire original row (header → value)
- * so nothing is lost.
+ * Key fields are extracted when the upload is saved (`engineer_id` pool match, dates,
+ * optional project/scope/activity from columns). `rawData` preserves the entire
+ * original row. WBS IDs may be inconsistent with each other — validation is a FE concern.
+ *
+ * Hours are attributed to **scope** for rollups; **activity** records which activity
+ * was worked on (same grain as one row).
  */
 export interface TimesheetEntry {
   id: string;
   uploadId: string;
-  projectId: string;
+  /** Project the employee stated for this row (resolved from id or project_code when possible). */
+  projectId: string | null;
   rowIndex: number;
-  /** UUID from `engineer_pool`. Null when the engineer code could not be matched. */
+  /** UUID from `engineer_pool`. Null when the Employee cell could not be matched. */
   engineerId: string | null;
-  /** Raw engineer identifier from the CSV/Excel (e.g. "MWo"). */
-  engineerCode: string | null;
   /** ISO date string (YYYY-MM-DD), or null if the date column was missing / unparseable. */
   entryDate: string | null;
+  /** Hours worked, one decimal place when set. */
   hours: number | null;
+  /** `programme_nodes.id` for type `scope` — hours roll up here. */
+  scopeId: string | null;
+  /** `programme_nodes.id` for type `activity` — which activity was worked on. */
+  activityId: string | null;
+  notes: string | null;
   /** Full row as header→value map — the raw source of truth for display and re-processing. */
   rawData: Record<string, string>;
 }
@@ -52,11 +60,13 @@ export interface TimesheetUploadDbRow {
 export interface TimesheetEntryDbRow {
   id: string;
   upload_id: string;
-  project_id: string;
+  project_id: string | null;
   row_index: number;
   engineer_id: string | null;
-  engineer_code: string | null;
   entry_date: string | null;
   hours: number | null;
+  scope_id: string | null;
+  activity_id: string | null;
+  notes: string | null;
   raw_data: Record<string, string>;
 }

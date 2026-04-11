@@ -7,14 +7,46 @@
  */
 
 /**
+ * Normalise a header label for column matching: BOM, unicode spaces, fullwidth `#` / `.`,
+ * collapse runs of whitespace, lowercase.
+ */
+export function normaliseHeaderForColMatch(s: string): string {
+  return s
+    .replace(/^\uFEFF|\uFEFF$/g, "")
+    .replace(/[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/g, " ")
+    .replace(/\u200B|\u200C|\u200D/g, "")
+    .replace(/\uFF03/g, "#")
+    .replace(/\uFF0E/g, ".")
+    .trim()
+    .toLowerCase()
+    .replace(/\.#/g, ". #")
+    .replace(/\s+/g, " ");
+}
+
+/**
  * Returns the index of the first header that matches any of the candidates
- * (case-insensitive, trimmed). Returns -1 if not found.
+ * (case-insensitive, trimmed, whitespace-collapsed). Returns -1 if not found.
  */
 export function findCol(headers: string[], candidates: string[]): number {
-  const lower = headers.map((h) => h.trim().toLowerCase());
+  const norm = headers.map((h) => normaliseHeaderForColMatch(h));
   for (const c of candidates) {
-    const idx = lower.indexOf(c.toLowerCase());
+    const cand = normaliseHeaderForColMatch(c);
+    const idx = norm.indexOf(cand);
     if (idx >= 0) return idx;
+  }
+  return -1;
+}
+
+/**
+ * First header index matching any regex (against {@link normaliseHeaderForColMatch} output).
+ */
+export function findColRegex(headers: string[], patterns: RegExp[]): number {
+  const norm = headers.map((h) => normaliseHeaderForColMatch(h));
+  for (let i = 0; i < norm.length; i++) {
+    const h = norm[i];
+    for (const re of patterns) {
+      if (re.test(h)) return i;
+    }
   }
   return -1;
 }
