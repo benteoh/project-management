@@ -65,7 +65,7 @@ export function ProjectSettingsList({
               >
                 <span className="block">{p.name}</span>
                 <span className="text-muted-foreground mt-0.5 block text-xs font-normal">
-                  {p.client} · {p.office}
+                  {p.client} · {p.officeName}
                 </span>
               </button>
             </li>

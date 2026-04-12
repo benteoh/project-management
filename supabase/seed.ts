@@ -15,6 +15,7 @@ import { flattenTree } from "../src/lib/programme/programmeTree";
 import {
   buildProgrammeNodesFromSeed,
   SEED_ENGINEER_ROWS,
+  SEED_LONDON_OFFICE_ID,
   SEED_PROJECT_ENGINEER_RATE_ROWS,
   SEED_PROJECT_ID,
   seedProjectRow,
@@ -30,6 +31,15 @@ const supabase = createClient(url, anonKey);
 
 async function seed() {
   console.log("Seeding Supabase...");
+
+  const { error: officeErr } = await supabase
+    .from("offices")
+    .upsert(
+      { id: SEED_LONDON_OFFICE_ID, name: "London", location: "London, UK" },
+      { onConflict: "id" }
+    );
+  if (officeErr) throw new Error(`offices: ${officeErr.message}`);
+  console.log("✓ office");
 
   const { error: projectErr } = await supabase
     .from("projects")

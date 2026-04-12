@@ -8,13 +8,16 @@ export { SEED_ENGINEER_ROWS, SEED_PROJECT_ENGINEER_RATE_ROWS };
 /** Primary key for the sample project (`/projects/1`, seed WBS). */
 export const SEED_PROJECT_ID = "1" as const;
 
+/** Fixed UUID for the seed London office row in `public.offices`. */
+export const SEED_LONDON_OFFICE_ID = "00000000-0000-0000-0000-000000000001" as const;
+
 /** Sample project row for `public.projects`. */
 export const seedProjectRow: ProjectUpsertRow = {
   id: SEED_PROJECT_ID,
   project_code: "489",
   name: "Euston Station",
   client: "HS2 Ltd",
-  office: "London",
+  office_id: SEED_LONDON_OFFICE_ID,
   status: "active",
   fixed_fee: 230_000,
   start_date: "2025-01-06",
