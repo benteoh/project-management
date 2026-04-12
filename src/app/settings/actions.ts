@@ -10,12 +10,21 @@ import {
   listEngineersFromDb,
   updateEngineerInDb,
 } from "@/lib/engineers/engineerDb";
-import { listProjectsFromDb, loadProjectById } from "@/lib/projects/projectDb";
+import {
+  createProjectInDb,
+  listProjectsFromDb,
+  loadProjectById,
+  updateProjectInDb,
+} from "@/lib/projects/projectDb";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { Engineer } from "@/types/engineer-pool";
 import type { Project } from "@/types/project";
 
-import type { EngineerCapacityPayload } from "@/components/settings/types";
+import type {
+  EngineerCapacityPayload,
+  ProjectCreatePayload,
+  ProjectUpdatePayload,
+} from "@/components/settings/types";
 
 type EngineersResult = { ok: true; engineers: Engineer[] } | { ok: false; error: string };
 
@@ -126,4 +135,54 @@ export async function loadProjectForSettingsAction(id: string): Promise<ProjectS
   const r = await loadProjectById(await createServerSupabaseClient(), id);
   if ("error" in r) return { ok: false, error: r.error, notFound: r.notFound };
   return { ok: true, project: r.project };
+}
+
+export async function createProjectAction(
+  payload: ProjectCreatePayload
+): Promise<ProjectsListResult> {
+  const name = payload.name.trim();
+  const client = payload.client.trim();
+  if (!name) return { ok: false, error: "Project name is required." };
+  if (!client) return { ok: false, error: "Client is required." };
+  if (!payload.officeId) return { ok: false, error: "Office is required." };
+
+  const db = await createServerSupabaseClient();
+  const r = await createProjectInDb(db, {
+    id: randomUUID(),
+    name,
+    client,
+    office_id: payload.officeId,
+    project_code: payload.projectCode || null,
+    status: payload.status,
+    fixed_fee: payload.fixedFee,
+    start_date: payload.startDate,
+    end_date: payload.endDate,
+  });
+  if ("error" in r) return { ok: false, error: r.error };
+  return loadProjectsForSettingsAction();
+}
+
+export async function updateProjectAction(
+  payload: ProjectUpdatePayload
+): Promise<ProjectsListResult> {
+  const name = payload.name.trim();
+  const client = payload.client.trim();
+  if (!payload.id) return { ok: false, error: "Project id is required." };
+  if (!name) return { ok: false, error: "Project name is required." };
+  if (!client) return { ok: false, error: "Client is required." };
+  if (!payload.officeId) return { ok: false, error: "Office is required." };
+
+  const db = await createServerSupabaseClient();
+  const r = await updateProjectInDb(db, payload.id, {
+    name,
+    client,
+    office_id: payload.officeId,
+    project_code: payload.projectCode || null,
+    status: payload.status,
+    fixed_fee: payload.fixedFee,
+    start_date: payload.startDate,
+    end_date: payload.endDate,
+  });
+  if ("error" in r) return { ok: false, error: r.error };
+  return loadProjectsForSettingsAction();
 }
