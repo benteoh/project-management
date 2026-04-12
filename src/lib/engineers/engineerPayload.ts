@@ -1,6 +1,6 @@
 import type { Engineer } from "@/types/engineer-pool";
 
-/** Fields edited on the global engineer settings form (names, active, capacity). */
+/** Fields edited on the engineer settings form (names, active, capacity). Office comes from the active office tab. */
 export type EngineerEditableFields = Pick<
   Engineer,
   "firstName" | "lastName" | "isActive" | "maxDailyHours" | "maxWeeklyHours"
@@ -30,5 +30,11 @@ export function cloneEngineerEditableFields(e: EngineerEditableFields): Engineer
 }
 
 export function engineerToEditableFields(engineer: Engineer): EngineerEditableFields {
-  return cloneEngineerEditableFields(engineer);
+  return {
+    firstName: engineer.firstName,
+    lastName: engineer.lastName,
+    isActive: engineer.isActive,
+    maxDailyHours: engineer.maxDailyHours,
+    maxWeeklyHours: engineer.maxWeeklyHours,
+  };
 }

@@ -16,6 +16,7 @@ import {
   buildProgrammeNodesFromSeed,
   SEED_ENGINEER_ROWS,
   SEED_LONDON_OFFICE_ID,
+  SEED_OFFICES,
   SEED_PROJECT_ENGINEER_RATE_ROWS,
   SEED_PROJECT_ID,
   seedProjectRow,
@@ -32,14 +33,11 @@ const supabase = createClient(url, anonKey);
 async function seed() {
   console.log("Seeding Supabase...");
 
-  const { error: officeErr } = await supabase
-    .from("offices")
-    .upsert(
-      { id: SEED_LONDON_OFFICE_ID, name: "London", location: "London, UK" },
-      { onConflict: "id" }
-    );
+  const { error: officeErr } = await supabase.from("offices").upsert([...SEED_OFFICES], {
+    onConflict: "id",
+  });
   if (officeErr) throw new Error(`offices: ${officeErr.message}`);
-  console.log("✓ office");
+  console.log(`\u2713 ${SEED_OFFICES.length} offices`);
 
   const { error: projectErr } = await supabase
     .from("projects")
@@ -68,6 +66,7 @@ async function seed() {
       is_active: true,
       max_daily_hours: d,
       max_weekly_hours: w,
+      office_id: SEED_LONDON_OFFICE_ID,
     };
   });
 

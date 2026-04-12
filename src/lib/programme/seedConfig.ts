@@ -11,6 +11,19 @@ export const SEED_PROJECT_ID = "1" as const;
 /** Fixed UUID for the seed London office row in `public.offices`. */
 export const SEED_LONDON_OFFICE_ID = "00000000-0000-0000-0000-000000000001" as const;
 
+/** Demo offices upserted by `npm run seed` (stable ids for FKs). */
+export const SEED_OFFICES = [
+  { id: SEED_LONDON_OFFICE_ID, name: "London", location: "United Kingdom" },
+  { id: "00000000-0000-0000-0000-000000000002", name: "Salzburg", location: "Austria" },
+  {
+    id: "00000000-0000-0000-0000-000000000003",
+    name: "Washington D.C.",
+    location: "United States",
+  },
+  { id: "00000000-0000-0000-0000-000000000004", name: "Toronto", location: "Canada" },
+  { id: "00000000-0000-0000-0000-000000000005", name: "Tel Aviv", location: "Israel" },
+] as const;
+
 /** Sample project row for `public.projects`. */
 export const seedProjectRow: ProjectUpsertRow = {
   id: SEED_PROJECT_ID,

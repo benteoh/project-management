@@ -16,6 +16,8 @@ const baseEngineer: Engineer = {
   isActive: true,
   maxDailyHours: 8,
   maxWeeklyHours: 40,
+  officeId: null,
+  officeName: null,
 };
 
 describe("engineerEditableFieldsEqual", () => {

@@ -13,7 +13,7 @@ import type { Office } from "@/types/office";
 
 import { OfficeRow } from "./OfficeRow";
 
-export function OfficesSection() {
+export function OfficesSection({ compact = false }: { compact?: boolean } = {}) {
   const [offices, setOffices] = useState<Office[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -73,9 +73,7 @@ export function OfficesSection() {
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-6">
-      <p className="text-muted-foreground shrink-0 text-xs">Manage office records.</p>
-
+    <div className={`flex flex-col gap-4 ${compact ? "max-h-72 min-h-0" : "min-h-0 flex-1 gap-6"}`}>
       {isLoading && <p className="text-muted-foreground text-sm">Loading offices…</p>}
 
       {error && (
@@ -147,7 +145,7 @@ export function OfficesSection() {
         </form>
       )}
 
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
         {offices.map((office) => (
           <OfficeRow
             key={office.id}

@@ -14,7 +14,11 @@ function numOrNull(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function rowToEngineer(r: EngineerDbRow): Engineer {
+type EngineerDbRowJoined = EngineerDbRow & {
+  offices?: { name: string } | null;
+};
+
+function rowToEngineer(r: EngineerDbRowJoined): Engineer {
   return {
     id: r.id,
     code: r.code,
@@ -23,6 +27,8 @@ function rowToEngineer(r: EngineerDbRow): Engineer {
     isActive: r.is_active,
     maxDailyHours: numOrNull(r.max_daily_hours),
     maxWeeklyHours: numOrNull(r.max_weekly_hours),
+    officeId: r.office_id ?? null,
+    officeName: r.offices?.name ?? null,
   };
 }
 
@@ -31,12 +37,12 @@ export async function listEngineersFromDb(
 ): Promise<{ engineers: Engineer[] } | { error: string }> {
   const { data, error } = await client
     .from("engineer_pool")
-    .select("*")
+    .select("*, offices(name)")
     .order("last_name", { ascending: true })
     .order("first_name", { ascending: true });
 
   if (error) return { error: error.message };
-  return { engineers: ((data ?? []) as EngineerDbRow[]).map(rowToEngineer) };
+  return { engineers: ((data ?? []) as EngineerDbRowJoined[]).map(rowToEngineer) };
 }
 
 /**
@@ -75,21 +81,25 @@ export async function getEngineerByCodeFromDb(
 ): Promise<{ engineer: Engineer } | { error: string }> {
   const { data, error } = await client
     .from("engineer_pool")
-    .select("*")
+    .select("*, offices(name)")
     .eq("code", code)
     .maybeSingle();
   if (error) return { error: error.message };
   if (!data) return { error: "Engineer not found" };
-  return { engineer: rowToEngineer(data as EngineerDbRow) };
+  return { engineer: rowToEngineer(data as EngineerDbRowJoined) };
 }
 
 export async function createEngineerInDb(
   client: SupabaseClient,
   input: EngineerInsertRow
 ): Promise<{ engineer: Engineer } | { error: string }> {
-  const { data, error } = await client.from("engineer_pool").insert(input).select("*").single();
+  const { data, error } = await client
+    .from("engineer_pool")
+    .insert(input)
+    .select("*, offices(name)")
+    .single();
   if (error) return { error: error.message };
-  return { engineer: rowToEngineer(data as EngineerDbRow) };
+  return { engineer: rowToEngineer(data as EngineerDbRowJoined) };
 }
 
 export async function updateEngineerInDb(
@@ -101,10 +111,10 @@ export async function updateEngineerInDb(
     .from("engineer_pool")
     .update(input)
     .eq("id", id)
-    .select("*")
+    .select("*, offices(name)")
     .single();
   if (error) return { error: error.message };
-  return { engineer: rowToEngineer(data as EngineerDbRow) };
+  return { engineer: rowToEngineer(data as EngineerDbRowJoined) };
 }
 
 export async function deleteEngineerInDb(

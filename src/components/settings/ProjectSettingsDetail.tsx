@@ -3,9 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { loadProjectForSettingsAction, updateProjectAction } from "@/app/settings/actions";
-import { loadOfficesAction } from "@/app/settings/officeActions";
 import { ProjectEngineersPanel } from "@/components/settings/ProjectEngineersPanel";
-import type { Office } from "@/types/office";
 import type { Project } from "@/types/project";
 
 import { ProjectFormFields } from "./ProjectFormFields";
@@ -13,6 +11,10 @@ import type { ProjectCreatePayload } from "./types";
 
 const PROJECT_SETTINGS_SUBTABS = ["Details", "Engineers"] as const;
 type ProjectSettingsSubTab = (typeof PROJECT_SETTINGS_SUBTABS)[number];
+
+function projectBreadcrumbTitle(p: Project): string {
+  return p.projectCode ? `${p.projectCode} - ${p.name}` : p.name;
+}
 
 function projectToPayload(p: Project): ProjectCreatePayload {
   return {
@@ -35,7 +37,6 @@ export function ProjectSettingsDetail({
   onBackToProjects: () => void;
 }) {
   const [project, setProject] = useState<Project | null>(null);
-  const [offices, setOffices] = useState<Office[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeSubTab, setActiveSubTab] = useState<ProjectSettingsSubTab>("Details");
@@ -46,10 +47,7 @@ export function ProjectSettingsDetail({
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const [projectRes, officesRes] = await Promise.all([
-        loadProjectForSettingsAction(projectId),
-        loadOfficesAction(),
-      ]);
+      const projectRes = await loadProjectForSettingsAction(projectId);
       if (cancelled) return;
       if (!projectRes.ok) {
         setError(projectRes.error);
@@ -58,7 +56,6 @@ export function ProjectSettingsDetail({
         setEditDraft(projectToPayload(projectRes.project));
         setError(null);
       }
-      if (officesRes.ok) setOffices(officesRes.offices);
       setLoading(false);
     })();
     return () => {
@@ -90,6 +87,10 @@ export function ProjectSettingsDetail({
         aria-label="Breadcrumb"
         className="text-muted-foreground flex flex-wrap items-center gap-1.5 text-sm"
       >
+        <span className="text-foreground font-medium">{project ? project.officeName : "…"}</span>
+        <span aria-hidden className="text-muted-foreground">
+          /
+        </span>
         <button
           type="button"
           onClick={onBackToProjects}
@@ -100,11 +101,9 @@ export function ProjectSettingsDetail({
         <span aria-hidden className="text-muted-foreground">
           /
         </span>
-        {loading && <span className="text-foreground font-medium">…</span>}
-        {!loading && project && <span className="text-foreground font-medium">{project.name}</span>}
-        {!loading && !project && error && (
-          <span className="text-foreground font-medium">Project</span>
-        )}
+        <span className="text-foreground font-medium">
+          {project ? projectBreadcrumbTitle(project) : loading ? "…" : error ? "Project" : "…"}
+        </span>
       </nav>
 
       {error && (
@@ -138,12 +137,7 @@ export function ProjectSettingsDetail({
           <div className="min-h-0 flex-1 overflow-auto pt-2">
             {activeSubTab === "Details" && editDraft && (
               <form onSubmit={handleSaveDetails} className="flex flex-col gap-4">
-                <ProjectFormFields
-                  value={editDraft}
-                  offices={offices}
-                  disabled={isSaving}
-                  onChange={setEditDraft}
-                />
+                <ProjectFormFields value={editDraft} disabled={isSaving} onChange={setEditDraft} />
                 <div className="flex justify-end">
                   <button
                     type="submit"

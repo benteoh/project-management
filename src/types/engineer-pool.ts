@@ -11,6 +11,10 @@ export interface Engineer {
   isActive: boolean;
   maxDailyHours: number | null;
   maxWeeklyHours: number | null;
+  /** FK to `offices`; null = not assigned to an office. */
+  officeId: string | null;
+  /** From join; useful when `officeId` points at a removed office row. */
+  officeName: string | null;
 }
 
 import type { ProjectEngineerRates } from "@/types/project-engineer";
@@ -37,6 +41,7 @@ export interface EngineerDbRow {
   is_active: boolean;
   max_daily_hours: number | null;
   max_weekly_hours: number | null;
+  office_id: string | null;
   updated_at?: string;
 }
 
@@ -49,6 +54,7 @@ export interface EngineerInsertRow {
   is_active: boolean;
   max_daily_hours?: number | null;
   max_weekly_hours?: number | null;
+  office_id?: string | null;
 }
 
 /** Update payload shape for `public.engineer_pool`. */
@@ -59,4 +65,5 @@ export interface EngineerUpdateRow {
   is_active?: boolean;
   max_daily_hours?: number | null;
   max_weekly_hours?: number | null;
+  office_id?: string | null;
 }

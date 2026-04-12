@@ -1,7 +1,6 @@
 "use client";
 
 import { SUBTLE_FORM_INPUT_CLASS } from "@/components/ui/InlineEditableText";
-import type { Office } from "@/types/office";
 import type { ProjectStatus } from "@/types/project";
 
 import { Field } from "./Field";
@@ -19,12 +18,13 @@ const SELECT_CLASS =
 
 export function ProjectFormFields({
   value,
-  offices,
+  officeName,
   disabled,
   onChange,
 }: {
   value: ProjectCreatePayload;
-  offices: Office[];
+  /** When set, office is shown read-only (e.g. project detail). Omit when creating under a known office section. */
+  officeName?: string;
   disabled?: boolean;
   onChange: (next: ProjectCreatePayload) => void;
 }) {
@@ -32,103 +32,84 @@ export function ProjectFormFields({
     onChange({ ...value, [key]: v });
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap gap-x-6 gap-y-4">
-        <Field label="Project name">
-          <input
-            className={SUBTLE_FORM_INPUT_CLASS}
-            value={value.name}
-            required
-            disabled={disabled}
-            placeholder="Euston Station"
-            onChange={(e) => set("name", e.target.value)}
-          />
-        </Field>
-        <Field label="Client">
-          <input
-            className={SUBTLE_FORM_INPUT_CLASS}
-            value={value.client}
-            required
-            disabled={disabled}
-            placeholder="HS2 Ltd"
-            onChange={(e) => set("client", e.target.value)}
-          />
-        </Field>
-      </div>
-
-      <div className="flex flex-wrap gap-x-6 gap-y-4">
+    <div className="flex flex-wrap gap-x-6 gap-y-4">
+      <Field label="Project code">
+        <input
+          className={SUBTLE_FORM_INPUT_CLASS}
+          value={value.projectCode ?? ""}
+          disabled={disabled}
+          placeholder="489"
+          onChange={(e) => set("projectCode", e.target.value || null)}
+        />
+      </Field>
+      <Field label="Project name">
+        <input
+          className={SUBTLE_FORM_INPUT_CLASS}
+          value={value.name}
+          required
+          disabled={disabled}
+          placeholder="Euston Station"
+          onChange={(e) => set("name", e.target.value)}
+        />
+      </Field>
+      <Field label="Client">
+        <input
+          className={SUBTLE_FORM_INPUT_CLASS}
+          value={value.client}
+          required
+          disabled={disabled}
+          placeholder="HS2 Ltd"
+          onChange={(e) => set("client", e.target.value)}
+        />
+      </Field>
+      {officeName !== undefined && (
         <Field label="Office">
-          <select
-            className={SELECT_CLASS}
-            value={value.officeId}
-            required
-            disabled={disabled}
-            onChange={(e) => set("officeId", e.target.value)}
-          >
-            <option value="">Select office…</option>
-            {offices.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.name}
-              </option>
-            ))}
-          </select>
+          <p className="text-foreground px-2 py-1.5 text-sm">{officeName}</p>
         </Field>
-        <Field label="Status">
-          <select
-            className={SELECT_CLASS}
-            value={value.status}
-            disabled={disabled}
-            onChange={(e) => set("status", e.target.value as ProjectStatus)}
-          >
-            {STATUS_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Project code">
-          <input
-            className={SUBTLE_FORM_INPUT_CLASS}
-            value={value.projectCode ?? ""}
-            disabled={disabled}
-            placeholder="489"
-            onChange={(e) => set("projectCode", e.target.value || null)}
-          />
-        </Field>
-      </div>
-
-      <div className="flex flex-wrap gap-x-6 gap-y-4">
-        <Field label="Fixed fee (£)">
-          <input
-            type="number"
-            min={0}
-            step={1}
-            className={SUBTLE_FORM_INPUT_CLASS}
-            value={value.fixedFee}
-            disabled={disabled}
-            onChange={(e) => set("fixedFee", Number(e.target.value))}
-          />
-        </Field>
-        <Field label="Start date">
-          <input
-            type="date"
-            className={SUBTLE_FORM_INPUT_CLASS}
-            value={value.startDate}
-            disabled={disabled}
-            onChange={(e) => set("startDate", e.target.value)}
-          />
-        </Field>
-        <Field label="End date">
-          <input
-            type="date"
-            className={SUBTLE_FORM_INPUT_CLASS}
-            value={value.endDate}
-            disabled={disabled}
-            onChange={(e) => set("endDate", e.target.value)}
-          />
-        </Field>
-      </div>
+      )}
+      <Field label="Status">
+        <select
+          className={SELECT_CLASS}
+          value={value.status}
+          disabled={disabled}
+          onChange={(e) => set("status", e.target.value as ProjectStatus)}
+        >
+          {STATUS_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field label="Fixed fee (£)">
+        <input
+          type="number"
+          min={0}
+          step={1}
+          className={SUBTLE_FORM_INPUT_CLASS}
+          value={value.fixedFee}
+          disabled={disabled}
+          onChange={(e) => set("fixedFee", Number(e.target.value))}
+        />
+      </Field>
+      <Field label="Start date">
+        <input
+          type="date"
+          className={SUBTLE_FORM_INPUT_CLASS}
+          value={value.startDate}
+          disabled={disabled}
+          onChange={(e) => set("startDate", e.target.value)}
+        />
+      </Field>
+      <Field label="End date">
+        <input
+          type="date"
+          className={SUBTLE_FORM_INPUT_CLASS}
+          value={value.endDate}
+          disabled={disabled}
+          onChange={(e) => set("endDate", e.target.value)}
+        />
+      </Field>
     </div>
   );
 }

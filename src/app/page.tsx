@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Building2 } from "lucide-react";
 
+import { officeNameToUrlPathSegment } from "@/lib/offices/officeUrl";
 import { listProjectsFromDb } from "@/lib/projects/projectDb";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { Project } from "@/types/project";
@@ -58,7 +59,7 @@ export default async function HomePage() {
         {offices.map((office) => (
           <Link
             key={office.name}
-            href={`/${encodeURIComponent(office.name)}`}
+            href={`/${encodeURIComponent(officeNameToUrlPathSegment(office.name))}`}
             className="group border-border bg-card shadow-card hover:border-foreground/20 hover:shadow-elevated block rounded-lg border p-5 transition-all"
           >
             <div className="flex items-start justify-between">

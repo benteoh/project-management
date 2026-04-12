@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { normalizeOfficeUrlParam, officeNameMatchesUrlParam } from "@/lib/offices/officeUrl";
 import { listProjectsFromDb } from "@/lib/projects/projectDb";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -23,7 +24,7 @@ const STATUS_CLASSES: Record<ProjectStatus, string> = {
 
 export default async function OfficePage({ params }: Props) {
   const { office } = await params;
-  const officeName = decodeURIComponent(office);
+  const officePathKey = normalizeOfficeUrlParam(office);
 
   let projects: Project[] = [];
   let error: string | null = null;
@@ -32,13 +33,16 @@ export default async function OfficePage({ params }: Props) {
     const client = await createServerSupabaseClient();
     const result = await listProjectsFromDb(client);
     if ("projects" in result) {
-      projects = result.projects.filter((p) => p.officeName === officeName);
+      projects = result.projects.filter((p) => officeNameMatchesUrlParam(p.officeName, office));
     } else {
       error = result.error;
     }
   } catch (e) {
     error = e instanceof Error ? e.message : "Failed to load projects";
   }
+
+  const displayOfficeName = projects[0]?.officeName ?? decodeURIComponent(office);
+  const officePathSegment = encodeURIComponent(officePathKey);
 
   return (
     <div className="flex flex-1 flex-col">
@@ -52,9 +56,9 @@ export default async function OfficePage({ params }: Props) {
             Offices
           </Link>
           <span className="text-muted-foreground text-xs">/</span>
-          <span className="text-foreground text-xs font-medium">{officeName}</span>
+          <span className="text-foreground text-xs font-medium">{displayOfficeName}</span>
         </div>
-        <h1 className="text-foreground text-2xl font-semibold">{officeName}</h1>
+        <h1 className="text-foreground text-2xl font-semibold">{displayOfficeName}</h1>
         <p className="text-muted-foreground mt-0.5 text-sm">
           {projects.length} project{projects.length !== 1 ? "s" : ""}
         </p>
@@ -87,7 +91,7 @@ export default async function OfficePage({ params }: Props) {
         {projects.map((project) => (
           <Link
             key={project.id}
-            href={`/${encodeURIComponent(office)}/project/${project.id}`}
+            href={`/${officePathSegment}/project/${project.id}`}
             className="group border-border hover:bg-muted/50 flex items-stretch border-b transition-colors"
           >
             <div className="text-muted-foreground flex w-28 min-w-[7rem] shrink-0 items-center px-4 py-3 font-mono text-xs">

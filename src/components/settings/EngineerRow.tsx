@@ -16,10 +16,13 @@ import type { EngineerUpdatePayload } from "./types";
 
 export function EngineerRow({
   engineer,
+  sectionOfficeId,
   isPending,
   onUpdate,
 }: {
   engineer: Engineer;
+  /** Office for this tab; saved on update so the row stays aligned with the tab. */
+  sectionOfficeId: string | null;
   isPending: boolean;
   onUpdate: (payload: EngineerUpdatePayload) => void;
 }) {
@@ -46,17 +49,20 @@ export function EngineerRow({
       isActive: d.isActive,
       maxDailyHours: d.maxDailyHours,
       maxWeeklyHours: d.maxWeeklyHours,
+      officeId: sectionOfficeId,
     }),
-    [engineer.id]
+    [engineer.id, sectionOfficeId]
   );
 
   const saveEdit = useCallback(() => {
     const payload = toPayload(draft);
-    if (!engineerEditableFieldsEqual(engineer, payload)) {
+    const fieldsDirty = !engineerEditableFieldsEqual(engineerToEditableFields(engineer), draft);
+    const officeDirty = engineer.officeId !== sectionOfficeId;
+    if (fieldsDirty || officeDirty) {
       onUpdate(payload);
     }
     setIsEditing(false);
-  }, [draft, engineer, onUpdate, toPayload]);
+  }, [draft, engineer, onUpdate, toPayload, sectionOfficeId]);
 
   useEffect(() => {
     if (!isEditing) return;

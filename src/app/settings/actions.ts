@@ -50,6 +50,7 @@ export async function createEngineerAction(
     firstName: string;
     lastName: string;
     isActive: boolean;
+    officeId: string | null;
   } & EngineerCapacityPayload
 ): Promise<EngineersResult> {
   const firstName = normalizeName(input.firstName);
@@ -70,6 +71,7 @@ export async function createEngineerAction(
     first_name: firstName,
     last_name: lastName,
     is_active: input.isActive,
+    office_id: input.officeId,
     ...capacityToDb(cap),
   });
   if ("error" in createRes) return { ok: false, error: createRes.error };
@@ -82,6 +84,7 @@ export async function updateEngineerAction(
     firstName: string;
     lastName: string;
     isActive: boolean;
+    officeId: string | null;
   } & EngineerCapacityPayload
 ): Promise<EngineersResult> {
   const firstName = normalizeName(input.firstName);
@@ -103,6 +106,7 @@ export async function updateEngineerAction(
     first_name: firstName,
     last_name: lastName,
     is_active: input.isActive,
+    office_id: input.officeId,
     ...capacityToDb(cap),
   });
   if ("error" in updateRes) return { ok: false, error: updateRes.error };

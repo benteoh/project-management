@@ -17,6 +17,8 @@ export type EngineerCreatePayload = {
   firstName: string;
   lastName: string;
   isActive: boolean;
+  /** Null = not assigned to an office. */
+  officeId: string | null;
 } & EngineerCapacityPayload;
 
 export type EngineerUpdatePayload = EngineerCreatePayload & { id: string };
