@@ -1,12 +1,17 @@
 "use client";
 
-import { AlertTriangle } from "lucide-react";
-import { useMemo, useState } from "react";
+import { AlertTriangle, MousePointerClick } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
+import type { ProgrammeNode } from "@/components/programme/types";
 import { ColumnFilter } from "@/components/forecast/ColumnFilter";
 import { FilterFunnelIcon } from "@/components/ui/FilterFunnelIcon";
-import type { EngineerPoolEntry } from "@/types/engineer-pool";
-import { buildEmployeeCellMatchSetFromGridPool } from "@/lib/timesheet/employeeCellMatch";
+import {
+  buildEmployeeCellMatchSetFromGridPool,
+  resolveEngineerFromEmployeeCell,
+  type EngineerPoolRow,
+} from "@/lib/timesheet/employeeCellMatch";
+import { resolveScopeNodeForTaskIdCell } from "@/lib/timesheet/timesheetLinkedResolve";
 import {
   computeTimesheetRowIssues,
   TIMESHEET_ISSUE_IDS,
@@ -15,7 +20,10 @@ import {
   type TimesheetRowIssue,
 } from "@/lib/timesheet/timesheetRowIssues";
 import { findCol } from "@/lib/xlsx/xlsxUtils";
+import type { EngineerPoolEntry } from "@/types/engineer-pool";
+import type { Project } from "@/types/project";
 
+import { TimesheetLinkSidebar, type TimesheetSidebarPanel } from "./TimesheetLinkSidebar";
 import type { SheetData } from "./types";
 
 function groupIssuesByColumn(issues: TimesheetRowIssue[]): Map<number, TimesheetRowIssue[]> {
@@ -31,6 +39,15 @@ function groupIssuesByColumn(issues: TimesheetRowIssue[]): Map<number, Timesheet
 function cellIssueTooltip(issues: TimesheetRowIssue[]): string | undefined {
   if (issues.length === 0) return undefined;
   return issues.map((i) => TIMESHEET_ISSUE_LABELS[i.issueId]).join(" · ");
+}
+
+function poolToEngRows(pool: EngineerPoolEntry[]): EngineerPoolRow[] {
+  return pool.map((p) => ({
+    id: p.id,
+    code: p.code,
+    first_name: p.firstName ?? "",
+    last_name: p.lastName ?? "",
+  }));
 }
 
 function TimesheetDataCell({ value, issues }: { value: string; issues: TimesheetRowIssue[] }) {
@@ -50,20 +67,28 @@ function TimesheetDataCell({ value, issues }: { value: string; issues: Timesheet
   );
 }
 
+type LinkedSelection = {
+  rowIndex: number;
+  colIndex: number;
+  panel: TimesheetSidebarPanel;
+} | null;
+
 export function TimesheetTable({
   sheet,
   engineerPool,
   scopeNames,
-  projectForTimesheet,
+  project,
+  programmeTree,
 }: {
   sheet: SheetData;
   engineerPool: EngineerPoolEntry[];
   scopeNames: string[];
-  /** When set, validates a Project / Job column against this project. */
-  projectForTimesheet: { projectCode: string | null; name: string } | null;
+  project: Project | null;
+  programmeTree: ProgrammeNode[];
 }) {
   const [activeFilters, setActiveFilters] = useState<Set<TimesheetIssueId> | null>(null);
   const [filterAnchor, setFilterAnchor] = useState<DOMRect | null>(null);
+  const [linkedSelection, setLinkedSelection] = useState<LinkedSelection>(null);
 
   const hoursIdx = findCol(sheet.headers, ["hours", "hrs", "hours worked"]);
   const employeeIdx = findCol(sheet.headers, [
@@ -96,6 +121,8 @@ export function TimesheetTable({
     [engineerPool]
   );
 
+  const engRows = useMemo(() => poolToEngRows(engineerPool), [engineerPool]);
+
   const issuesContext = useMemo(
     () => ({
       hoursIdx,
@@ -105,18 +132,9 @@ export function TimesheetTable({
       projectIdx,
       scopeNames,
       knownEmployees,
-      project: projectForTimesheet,
+      project: project ? { projectCode: project.projectCode, name: project.name } : null,
     }),
-    [
-      hoursIdx,
-      employeeIdx,
-      taskIdIdx,
-      notesIdx,
-      projectIdx,
-      scopeNames,
-      knownEmployees,
-      projectForTimesheet,
-    ]
+    [hoursIdx, employeeIdx, taskIdIdx, notesIdx, projectIdx, scopeNames, knownEmployees, project]
   );
 
   const rowIssueRows = useMemo(
@@ -135,8 +153,51 @@ export function TimesheetTable({
       ? rowIssueRows
       : rowIssueRows.filter(({ issues }) => issues.some((i) => activeFilters.has(i.issueId)));
 
+  const openLinkedPanel = useCallback(
+    (ri: number, ci: number, cell: string) => {
+      const linkKind: "project" | "employee" | "scope" | null =
+        project && projectIdx >= 0 && ci === projectIdx
+          ? "project"
+          : employeeIdx >= 0 && ci === employeeIdx
+            ? "employee"
+            : taskIdIdx >= 0 && ci === taskIdIdx
+              ? "scope"
+              : null;
+
+      if (!linkKind) return;
+
+      let panel: TimesheetSidebarPanel | null = null;
+      if (linkKind === "project" && project) {
+        panel = { kind: "project", project, cellValue: cell };
+      } else if (linkKind === "employee") {
+        const { engineerId } = resolveEngineerFromEmployeeCell(cell, engRows);
+        const engineer = engineerId
+          ? (engineerPool.find((e) => e.id === engineerId) ?? null)
+          : null;
+        panel = { kind: "employee", engineer, cellValue: cell };
+      } else if (linkKind === "scope") {
+        const scope = resolveScopeNodeForTaskIdCell(cell, programmeTree);
+        panel = { kind: "scope", scope, cellValue: cell };
+      }
+
+      if (panel) {
+        setLinkedSelection({ rowIndex: ri, colIndex: ci, panel });
+      }
+    },
+    [employeeIdx, engRows, engineerPool, programmeTree, project, projectIdx, taskIdIdx]
+  );
+
+  useEffect(() => {
+    if (!linkedSelection) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setLinkedSelection(null);
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [linkedSelection]);
+
   return (
-    <div>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {filterAnchor && (
         <ColumnFilter
           options={[...TIMESHEET_ISSUE_IDS]}
@@ -158,9 +219,10 @@ export function TimesheetTable({
         />
       )}
 
-      <div className="border-border bg-background flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-2">
+      <div className="border-border bg-background flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-2">
         <p className="text-muted-foreground max-w-xl text-xs">
-          Issues are marked with a small warning on the cell. Hover the marker for details.
+          Issues are marked with a small warning on the cell. Hover the marker for details. Click
+          project, employee, or task / scope cells to see details on the right.
         </p>
         <button
           type="button"
@@ -173,55 +235,125 @@ export function TimesheetTable({
         </button>
       </div>
 
-      <table className="border-border w-max border-collapse text-sm">
-        <thead className="bg-card sticky top-0 z-10">
-          <tr>
-            <th className="border-border text-muted-foreground border-r border-b px-4 py-2 text-right text-xs font-medium tracking-wide whitespace-nowrap uppercase select-none">
-              No.
-            </th>
-            {sheet.headers.map((h, i) => (
-              <th
-                key={i}
-                className="border-border text-muted-foreground border-r border-b px-4 py-2 text-left text-xs font-medium tracking-wide whitespace-nowrap uppercase"
-              >
-                {h ? (
-                  normaliseHeaderLabel(h) === "task id" ? (
-                    "Task ID (Scope)"
-                  ) : (
-                    h
-                  )
-                ) : (
-                  <span className="text-muted-foreground/40">—</span>
-                )}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {visibleRows.map(({ row, ri, issues }) => {
-            const byCol = groupIssuesByColumn(issues);
-            return (
-              <tr key={ri} className="hover:bg-background">
-                <td className="border-border text-muted-foreground border-r border-b px-4 py-2 text-right whitespace-nowrap tabular-nums select-none">
-                  {ri + 1}
-                </td>
-                {row.map((cell, ci) => {
-                  const cellIssues = byCol.get(ci) ?? [];
+      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+        <div className="min-h-0 min-w-0 flex-1 overflow-auto">
+          <table className="border-border w-max border-collapse text-sm">
+            <thead className="bg-card sticky top-0 z-10">
+              <tr>
+                <th className="border-border text-muted-foreground border-r border-b px-4 py-2 text-right text-xs font-medium tracking-wide whitespace-nowrap uppercase select-none">
+                  No.
+                </th>
+                {sheet.headers.map((h, i) => {
+                  const isProjectLink = Boolean(project && projectIdx >= 0 && i === projectIdx);
+                  const isEmployeeLink = employeeIdx >= 0 && i === employeeIdx;
+                  const isScopeLink = taskIdIdx >= 0 && i === taskIdIdx;
+                  const isLinkedCol = isProjectLink || isEmployeeLink || isScopeLink;
+                  const linkHint = isProjectLink
+                    ? "Linked to this project — click any cell for details"
+                    : isEmployeeLink
+                      ? "Linked to the engineer pool — click any cell for details"
+                      : isScopeLink
+                        ? "Linked to programme scopes — click any cell for details"
+                        : undefined;
+
                   return (
-                    <td
-                      key={ci}
-                      className="border-border text-foreground border-r border-b px-4 py-2 align-top whitespace-nowrap"
-                      title={cellIssueTooltip(cellIssues)}
+                    <th
+                      key={i}
+                      title={linkHint}
+                      className={`border-border text-muted-foreground border-r border-b px-4 py-2 text-left text-xs font-medium tracking-wide whitespace-nowrap uppercase ${
+                        isLinkedCol ? "bg-muted/25" : ""
+                      }`}
                     >
-                      <TimesheetDataCell value={cell} issues={cellIssues} />
-                    </td>
+                      <span className="inline-flex max-w-full items-center gap-1.5">
+                        <span className="min-w-0 truncate">
+                          {h ? (
+                            normaliseHeaderLabel(h) === "task id" ? (
+                              "Task ID (Scope)"
+                            ) : (
+                              h
+                            )
+                          ) : (
+                            <span className="text-muted-foreground/40">—</span>
+                          )}
+                        </span>
+                        {isLinkedCol ? (
+                          <MousePointerClick
+                            className="text-gold h-3.5 w-3.5 shrink-0"
+                            strokeWidth={2}
+                            aria-hidden
+                          />
+                        ) : null}
+                      </span>
+                    </th>
                   );
                 })}
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
+            </thead>
+            <tbody>
+              {visibleRows.map(({ row, ri, issues }) => {
+                const byCol = groupIssuesByColumn(issues);
+                return (
+                  <tr key={ri} className="hover:bg-background">
+                    <td className="border-border text-muted-foreground border-r border-b px-4 py-2 text-right whitespace-nowrap tabular-nums select-none">
+                      {ri + 1}
+                    </td>
+                    {row.map((cell, ci) => {
+                      const cellIssues = byCol.get(ci) ?? [];
+                      const isProjectLink = Boolean(
+                        project && projectIdx >= 0 && ci === projectIdx
+                      );
+                      const isEmployeeLink = employeeIdx >= 0 && ci === employeeIdx;
+                      const isScopeLink = taskIdIdx >= 0 && ci === taskIdIdx;
+                      const isLinked = isProjectLink || isEmployeeLink || isScopeLink;
+                      const isSelected =
+                        linkedSelection?.rowIndex === ri && linkedSelection?.colIndex === ci;
+
+                      return (
+                        <td
+                          key={ci}
+                          role={isLinked ? "button" : undefined}
+                          tabIndex={isLinked ? 0 : undefined}
+                          className={`border-border text-foreground border-r border-b px-4 py-2 align-top whitespace-nowrap ${
+                            isLinked
+                              ? "hover:bg-muted/50 focus-visible:ring-gold cursor-pointer focus-visible:ring-2 focus-visible:outline-none"
+                              : ""
+                          } ${isSelected ? "bg-gold/10 ring-gold ring-1 ring-inset" : ""}`}
+                          title={cellIssueTooltip(cellIssues)}
+                          onClick={
+                            isLinked
+                              ? () => {
+                                  openLinkedPanel(ri, ci, cell);
+                                }
+                              : undefined
+                          }
+                          onKeyDown={
+                            isLinked
+                              ? (e) => {
+                                  if (e.key === "Enter" || e.key === " ") {
+                                    e.preventDefault();
+                                    openLinkedPanel(ri, ci, cell);
+                                  }
+                                }
+                              : undefined
+                          }
+                        >
+                          <TimesheetDataCell value={cell} issues={cellIssues} />
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <TimesheetLinkSidebar
+          panel={linkedSelection?.panel ?? null}
+          engineerPool={engineerPool}
+          onClose={() => setLinkedSelection(null)}
+        />
+      </div>
     </div>
   );
 }

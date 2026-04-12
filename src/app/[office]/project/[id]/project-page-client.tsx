@@ -198,9 +198,8 @@ export default function ProjectPageClient({
             initialUploads={initialTimesheetUploads}
             engineerPool={engineerPool}
             scopeNames={scopeNames}
-            projectForTimesheet={
-              project ? { projectCode: project.projectCode, name: project.name } : null
-            }
+            project={project}
+            programmeTree={programmeTree}
           />
         </div>
       </div>

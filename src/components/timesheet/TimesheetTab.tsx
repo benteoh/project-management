@@ -23,7 +23,8 @@ export function TimesheetTab({
   initialUploads,
   engineerPool,
   scopeNames,
-  projectForTimesheet,
+  project,
+  programmeTree,
 }: TimesheetTabProps) {
   const [sheet, setSheet] = useState<SheetData | null>(null);
   const [viewingUpload, setViewingUpload] = useState<ViewingUpload>(null);
@@ -203,12 +204,13 @@ export function TimesheetTab({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <TimesheetTable
           sheet={sheet}
           engineerPool={engineerPool}
           scopeNames={scopeNames}
-          projectForTimesheet={projectForTimesheet}
+          project={project}
+          programmeTree={programmeTree}
         />
       </div>
     </div>

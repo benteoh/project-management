@@ -1,4 +1,6 @@
+import type { ProgrammeNode } from "@/components/programme/types";
 import type { EngineerPoolEntry } from "@/types/engineer-pool";
+import type { Project } from "@/types/project";
 import type { TimesheetUpload } from "@/types/timesheet";
 
 export type SheetData = {
@@ -18,6 +20,7 @@ export type TimesheetTabProps = {
   engineerPool: EngineerPoolEntry[];
   /** Scope names from the project programme — used to validate Task ID (Scope) column. */
   scopeNames: string[];
-  /** When set, validates Project / Job column cells against this project. */
-  projectForTimesheet: { projectCode: string | null; name: string } | null;
+  /** Current project (sidebar + project-column validation). */
+  project: Project | null;
+  programmeTree: ProgrammeNode[];
 };
