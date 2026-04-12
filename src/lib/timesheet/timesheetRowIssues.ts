@@ -1,0 +1,172 @@
+/**
+ * Pure rules for timesheet preview issues (which column, which issue id).
+ * Used by the timesheet table for per-cell markers and row filters.
+ */
+
+import { employeeCellIsKnown } from "@/lib/timesheet/employeeCellMatch";
+import {
+  normalise,
+  normaliseProjCellRaw,
+  sigWords,
+  wordCoverage,
+} from "@/lib/timesheet/timesheetImportResolve";
+
+const SCOPE_TASK_MIN_COVERAGE = 0.8;
+
+export const TIMESHEET_ISSUE_IDS = [
+  "hours_over_daily_cap",
+  "unknown_employee",
+  "scope_unmatched",
+  "project_unmatched",
+  "notes_task_mismatch",
+] as const;
+
+export type TimesheetIssueId = (typeof TIMESHEET_ISSUE_IDS)[number];
+
+export const TIMESHEET_ISSUE_LABELS: Record<TimesheetIssueId, string> = {
+  hours_over_daily_cap: "Hours exceed 8",
+  unknown_employee: "Unregistered employee",
+  scope_unmatched: "Can't match to scope",
+  project_unmatched: "Can't match to project",
+  notes_task_mismatch: "Notes don't match task / scope id",
+};
+
+export type TimesheetRowIssue = {
+  issueId: TimesheetIssueId;
+  /** Column index in the sheet row (same as `row` array index). */
+  columnIndex: number;
+};
+
+export type TimesheetIssuesContext = {
+  hoursIdx: number;
+  employeeIdx: number;
+  taskIdIdx: number;
+  notesIdx: number;
+  projectIdx: number;
+  scopeNames: string[];
+  knownEmployees: Set<string>;
+  /** When null, project column checks are skipped. */
+  project: { projectCode: string | null; name: string } | null;
+};
+
+function matchesAnyScope(csvValue: string, scopeNames: string[]): boolean {
+  const t = csvValue.trim();
+  if (!t) return false;
+  const aWords = sigWords(t);
+  if (aWords.length === 0) {
+    return scopeNames.some((name) => t.toLowerCase() === name.trim().toLowerCase());
+  }
+  return scopeNames.some(
+    (name) =>
+      normalise(t) === normalise(name) || wordCoverage(aWords, name) >= SCOPE_TASK_MIN_COVERAGE
+  );
+}
+
+/**
+ * Returns true if ≥80% of the task ID's significant words appear in the notes
+ * text. Returns null when either value is empty (no issue from this rule).
+ */
+function notesMatchTaskId(notes: string, taskId: string): boolean | null {
+  const taskWords = sigWords(taskId);
+  if (taskWords.length === 0) return null;
+  const noteWords = sigWords(notes);
+  if (noteWords.length === 0) return null;
+  return wordCoverage(taskWords, notes) >= SCOPE_TASK_MIN_COVERAGE;
+}
+
+function scopeMatchForRow(row: string[], taskIdIdx: number, scopeNames: string[]): boolean | null {
+  if (scopeNames.length === 0 || taskIdIdx < 0) return null;
+  const val = (row[taskIdIdx] ?? "").trim();
+  if (!val) return null;
+  return matchesAnyScope(val, scopeNames);
+}
+
+/**
+ * Cell is OK when empty. Non-empty must align with this project's code or name
+ * (case-insensitive, light normalisation).
+ */
+export function timesheetProjectCellMatches(
+  cell: string,
+  project: { projectCode: string | null; name: string }
+): boolean {
+  const t = normaliseProjCellRaw(cell).trim().toLowerCase();
+  if (!t) return true;
+
+  const code = project.projectCode?.trim();
+  if (code) {
+    const c = code.toLowerCase();
+    if (t === c) return true;
+    const tCompact = t.replace(/[^a-z0-9]/g, "");
+    const cCompact = c.replace(/[^a-z0-9]/g, "");
+    if (
+      tCompact &&
+      cCompact &&
+      (tCompact === cCompact || tCompact.includes(cCompact) || cCompact.includes(tCompact))
+    ) {
+      return true;
+    }
+  }
+
+  const n = normaliseProjCellRaw(project.name).trim().toLowerCase();
+  if (t === n) return true;
+  const tCompact = t.replace(/[^a-z0-9]/g, "");
+  const nCompact = n.replace(/[^a-z0-9]/g, "");
+  if (tCompact && nCompact && (tCompact === nCompact || t.includes(n) || n.includes(t))) {
+    return true;
+  }
+  return false;
+}
+
+export function computeTimesheetRowIssues(
+  row: string[],
+  ctx: TimesheetIssuesContext
+): TimesheetRowIssue[] {
+  const issues: TimesheetRowIssue[] = [];
+
+  const {
+    hoursIdx,
+    employeeIdx,
+    taskIdIdx,
+    notesIdx,
+    projectIdx,
+    scopeNames,
+    knownEmployees,
+    project,
+  } = ctx;
+
+  if (hoursIdx >= 0) {
+    const hoursVal = parseFloat(row[hoursIdx] ?? "");
+    if (!isNaN(hoursVal) && hoursVal > 8) {
+      issues.push({ issueId: "hours_over_daily_cap", columnIndex: hoursIdx });
+    }
+  }
+
+  if (employeeIdx >= 0) {
+    const empCell = (row[employeeIdx] ?? "").trim();
+    if (empCell && !employeeCellIsKnown(empCell, knownEmployees)) {
+      issues.push({ issueId: "unknown_employee", columnIndex: employeeIdx });
+    }
+  }
+
+  const scopeResult = scopeMatchForRow(row, taskIdIdx, scopeNames);
+  if (scopeResult === false && taskIdIdx >= 0) {
+    issues.push({ issueId: "scope_unmatched", columnIndex: taskIdIdx });
+  }
+
+  if (project && projectIdx >= 0) {
+    const projCell = (row[projectIdx] ?? "").trim();
+    if (projCell && !timesheetProjectCellMatches(projCell, project)) {
+      issues.push({ issueId: "project_unmatched", columnIndex: projectIdx });
+    }
+  }
+
+  if (notesIdx >= 0 && taskIdIdx >= 0) {
+    const notesVal = (row[notesIdx] ?? "").trim();
+    const taskIdVal = (row[taskIdIdx] ?? "").trim();
+    if (notesMatchTaskId(notesVal, taskIdVal) === false) {
+      issues.push({ issueId: "notes_task_mismatch", columnIndex: notesIdx });
+    }
+  }
+
+  return issues;
+}

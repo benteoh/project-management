@@ -18,4 +18,6 @@ export type TimesheetTabProps = {
   engineerPool: EngineerPoolEntry[];
   /** Scope names from the project programme — used to validate Task ID (Scope) column. */
   scopeNames: string[];
+  /** When set, validates Project / Job column cells against this project. */
+  projectForTimesheet: { projectCode: string | null; name: string } | null;
 };

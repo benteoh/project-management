@@ -6,6 +6,8 @@ import { useAnchoredFixedPosition } from "@/components/ui/useAnchoredFixedPositi
 
 export type ColumnFilterProps = {
   options: string[];
+  /** If set, list items show these labels instead of raw option keys (search matches both). */
+  optionLabels?: Record<string, string>;
   /** null = all selected (no filter active) */
   selected: Set<string> | null;
   /** Bounding rect of the button that opened this dropdown */
@@ -16,6 +18,7 @@ export type ColumnFilterProps = {
 
 export function ColumnFilter({
   options,
+  optionLabels,
   selected,
   anchorRect,
   onChange,
@@ -35,9 +38,17 @@ export function ColumnFilter({
   });
 
   const allChecked = checked.size === sortedOptions.length;
+  const q = search.toLowerCase();
   const visible = search
-    ? sortedOptions.filter((o) => o.toLowerCase().includes(search.toLowerCase()))
+    ? sortedOptions.filter((o) => {
+        const label = optionLabels?.[o] ?? o;
+        return o.toLowerCase().includes(q) || label.toLowerCase().includes(q);
+      })
     : sortedOptions;
+
+  function labelFor(opt: string): string {
+    return optionLabels?.[opt] ?? opt;
+  }
 
   function toggle(value: string) {
     setChecked((prev) => {
@@ -134,7 +145,7 @@ export function ColumnFilter({
                 onChange={() => toggle(opt)}
                 className="accent-gold"
               />
-              <span className="text-foreground text-xs">{opt}</span>
+              <span className="text-foreground text-xs">{labelFor(opt)}</span>
             </label>
           ))
         )}

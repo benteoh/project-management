@@ -1,108 +1,68 @@
 "use client";
 
+import { AlertTriangle } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { ColumnFilter } from "@/components/forecast/ColumnFilter";
 import { FilterFunnelIcon } from "@/components/ui/FilterFunnelIcon";
 import type { EngineerPoolEntry } from "@/types/engineer-pool";
+import { buildEmployeeCellMatchSetFromGridPool } from "@/lib/timesheet/employeeCellMatch";
 import {
-  buildEmployeeCellMatchSetFromGridPool,
-  employeeCellIsKnown,
-} from "@/lib/timesheet/employeeCellMatch";
-import { normalise, sigWords, wordCoverage } from "@/lib/timesheet/timesheetImportResolve";
+  computeTimesheetRowIssues,
+  TIMESHEET_ISSUE_IDS,
+  TIMESHEET_ISSUE_LABELS,
+  type TimesheetIssueId,
+  type TimesheetRowIssue,
+} from "@/lib/timesheet/timesheetRowIssues";
 import { findCol } from "@/lib/xlsx/xlsxUtils";
 
 import type { SheetData } from "./types";
 
-// ---------------------------------------------------------------------------
-// Scope matching
-// ---------------------------------------------------------------------------
-
-const SCOPE_TASK_MIN_COVERAGE = 0.8;
-
-/**
- * A scope matches if ≥80% of the task ID's significant words appear in the
- * scope name (same rule as import). Direction: task ID words must appear in scope name.
- */
-function matchesAnyScope(csvValue: string, scopeNames: string[]): boolean {
-  const t = csvValue.trim();
-  if (!t) return false;
-  const aWords = sigWords(t);
-  if (aWords.length === 0) {
-    return scopeNames.some((name) => t.toLowerCase() === name.trim().toLowerCase());
+function groupIssuesByColumn(issues: TimesheetRowIssue[]): Map<number, TimesheetRowIssue[]> {
+  const map = new Map<number, TimesheetRowIssue[]>();
+  for (const issue of issues) {
+    const list = map.get(issue.columnIndex) ?? [];
+    list.push(issue);
+    map.set(issue.columnIndex, list);
   }
-  return scopeNames.some(
-    (name) =>
-      normalise(t) === normalise(name) || wordCoverage(aWords, name) >= SCOPE_TASK_MIN_COVERAGE
+  return map;
+}
+
+function cellIssueTooltip(issues: TimesheetRowIssue[]): string | undefined {
+  if (issues.length === 0) return undefined;
+  return issues.map((i) => TIMESHEET_ISSUE_LABELS[i.issueId]).join(" · ");
+}
+
+function TimesheetDataCell({ value, issues }: { value: string; issues: TimesheetRowIssue[] }) {
+  if (issues.length === 0) {
+    return <>{value}</>;
+  }
+  return (
+    <div className="relative pr-6">
+      <span className="block">{value}</span>
+      <span
+        className="text-status-critical pointer-events-none absolute top-1/2 right-0 inline-flex -translate-y-1/2"
+        aria-hidden
+      >
+        <AlertTriangle className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+      </span>
+    </div>
   );
 }
-
-/**
- * Returns true if ≥80% of the task ID's significant words appear in the notes
- * text. Returns null when either value is empty (excluded from alert logic).
- */
-function notesMatchTaskId(notes: string, taskId: string): boolean | null {
-  const taskWords = sigWords(taskId);
-  if (taskWords.length === 0) return null;
-  const noteWords = sigWords(notes);
-  if (noteWords.length === 0) return null;
-  return wordCoverage(taskWords, notes) >= SCOPE_TASK_MIN_COVERAGE;
-}
-
-/**
- * Per-row scope match results:
- *   null  → empty task ID value, excluded from all counts
- *   true  → matched a scope (≥80% of task ID words found in a scope name)
- *   false → task ID words could not be matched to any scope — flag as 3
- *
- * Every non-empty task ID is checked, including short codes and single words.
- * Guard: if scopeNames is empty the whole check is skipped (all null) so that
- * an unloaded programme tree does not produce spurious alerts.
- */
-function computeScopeMatchResults(
-  rows: string[][],
-  taskIdIdx: number,
-  scopeNames: string[]
-): (boolean | null)[] {
-  if (scopeNames.length === 0 || taskIdIdx < 0) {
-    return rows.map(() => null);
-  }
-
-  return rows.map((row) => {
-    const val = (row[taskIdIdx] ?? "").trim();
-    if (!val) return null;
-    return matchesAnyScope(val, scopeNames);
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Legend + filter config
-// ---------------------------------------------------------------------------
-
-const ALERT_OPTIONS: { code: string; label: string }[] = [
-  { code: "1", label: ">8: hours exceed 8" },
-  { code: "2", label: "UE: unregistered employee" },
-  { code: "3", label: "MS: mismatch scope" },
-  { code: "4", label: "MN: wrong input code" },
-];
-
-const ALERT_CODES = ALERT_OPTIONS.map((o) => o.code);
-
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
 
 export function TimesheetTable({
   sheet,
   engineerPool,
   scopeNames,
+  projectForTimesheet,
 }: {
   sheet: SheetData;
   engineerPool: EngineerPoolEntry[];
   scopeNames: string[];
+  /** When set, validates a Project / Job column against this project. */
+  projectForTimesheet: { projectCode: string | null; name: string } | null;
 }) {
-  // null = no filter active (all rows shown); Set = show only rows with those alert codes
-  const [activeFilters, setActiveFilters] = useState<Set<string> | null>(null);
+  const [activeFilters, setActiveFilters] = useState<Set<TimesheetIssueId> | null>(null);
   const [filterAnchor, setFilterAnchor] = useState<DOMRect | null>(null);
 
   const hoursIdx = findCol(sheet.headers, ["hours", "hrs", "hours worked"]);
@@ -116,87 +76,101 @@ export function TimesheetTable({
   ]);
   const taskIdIdx = findCol(sheet.headers, ["task id", "task_id", "taskid", "scope id", "scope"]);
   const notesIdx = findCol(sheet.headers, ["notes", "note", "description", "comments", "comment"]);
+  const projectIdx = findCol(sheet.headers, [
+    "project",
+    "project code",
+    "project id",
+    "job",
+    "job code",
+    "job number",
+    "job no",
+    "wbs project",
+    "proj",
+    "proj no",
+    "proj. #",
+    "project #",
+  ]);
 
   const knownEmployees = useMemo(
     () => buildEmployeeCellMatchSetFromGridPool(engineerPool),
     [engineerPool]
   );
 
-  const scopeMatchResults = useMemo(
-    () => computeScopeMatchResults(sheet.rows, taskIdIdx, scopeNames),
-    [sheet.rows, taskIdIdx, scopeNames]
+  const issuesContext = useMemo(
+    () => ({
+      hoursIdx,
+      employeeIdx,
+      taskIdIdx,
+      notesIdx,
+      projectIdx,
+      scopeNames,
+      knownEmployees,
+      project: projectForTimesheet,
+    }),
+    [
+      hoursIdx,
+      employeeIdx,
+      taskIdIdx,
+      notesIdx,
+      projectIdx,
+      scopeNames,
+      knownEmployees,
+      projectForTimesheet,
+    ]
   );
 
-  const rowAlertData = useMemo(
+  const rowIssueRows = useMemo(
     () =>
       sheet.rows.map((row, ri) => {
-        const alertCodes: string[] = [];
-        const detailLabels: string[] = [];
-
-        const hoursVal = hoursIdx >= 0 ? parseFloat(row[hoursIdx] ?? "") : NaN;
-        if (!isNaN(hoursVal) && hoursVal > 8) {
-          alertCodes.push("1");
-          detailLabels.push(">8");
-        }
-
-        if (employeeIdx >= 0) {
-          const empCell = (row[employeeIdx] ?? "").trim();
-          if (empCell && !employeeCellIsKnown(empCell, knownEmployees)) {
-            alertCodes.push("2");
-            detailLabels.push("UE");
-          }
-        }
-
-        const isMismatchScope = scopeMatchResults[ri] === false;
-        if (isMismatchScope) {
-          alertCodes.push("3");
-          detailLabels.push("MS");
-        }
-
-        const notesVal = notesIdx >= 0 ? (row[notesIdx] ?? "").trim() : "";
-        const taskIdVal = taskIdIdx >= 0 ? (row[taskIdIdx] ?? "").trim() : "";
-        if (isMismatchScope || notesMatchTaskId(notesVal, taskIdVal) === false) {
-          alertCodes.push("4");
-          detailLabels.push("MN");
-        }
-
-        return { row, ri, alertCodes, detailLabels };
+        const issues = computeTimesheetRowIssues(row, issuesContext);
+        return { row, ri, issues };
       }),
-
-    [sheet.rows, hoursIdx, employeeIdx, notesIdx, taskIdIdx, knownEmployees, scopeMatchResults]
+    [sheet.rows, issuesContext]
   );
+
+  const issueLabelRecord = TIMESHEET_ISSUE_LABELS as Record<string, string>;
 
   const visibleRows =
     activeFilters === null
-      ? rowAlertData
-      : rowAlertData.filter(({ alertCodes }) => alertCodes.some((c) => activeFilters.has(c)));
+      ? rowIssueRows
+      : rowIssueRows.filter(({ issues }) => issues.some((i) => activeFilters.has(i.issueId)));
 
   return (
     <div>
       {filterAnchor && (
         <ColumnFilter
-          options={ALERT_CODES}
-          selected={activeFilters ?? new Set()}
+          options={[...TIMESHEET_ISSUE_IDS]}
+          optionLabels={issueLabelRecord}
+          selected={activeFilters === null ? null : activeFilters}
           anchorRect={filterAnchor}
-          onChange={(selected) =>
-            // null = all checked in ColumnFilter ("no filter") → show only alerted rows
-            // empty set = none checked → reset to show all rows (null)
-            setActiveFilters(
-              selected === null ? new Set(ALERT_CODES) : selected.size === 0 ? null : selected
-            )
-          }
+          onChange={(selected) => {
+            if (selected === null) {
+              setActiveFilters(new Set(TIMESHEET_ISSUE_IDS));
+              return;
+            }
+            if (selected.size === 0) {
+              setActiveFilters(null);
+              return;
+            }
+            setActiveFilters(selected as Set<TimesheetIssueId>);
+          }}
           onClose={() => setFilterAnchor(null)}
         />
       )}
-      {/* Legend */}
-      <div className="border-border bg-background flex flex-wrap gap-4 border-b px-4 py-2">
-        {ALERT_OPTIONS.map(({ code, label }) => (
-          <span key={code} className="text-muted-foreground text-xs">
-            <span className="text-status-critical font-semibold">{code}</span>
-            {" — "}
-            {label}
-          </span>
-        ))}
+
+      <div className="border-border bg-background flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-2">
+        <p className="text-muted-foreground max-w-xl text-xs">
+          Issues are marked with a small warning on the cell. Hover the marker for details.
+        </p>
+        <button
+          type="button"
+          onClick={(e) => setFilterAnchor(e.currentTarget.getBoundingClientRect())}
+          title="Filter rows by issue type"
+          className={`text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs font-medium transition-colors ${activeFilters !== null ? "text-gold" : ""}`}
+        >
+          <FilterFunnelIcon />
+          Filter by issue
+        </button>
       </div>
 
       <table className="border-border w-max border-collapse text-sm">
@@ -205,29 +179,13 @@ export function TimesheetTable({
             <th className="border-border text-muted-foreground border-r border-b px-4 py-2 text-right text-xs font-medium tracking-wide whitespace-nowrap uppercase select-none">
               No.
             </th>
-            <th className="border-border text-muted-foreground border-r border-b px-4 py-2 text-left text-xs font-medium tracking-wide whitespace-nowrap uppercase">
-              <span className="flex items-center gap-0.5">
-                Alert
-                <button
-                  type="button"
-                  onClick={(e) => setFilterAnchor(e.currentTarget.getBoundingClientRect())}
-                  title="Filter by alert"
-                  className={`ml-1 rounded p-0.5 transition-colors ${activeFilters !== null ? "text-gold" : "text-muted-foreground hover:text-foreground"}`}
-                >
-                  <FilterFunnelIcon />
-                </button>
-              </span>
-            </th>
-            <th className="border-border text-muted-foreground border-r border-b px-4 py-2 text-left text-xs font-medium tracking-wide whitespace-nowrap uppercase">
-              Details
-            </th>
             {sheet.headers.map((h, i) => (
               <th
                 key={i}
                 className="border-border text-muted-foreground border-r border-b px-4 py-2 text-left text-xs font-medium tracking-wide whitespace-nowrap uppercase"
               >
                 {h ? (
-                  h.trim().toLowerCase() === "task id" ? (
+                  normaliseHeaderLabel(h) === "task id" ? (
                     "Task ID (Scope)"
                   ) : (
                     h
@@ -240,27 +198,25 @@ export function TimesheetTable({
           </tr>
         </thead>
         <tbody>
-          {visibleRows.map(({ row, ri, alertCodes, detailLabels }) => {
-            const hasAlert = alertCodes.length > 0;
+          {visibleRows.map(({ row, ri, issues }) => {
+            const byCol = groupIssuesByColumn(issues);
             return (
               <tr key={ri} className="hover:bg-background">
                 <td className="border-border text-muted-foreground border-r border-b px-4 py-2 text-right whitespace-nowrap tabular-nums select-none">
                   {ri + 1}
                 </td>
-                <td className="border-border text-status-critical border-r border-b px-4 py-2 font-medium whitespace-nowrap">
-                  {hasAlert ? alertCodes.join(", ") : ""}
-                </td>
-                <td className="border-border text-muted-foreground border-r border-b px-4 py-2 whitespace-nowrap">
-                  {hasAlert ? detailLabels.join(", ") : ""}
-                </td>
-                {row.map((cell, ci) => (
-                  <td
-                    key={ci}
-                    className="border-border text-foreground border-r border-b px-4 py-2 whitespace-nowrap"
-                  >
-                    {cell}
-                  </td>
-                ))}
+                {row.map((cell, ci) => {
+                  const cellIssues = byCol.get(ci) ?? [];
+                  return (
+                    <td
+                      key={ci}
+                      className="border-border text-foreground border-r border-b px-4 py-2 align-top whitespace-nowrap"
+                      title={cellIssueTooltip(cellIssues)}
+                    >
+                      <TimesheetDataCell value={cell} issues={cellIssues} />
+                    </td>
+                  );
+                })}
               </tr>
             );
           })}
@@ -268,4 +224,8 @@ export function TimesheetTable({
       </table>
     </div>
   );
+}
+
+function normaliseHeaderLabel(h: string): string {
+  return h.trim().toLowerCase();
 }
