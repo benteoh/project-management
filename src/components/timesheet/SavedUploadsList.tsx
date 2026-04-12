@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Trash2 } from "lucide-react";
 
-import { deleteTimesheetUploadAction } from "@/app/projects/[id]/actions";
+import { deleteTimesheetUploadAction } from "@/app/[office]/project/[id]/actions";
 import type { TimesheetUpload } from "@/types/timesheet";
 
 import { formatTimesheetUploadedAt } from "./timesheetFormat";

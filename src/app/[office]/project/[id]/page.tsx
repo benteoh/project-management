@@ -15,7 +15,7 @@ import type { ProjectEngineerRates } from "@/types/project-engineer";
 
 import ProjectPageClient from "./project-page-client";
 
-type Props = { params: Promise<{ id: string }> };
+type Props = { params: Promise<{ office: string; id: string }> };
 
 export default async function ProjectPage({ params }: Props) {
   const { id } = await params;
@@ -58,7 +58,6 @@ export default async function ProjectPage({ params }: Props) {
 
     if (programmeResult.ok) {
       initialProgrammeTree = programmeResult.tree;
-      // Merge A–E rates from project_engineers into each pool entry (forecast uses scope rate band)
       const ratesByEngineerId = new Map<string, ProjectEngineerRates>();
       if ("rows" in projectEngineersRes) {
         for (const pe of projectEngineersRes.rows) {

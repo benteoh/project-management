@@ -2,12 +2,30 @@
 
 import { useEffect, useState } from "react";
 
-import { loadProjectForSettingsAction } from "@/app/settings/actions";
+import { loadProjectForSettingsAction, updateProjectAction } from "@/app/settings/actions";
+import { loadOfficesAction } from "@/app/settings/officeActions";
 import { ProjectEngineersPanel } from "@/components/settings/ProjectEngineersPanel";
+import type { Office } from "@/types/office";
 import type { Project } from "@/types/project";
 
-const PROJECT_SETTINGS_SUBTABS = ["Engineers"] as const;
+import { ProjectFormFields } from "./ProjectFormFields";
+import type { ProjectCreatePayload } from "./types";
+
+const PROJECT_SETTINGS_SUBTABS = ["Details", "Engineers"] as const;
 type ProjectSettingsSubTab = (typeof PROJECT_SETTINGS_SUBTABS)[number];
+
+function projectToPayload(p: Project): ProjectCreatePayload {
+  return {
+    name: p.name,
+    client: p.client,
+    officeId: p.officeId,
+    projectCode: p.projectCode,
+    status: p.status,
+    fixedFee: p.fixedFee,
+    startDate: p.startDate,
+    endDate: p.endDate,
+  };
+}
 
 export function ProjectSettingsDetail({
   projectId,
@@ -17,29 +35,54 @@ export function ProjectSettingsDetail({
   onBackToProjects: () => void;
 }) {
   const [project, setProject] = useState<Project | null>(null);
+  const [offices, setOffices] = useState<Office[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeSubTab, setActiveSubTab] = useState<ProjectSettingsSubTab>("Engineers");
+  const [activeSubTab, setActiveSubTab] = useState<ProjectSettingsSubTab>("Details");
+
+  const [editDraft, setEditDraft] = useState<ProjectCreatePayload | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const r = await loadProjectForSettingsAction(projectId);
+      const [projectRes, officesRes] = await Promise.all([
+        loadProjectForSettingsAction(projectId),
+        loadOfficesAction(),
+      ]);
       if (cancelled) return;
-      if (!r.ok) {
-        setError(r.error);
-        setProject(null);
+      if (!projectRes.ok) {
+        setError(projectRes.error);
       } else {
-        setProject(r.project);
+        setProject(projectRes.project);
+        setEditDraft(projectToPayload(projectRes.project));
         setError(null);
       }
+      if (officesRes.ok) setOffices(officesRes.offices);
       setLoading(false);
     })();
-
     return () => {
       cancelled = true;
     };
   }, [projectId]);
+
+  const handleSaveDetails = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editDraft || !project) return;
+    setIsSaving(true);
+    const r = await updateProjectAction({ id: project.id, ...editDraft });
+    setIsSaving(false);
+    if (r.ok) {
+      const updated = r.projects.find((p) => p.id === project.id) ?? null;
+      if (updated) {
+        setProject(updated);
+        setEditDraft(projectToPayload(updated));
+      }
+      setError(null);
+    } else {
+      setError(r.error);
+    }
+  };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
@@ -93,6 +136,25 @@ export function ProjectSettingsDetail({
           </div>
 
           <div className="min-h-0 flex-1 overflow-auto pt-2">
+            {activeSubTab === "Details" && editDraft && (
+              <form onSubmit={handleSaveDetails} className="flex flex-col gap-4">
+                <ProjectFormFields
+                  value={editDraft}
+                  offices={offices}
+                  disabled={isSaving}
+                  onChange={setEditDraft}
+                />
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={isSaving}
+                    className="bg-primary text-primary-foreground rounded-md px-4 py-2 text-sm font-medium disabled:opacity-60"
+                  >
+                    {isSaving ? "Saving…" : "Save changes"}
+                  </button>
+                </div>
+              </form>
+            )}
             {activeSubTab === "Engineers" && <ProjectEngineersPanel projectId={project.id} />}
           </div>
         </>

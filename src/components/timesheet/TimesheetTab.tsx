@@ -7,7 +7,7 @@ import {
   getTimesheetEntriesAction,
   listTimesheetUploadsAction,
   saveTimesheetUploadAction,
-} from "@/app/projects/[id]/actions";
+} from "@/app/[office]/project/[id]/actions";
 import type { TimesheetUpload } from "@/types/timesheet";
 
 import { SavedUploadsList } from "./SavedUploadsList";

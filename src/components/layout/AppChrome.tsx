@@ -4,6 +4,7 @@ import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { EngineerManager } from "@/components/settings/EngineerManager";
+import { OfficesSection } from "@/components/settings/OfficesSection";
 import { ProjectSettingsSection } from "@/components/settings/ProjectSettingsSection";
 import { SidebarTabsModal } from "@/components/settings/SidebarTabsModal";
 import type { SettingsTabId } from "@/components/settings/types";
@@ -11,6 +12,7 @@ import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 const SETTINGS_TABS: { id: SettingsTabId; label: string }[] = [
   { id: "engineers", label: "Engineers" },
+  { id: "offices", label: "Offices" },
   { id: "projects", label: "Projects" },
 ];
 
@@ -80,7 +82,13 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
             setSettingsTab("engineers");
           }}
         >
-          {settingsTab === "engineers" ? <EngineerManager /> : <ProjectSettingsSection />}
+          {settingsTab === "engineers" ? (
+            <EngineerManager />
+          ) : settingsTab === "offices" ? (
+            <OfficesSection />
+          ) : (
+            <ProjectSettingsSection />
+          )}
         </SidebarTabsModal>
       )}
     </div>
