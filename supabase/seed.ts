@@ -27,6 +27,12 @@ import {
   seedProjectTestRow,
 } from "../src/lib/programme/seedConfig";
 import { programmeNodesWithPrefixedIds } from "../src/lib/programme/seedProgrammeClone";
+import { SEED_SCOPE_ENGINEER_FALLBACK } from "../src/lib/seed/programmeSeedDemo";
+import { parseCsvDataLine } from "../src/lib/seed/seedCsv";
+import {
+  defaultSeedScopeForecastSpecs,
+  programmeDemoTimesheetTaskCellToScopeId,
+} from "../src/lib/seed/seedProgrammeScopeMetadata";
 import { resolveSupabaseEnvConfig } from "../src/lib/supabase/resolve-config";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -225,7 +231,8 @@ function parseScopeEngineersProgrammeDemoCsv(
 function parseTimesheetProgrammeDemoCsv(
   csvPath: string,
   codeToId: Map<string, string>,
-  expectedProjectCode: string
+  expectedProjectCode: string,
+  scopeSpecs: ReadonlyArray<{ scopeId: string; name: string }>
 ): TimesheetSeedEntryRow[] {
   if (!existsSync(csvPath)) {
     throw new Error(`Missing ${csvPath}. ${DEMO_CSV_HINT}`);
@@ -243,14 +250,15 @@ function parseTimesheetProgrammeDemoCsv(
 
   const out: TimesheetSeedEntryRow[] = [];
   for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i]!.split(",").map((c) => c.trim());
+    const cols = parseCsvDataLine(lines[i]!);
     if (cols.length < 6) {
       throw new Error(`Timesheet demo CSV line ${i + 1}: expected at least 6 columns`);
     }
     const dateRaw = cols[0]!;
     const code = cols[1]!;
     const hoursN = Number(cols[2]!);
-    const scopeId = cols[3]!;
+    const taskCell = cols[3]!;
+    const scopeId = programmeDemoTimesheetTaskCellToScopeId(taskCell, scopeSpecs);
     const projectCol = cols[4]!;
     const description = cols.slice(5).join(",");
 
@@ -274,7 +282,7 @@ function parseTimesheetProgrammeDemoCsv(
       Date: dateRaw,
       Code: code,
       Hours: String(hoursN),
-      "Task ID": scopeId,
+      "Task ID": taskCell,
       Project: projectCol,
       Description: description,
     };
@@ -471,10 +479,12 @@ async function seed() {
     if (delUpErr) throw new Error(`timesheet_uploads delete (${pid}): ${delUpErr.message}`);
   }
 
+  const demoScopeSpecs = defaultSeedScopeForecastSpecs(SEED_SCOPE_ENGINEER_FALLBACK);
   const demoTimesheetRows = parseTimesheetProgrammeDemoCsv(
     TIMESHEET_DEMO_CSV,
     codeToId,
-    seedProjectRow.project_code ?? ""
+    seedProjectRow.project_code ?? "",
+    demoScopeSpecs
   );
   await insertTimesheetUpload(SEED_PROJECT_ID, TIMESHEET_DEMO_FILE_NAME, demoTimesheetRows);
 

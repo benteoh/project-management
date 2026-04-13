@@ -74,6 +74,20 @@ describe("autofill — basic allocation", () => {
     expect(result.changes.length).toBe(2);
   });
 
+  it("counts hours outside visible columns toward planned — only fills the remainder", () => {
+    const r = row({ plannedHrs: 16, maxDailyHours: 8, weeklyScopeLimit: 40 });
+    const result = autofill({
+      rows: [r],
+      dateColFields: DATES,
+      currentValues: {
+        "s1-e1": { "2026-02-02": 10 },
+      },
+      bankHolidays: new Set(),
+    });
+    const total = result.changes.reduce((s, c) => s + (c.newValue as number), 0);
+    expect(total).toBe(6);
+  });
+
   it("produces integer hours only", () => {
     const result = autofill({
       rows: [row({ plannedHrs: 5 })],

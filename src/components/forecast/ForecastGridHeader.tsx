@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 
 import { DATE_COL_W, NO_COL_W, SUMMARY_COL_W, forecastSummaryColumnLabels } from "./constants";
 import type { ForecastFilterColumn } from "./types";
-import { toISODate } from "./utils";
+import { toISODateUtc } from "./utils";
 
 type ForecastGridHeaderProps = {
   dailyDates: Date[];
@@ -74,7 +74,7 @@ export function ForecastGridHeader({
       {dailyDates.map((date) => {
         const dow = date.getDay();
         const isWeekend = dow === 0 || dow === 6;
-        const isBankHoliday = bankHolidays.has(toISODate(date));
+        const isBankHoliday = bankHolidays.has(toISODateUtc(date));
         const dd = String(date.getDate()).padStart(2, "0");
         const mm = String(date.getMonth() + 1).padStart(2, "0");
         const yyyy = date.getFullYear();

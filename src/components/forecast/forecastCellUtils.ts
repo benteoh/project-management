@@ -2,6 +2,9 @@
 
 import type { SelRange } from "./forecastGridTypes";
 
+/** Grid / `forecast_entries` date field keys (`YYYY-MM-DD`). */
+export const FORECAST_ISO_DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
 // ── Formula evaluation ────────────────────────────────────────────────────────
 // Only digits / operators / parens are allowed through — safe against injection.
 export function evalFormula(raw: string): number | string {
@@ -26,6 +29,30 @@ export function cellNumeric(value: unknown): number {
   }
   const n = Number(value);
   return isNaN(n) ? 0 : n;
+}
+
+/** Sum hours for one row map: every `YYYY-MM-DD` key, using {@link cellNumeric} (matches grid semantics). */
+export function sumRowHoursFromStoredRow(vals: Record<string, unknown>): number {
+  let sum = 0;
+  for (const [k, v] of Object.entries(vals)) {
+    if (!FORECAST_ISO_DATE_KEY_RE.test(k)) continue;
+    sum += cellNumeric(v);
+  }
+  return sum;
+}
+
+/**
+ * Sums forecast hours for a row across **all** persisted/preview date keys (not only visible grid columns).
+ * `pending` wins per field the same way as the grid row merge: `pending[k] ?? saved[k]`.
+ */
+export function sumRowHoursAllDates(
+  saved: Record<string, unknown>,
+  pending: Record<string, unknown>
+): number {
+  const keys = new Set([...Object.keys(saved), ...Object.keys(pending)]);
+  const merged: Record<string, unknown> = {};
+  for (const k of keys) merged[k] = pending[k] ?? saved[k];
+  return sumRowHoursFromStoredRow(merged);
 }
 
 export function displayValue(value: unknown): string {

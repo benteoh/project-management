@@ -6,6 +6,11 @@ const DEBUG = false;
 
 import { DEFAULT_MAX_DAILY_HOURS, DEFAULT_MAX_WEEKLY_HOURS } from "@/types/engineer-pool";
 
+import {
+  FORECAST_ISO_DATE_KEY_RE,
+  cellNumeric,
+  sumRowHoursFromStoredRow,
+} from "./forecastCellUtils";
 import type { ForecastGridRow } from "./types";
 import type { CellValues, HistoryChange, PendingFill } from "./forecastGridTypes";
 
@@ -53,17 +58,6 @@ export function isoWeekKey(iso: string): string {
   return `${thursday.getFullYear()}-W${String(weekNum).padStart(2, "0")}`;
 }
 
-/** Sum of all numeric hour values for a row across the given date fields. */
-function sumRowHours(currentValues: CellValues, rowId: string, dateColFields: string[]): number {
-  const vals = currentValues[rowId] ?? {};
-  let sum = 0;
-  for (const field of dateColFields) {
-    const v = vals[field];
-    if (typeof v === "number" && v > 0) sum += v;
-  }
-  return sum;
-}
-
 // ── Main algorithm ─────────────────────────────────────────────────────────────
 
 export function autofill(input: AutofillInput): PendingFill {
@@ -104,10 +98,10 @@ export function autofill(input: AutofillInput): PendingFill {
     const engId = row.engineer.id;
     const scopeId = row.scope.id;
     const vals = currentValues[rowId] ?? {};
-    for (const field of dateColFields) {
-      const v = vals[field];
-      const hrs = typeof v === "number" && v > 0 ? v : 0;
-      if (hrs === 0) continue;
+    for (const [field, raw] of Object.entries(vals)) {
+      if (!FORECAST_ISO_DATE_KEY_RE.test(field)) continue;
+      const hrs = cellNumeric(raw);
+      if (hrs <= 0) continue;
       const dk = `${engId}:${field}`;
       const wk = isoWeekKey(field);
       const scopeKey = `${scopeId}:${engId}:${wk}`;
@@ -139,7 +133,7 @@ export function autofill(input: AutofillInput): PendingFill {
       continue;
     }
 
-    const forecastedSoFar = sumRowHours(currentValues, rowId, dateColFields);
+    const forecastedSoFar = sumRowHoursFromStoredRow(currentValues[rowId] ?? {});
     const alreadyQueued = queuedPerRow.get(rowId) ?? 0;
     let remaining = Math.max(0, row.plannedHrs - forecastedSoFar - alreadyQueued);
 
@@ -233,7 +227,7 @@ export function autofill(input: AutofillInput): PendingFill {
   for (const [rowId, queued] of queuedPerRow) {
     const row = rowById.get(rowId);
     if (!row || row.plannedHrs === null) continue;
-    const forecastedAfter = sumRowHours(currentValues, rowId, dateColFields) + queued;
+    const forecastedAfter = sumRowHoursFromStoredRow(currentValues[rowId] ?? {}) + queued;
     if (forecastedAfter > row.plannedHrs) {
       budgetWarnings.push(
         `${row.engineer.code} on "${row.scope.label}" exceeds planned hours (${row.plannedHrs}h planned, ${forecastedAfter}h forecasted)`

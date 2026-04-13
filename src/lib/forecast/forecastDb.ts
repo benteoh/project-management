@@ -8,19 +8,58 @@ import { forecastRowId, parseForecastRowId } from "./forecastRowId";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+/**
+ * PostgREST caps each response (local default 1000 — `supabase/config.toml` [api].max_rows).
+ * Hosted Supabase enforces a similar limit. Paginate reads with `.range()` so every row loads.
+ */
+export const FORECAST_ENTRIES_PAGE_SIZE = 1000;
+
+/** Batch upserts so each request stays within typical PostgREST / gateway limits. */
+const FORECAST_UPSERT_BATCH_SIZE = FORECAST_ENTRIES_PAGE_SIZE;
+
+/** `.in("id", …)` URL size stays safe when many rows are removed in one save. */
+const FORECAST_DELETE_IN_CHUNK_SIZE = 500;
+
+async function fetchAllForecastRowsForProject(
+  client: SupabaseClient,
+  projectId: string,
+  columns: string
+): Promise<{ ok: true; rows: unknown[] } | { ok: false; error: string }> {
+  const rows: unknown[] = [];
+  let rangeStart = 0;
+  for (;;) {
+    const rangeEnd = rangeStart + FORECAST_ENTRIES_PAGE_SIZE - 1;
+    const { data, error } = await client
+      .from("forecast_entries")
+      .select(columns)
+      .eq("project_id", projectId)
+      .order("date", { ascending: true })
+      .order("id", { ascending: true })
+      .range(rangeStart, rangeEnd);
+
+    if (error) return { ok: false, error: error.message };
+    const batch = data ?? [];
+    if (batch.length === 0) break;
+    rows.push(...batch);
+    if (batch.length < FORECAST_ENTRIES_PAGE_SIZE) break;
+    rangeStart += FORECAST_ENTRIES_PAGE_SIZE;
+  }
+  return { ok: true, rows };
+}
+
 export async function loadForecastEntries(
   client: SupabaseClient,
   projectId: string
 ): Promise<{ ok: true; values: CellValues } | { ok: false; error: string }> {
-  const { data, error } = await client
-    .from("forecast_entries")
-    .select("scope_id, engineer_id, date, hours")
-    .eq("project_id", projectId);
-
-  if (error) return { ok: false, error: error.message };
+  const fetched = await fetchAllForecastRowsForProject(
+    client,
+    projectId,
+    "scope_id, engineer_id, date, hours"
+  );
+  if (!fetched.ok) return { ok: false, error: fetched.error };
 
   const values: CellValues = {};
-  for (const row of (data ?? []) as Pick<
+  for (const row of fetched.rows as Pick<
     ForecastEntryDbRow,
     "scope_id" | "engineer_id" | "date" | "hours"
   >[]) {
@@ -70,21 +109,24 @@ export async function saveForecastEntries(
   }
 
   if (upserts.length > 0) {
-    const { error: upErr } = await client.from("forecast_entries").upsert(upserts, {
-      onConflict: "project_id,scope_id,engineer_id,date",
-    });
-    if (upErr) return { ok: false, error: upErr.message };
+    for (let i = 0; i < upserts.length; i += FORECAST_UPSERT_BATCH_SIZE) {
+      const batch = upserts.slice(i, i + FORECAST_UPSERT_BATCH_SIZE);
+      const { error: upErr } = await client.from("forecast_entries").upsert(batch, {
+        onConflict: "project_id,scope_id,engineer_id,date",
+      });
+      if (upErr) return { ok: false, error: upErr.message };
+    }
   }
 
-  const { data: existing, error: selErr } = await client
-    .from("forecast_entries")
-    .select("id, scope_id, engineer_id, date")
-    .eq("project_id", projectId);
-
-  if (selErr) return { ok: false, error: selErr.message };
+  const existingFetch = await fetchAllForecastRowsForProject(
+    client,
+    projectId,
+    "id, scope_id, engineer_id, date"
+  );
+  if (!existingFetch.ok) return { ok: false, error: existingFetch.error };
 
   const toDelete: string[] = [];
-  for (const row of (existing ?? []) as {
+  for (const row of existingFetch.rows as {
     id: string;
     scope_id: string;
     engineer_id: string;
@@ -95,8 +137,11 @@ export async function saveForecastEntries(
   }
 
   if (toDelete.length > 0) {
-    const { error: delErr } = await client.from("forecast_entries").delete().in("id", toDelete);
-    if (delErr) return { ok: false, error: delErr.message };
+    for (let i = 0; i < toDelete.length; i += FORECAST_DELETE_IN_CHUNK_SIZE) {
+      const chunk = toDelete.slice(i, i + FORECAST_DELETE_IN_CHUNK_SIZE);
+      const { error: delErr } = await client.from("forecast_entries").delete().in("id", chunk);
+      if (delErr) return { ok: false, error: delErr.message };
+    }
   }
 
   return { ok: true };
@@ -110,15 +155,15 @@ export async function loadForecastHoursByScopeForProject(
   client: SupabaseClient,
   projectId: string
 ): Promise<{ ok: true; byScope: ForecastHoursByScopeRecord } | { ok: false; error: string }> {
-  const { data, error } = await client
-    .from("forecast_entries")
-    .select("scope_id, engineer_id, hours")
-    .eq("project_id", projectId);
-
-  if (error) return { ok: false, error: error.message };
+  const fetched = await fetchAllForecastRowsForProject(
+    client,
+    projectId,
+    "scope_id, engineer_id, hours"
+  );
+  if (!fetched.ok) return { ok: false, error: fetched.error };
 
   const acc = new Map<string, Map<string, number>>();
-  for (const row of (data ?? []) as Pick<
+  for (const row of fetched.rows as Pick<
     ForecastEntryDbRow,
     "scope_id" | "engineer_id" | "hours"
   >[]) {

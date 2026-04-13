@@ -4,11 +4,11 @@ import { createSeededRng } from "../seedDeterministicRandom";
 import {
   demoExactPlannedScopeIds,
   generateProgrammeForecastRows,
+  MAX_FORECAST_HOURS_PER_DAY,
 } from "./generateProgrammeForecastRows";
 import { sumAllocationPlannedHrs } from "../scopeEngineerPlannedDistribution";
 import { SEED_SCOPE_ENGINEER_FALLBACK } from "../programmeSeedDemo";
 import {
-  DEMO_FORECAST_ABOVE_PLANNED_VARIANCE,
   DEMO_FORECAST_PLAN_END_ISO,
   defaultSeedScopeForecastSpecs,
   isProgrammeDemoForecastExactScope,
@@ -115,7 +115,7 @@ describe("generateProgrammeForecastRows", () => {
     }
   });
 
-  it("demo ‘above planned’ scopes: forecast sum exceeds roster planned_hrs", () => {
+  it("never exceeds MAX_FORECAST_HOURS_PER_DAY on any row (programme demo)", () => {
     const specs = defaultSeedScopeForecastSpecs(SEED_SCOPE_ENGINEER_FALLBACK);
     const exactSet = demoExactPlannedScopeIds(specs.map((s) => s.scopeId));
     const rows = generateProgrammeForecastRows({
@@ -125,12 +125,32 @@ describe("generateProgrammeForecastRows", () => {
       rng: createSeededRng(2026),
     });
 
-    for (const spec of specs) {
-      if (!DEMO_FORECAST_ABOVE_PLANNED_VARIANCE[spec.scopeId]) continue;
-      const plannedSum = sumAllocationPlannedHrs(spec.allocations);
-      const fcSum = rows.filter((r) => r.scopeId === spec.scopeId).reduce((s, r) => s + r.hours, 0);
-      expect(plannedSum).toBeGreaterThan(0);
-      expect(fcSum).toBeGreaterThan(plannedSum);
+    for (const r of rows) {
+      expect(r.hours).toBeLessThanOrEqual(MAX_FORECAST_HOURS_PER_DAY);
+    }
+  });
+
+  it("variance above1× planned can exceed roster hours when weekday capacity allows", () => {
+    const rows = generateProgrammeForecastRows({
+      projectId: "1",
+      planEndIso: "2026-12-31",
+      scopes: [
+        {
+          scopeId: "sz",
+          startIso: "2026-01-05",
+          endIso: "2026-12-31",
+          allocations: [{ code: "ZZ", plannedHrs: 200 }],
+          exactPlanned: false,
+          varianceFactorMin: 1.08,
+          varianceFactorMax: 1.15,
+        },
+      ],
+      rng: createSeededRng(42),
+    });
+    const fc = rows.reduce((s, r) => s + r.hours, 0);
+    expect(fc).toBeGreaterThan(200);
+    for (const r of rows) {
+      expect(r.hours).toBeLessThanOrEqual(MAX_FORECAST_HOURS_PER_DAY);
     }
   });
 });

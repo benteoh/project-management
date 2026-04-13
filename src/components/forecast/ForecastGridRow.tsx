@@ -3,7 +3,7 @@ import { formatEngineerListLabel } from "@/lib/engineer-pool-display";
 
 import { DATE_COL_W, NO_COL_W, SUMMARY_COL_W } from "./constants";
 import type { ForecastGridRow as ForecastGridRowType } from "./types";
-import { toISODate } from "./utils";
+import { toISODateUtc } from "./utils";
 
 type ForecastGridRowProps = {
   row: ForecastGridRowType;
@@ -36,7 +36,7 @@ export function ForecastGridRow({ row, index, dailyDates, bankHolidays }: Foreca
       {dailyDates.map((date) => {
         const dow = date.getDay();
         const isWeekend = dow === 0 || dow === 6;
-        const isBankHoliday = bankHolidays.has(toISODate(date));
+        const isBankHoliday = bankHolidays.has(toISODateUtc(date));
         return (
           <div
             key={date.toISOString()}

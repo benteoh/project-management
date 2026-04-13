@@ -27,6 +27,7 @@ import {
   defaultSeedScopeForecastSpecs,
   isProgrammeDemoForecastExactScope,
   programmeDemoForecastScopePayload,
+  programmeScopeNameForTimesheetDisplay,
   type SeedScopeForecastSpec,
 } from "../src/lib/seed/seedProgrammeScopeMetadata";
 import { sumAllocationPlannedHrs } from "../src/lib/seed/scopeEngineerPlannedDistribution";
@@ -105,9 +106,14 @@ function main() {
     Object.entries(DEMO_TIMESHEET_FORECAST_RETENTION)
   );
 
+  const scopeDisplayNameByScopeId = new Map(
+    specs.map((s) => [s.scopeId, programmeScopeNameForTimesheetDisplay(s.name)])
+  );
+
   const { rows: timesheetRows, stats } = generateTimesheetRowsFromForecast({
     forecastRows,
     projectLabel: PROGRAMME_DEMO_PROJECT_LABEL,
+    scopeDisplayNameByScopeId,
     activityIdsByScopeId: activityIdsMap(specs),
     rng: rngTimesheet,
     timesheetForecastRetentionByScopeId,
@@ -158,7 +164,7 @@ function main() {
       .map(([id, v]) => `${id} ${v.min}–${v.max}×`)
       .join(
         ", "
-      )}; other variance ${varianceOnly.join(", ") || "(none)"} use ${DEMO_FORECAST_VARIANCE_FACTOR_MIN}–${DEMO_FORECAST_VARIANCE_FACTOR_MAX}×; cut ${DEMO_FORECAST_PLAN_END_ISO}`
+      )}; other variance ${varianceOnly.join(", ") || "(none)"} use ${DEMO_FORECAST_VARIANCE_FACTOR_MIN}–${DEMO_FORECAST_VARIANCE_FACTOR_MAX}×; ≤8h/day/engineer/scope; through ${DEMO_FORECAST_PLAN_END_ISO}`
   );
   console.log(`Wrote ${forecastRows.length} forecast rows → forecast_programme_demo.csv`);
   console.log(

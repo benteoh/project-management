@@ -17,10 +17,10 @@ export type ProgrammeTimesheetCsvRow = {
   code: string;
   /** Whole hours; never greater than {@link MAX_HOURS_PER_TIMESHEET_ROW}. */
   hours: number;
-  /** CSV Task column: programme **scope** id (e.g. `s11`), not activity id. */
+  /** CSV Task column: programme scope **display name** (matches programme node name). */
   taskId: string;
   projectLabel: string;
-  /** `ActivityId: narrative` for attribution (activity id matches work under the scope). */
+  /** `ActivityId: scope name` (and optional suffixes like `(cont.)`). */
   description: string;
 };
 
@@ -48,19 +48,12 @@ function slotKey(scopeId: string, code: string, forecastDate: string): string {
   return `${scopeId}|${code}|${forecastDate}`;
 }
 
-const DESCRIPTIONS = [
-  "Design development",
-  "Technical review",
-  "Coordination",
-  "Report / deliverable",
-  "Site / workshop",
-  "CAD / modelling",
-] as const;
-
 export type GenerateTimesheetFromForecastParams = {
   forecastRows: ProgrammeForecastRow[];
   projectLabel: string;
-  /** Activity ids per scope — used only for `ActivityId: …` description prefix, not the Task column. */
+  /** Programme scope display name per scope id — CSV Task column and description tail. */
+  scopeDisplayNameByScopeId: ReadonlyMap<string, string>;
+  /** Activity ids per scope — rotated for `ActivityId: scope name` description prefix. */
   activityIdsByScopeId: ReadonlyMap<string, readonly string[]>;
   rng: SeededRng;
   /**
@@ -100,25 +93,33 @@ function appendTimesheetBooking(
     anchorDate: string;
     code: string;
     totalHours: number;
-    /** CSV Task ID column = programme scope id (e.g. `s11`). */
-    scopeTaskId: string;
+    /** CSV Task ID column = programme scope display name. */
+    scopeTaskLabel: string;
     projectLabel: string;
     activityId: string;
-    descriptionBody: string;
+    scopeDisplayName: string;
+    /** Appended after `activityId: scopeDisplayName` on the first segment (e.g. late booking). */
+    descriptionExtraFirstSegment?: string;
   }
 ): void {
   const chunks = splitWholeHoursIntoMaxPerDay(opts.totalHours, MAX_HOURS_PER_TIMESHEET_ROW);
   let d = opts.anchorDate;
   for (let ci = 0; ci < chunks.length; ci++) {
     if (ci > 0) d = nextWeekdayIso(d);
-    const suffix = ci === 0 ? "" : " (cont.)";
-    const description = `${opts.activityId}: ${opts.descriptionBody}${suffix}`;
+    const base = `${opts.activityId}: ${opts.scopeDisplayName}`;
+    let description: string;
+    if (ci === 0) {
+      const extra = opts.descriptionExtraFirstSegment ?? "";
+      description = extra ? `${base}${extra}` : base;
+    } else {
+      description = `${base} (cont.)`;
+    }
     rows.push({
       scopeId: opts.scopeId,
       date: d,
       code: opts.code,
       hours: chunks[ci]!,
-      taskId: opts.scopeTaskId,
+      taskId: opts.scopeTaskLabel,
       projectLabel: opts.projectLabel,
       description,
     });
@@ -152,7 +153,7 @@ export function generateTimesheetRowsFromForecast(
     const key = slotKey(slot.scopeId, slot.engineerCode, slot.date);
     const activityId = pickActivityIdForDescription(slot.scopeId, p.activityIdsByScopeId, rowIndex);
     rowIndex++;
-    const body = p.rng.pick([...DESCRIPTIONS]);
+    const scopeDisplayName = p.scopeDisplayNameByScopeId.get(slot.scopeId) ?? slot.scopeId;
 
     if (alignedIdx.has(i)) {
       const dayShift = p.rng.nextInt(-1, 1);
@@ -167,10 +168,10 @@ export function generateTimesheetRowsFromForecast(
         anchorDate: date,
         code: slot.engineerCode,
         totalHours: hours,
-        scopeTaskId: slot.scopeId,
+        scopeTaskLabel: scopeDisplayName,
         projectLabel: p.projectLabel,
         activityId,
-        descriptionBody: body,
+        scopeDisplayName,
       });
       continue;
     }
@@ -193,10 +194,11 @@ export function generateTimesheetRowsFromForecast(
         anchorDate: date,
         code: slot.engineerCode,
         totalHours: hours,
-        scopeTaskId: slot.scopeId,
+        scopeTaskLabel: scopeDisplayName,
         projectLabel: p.projectLabel,
         activityId,
-        descriptionBody: `${body} (late booking)`,
+        scopeDisplayName,
+        descriptionExtraFirstSegment: " (late booking)",
       });
       continue;
     }
@@ -212,10 +214,11 @@ export function generateTimesheetRowsFromForecast(
       anchorDate: date,
       code: slot.engineerCode,
       totalHours: hours,
-      scopeTaskId: slot.scopeId,
+      scopeTaskLabel: scopeDisplayName,
       projectLabel: p.projectLabel,
       activityId,
-      descriptionBody: `${body} — overspend week`,
+      scopeDisplayName,
+      descriptionExtraFirstSegment: " — overspend week",
     });
   }
 

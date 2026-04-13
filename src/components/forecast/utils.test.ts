@@ -1,6 +1,12 @@
 import { describe, it, expect } from "vitest";
 
-import { addMonths, formatIsoDateShort, generateDailyDates, startOfWeek, toISODate } from "./utils";
+import {
+  addMonths,
+  formatIsoDateShort,
+  generateDailyDates,
+  startOfWeek,
+  toISODateUtc,
+} from "./utils";
 
 describe("startOfWeek", () => {
   it("returns Monday for a Wednesday in the same week", () => {
@@ -27,14 +33,25 @@ describe("addMonths", () => {
 });
 
 describe("generateDailyDates", () => {
-  it("includes both endpoints", () => {
+  it("includes both endpoints with UTC calendar keys (matches DB dates)", () => {
     const dates = generateDailyDates("2026-04-01", "2026-04-03");
-    expect(dates.map((d) => toISODate(d))).toEqual(["2026-04-01", "2026-04-02", "2026-04-03"]);
+    expect(dates.map((d) => toISODateUtc(d))).toEqual(["2026-04-01", "2026-04-02", "2026-04-03"]);
   });
 
   it("returns one day when start equals end", () => {
     const dates = generateDailyDates("2026-06-01", "2026-06-01");
     expect(dates.length).toBe(1);
+  });
+
+  it("keeps calendar alignment across early March (regression: TZ mismatch vs DB)", () => {
+    const dates = generateDailyDates("2026-03-01", "2026-03-05");
+    expect(dates.map((d) => toISODateUtc(d))).toEqual([
+      "2026-03-01",
+      "2026-03-02",
+      "2026-03-03",
+      "2026-03-04",
+      "2026-03-05",
+    ]);
   });
 });
 

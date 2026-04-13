@@ -3,13 +3,24 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { CellValues } from "@/components/forecast/forecastGridTypes";
 
-import { loadForecastEntries, saveForecastEntries } from "./forecastDb";
+import { FORECAST_ENTRIES_PAGE_SIZE, loadForecastEntries, saveForecastEntries } from "./forecastDb";
 
 const E = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
 
+function cellValuesWithConsecutiveDates(rowKey: string, dayCount: number): CellValues {
+  const fields: Record<string, number> = {};
+  const d = new Date(Date.UTC(2026, 0, 1));
+  for (let i = 0; i < dayCount; i++) {
+    const iso = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+    fields[iso] = 1;
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return { [rowKey]: fields };
+}
+
 /**
- * Minimal fluent mock: every `from("forecast_entries")` returns the same builder
- * with `select().eq()`, `upsert()`, and `delete().in()`.
+ * Minimal fluent mock: `select().eq().order().order().range()` for paged reads;
+ * `upsert()`, `delete().in()` for writes.
  */
 function createForecastEntriesClient(handlers: {
   load?: { data: unknown[]; error: { message: string } | null };
@@ -17,25 +28,40 @@ function createForecastEntriesClient(handlers: {
   existing?: { data: unknown[]; error: { message: string } | null };
   deleteIn?: { error: { message: string } | null };
 }) {
-  const selectEq = vi
-    .fn()
-    .mockImplementation(() =>
-      Promise.resolve(handlers.load ?? handlers.existing ?? { data: [], error: null })
-    );
   const upsert = vi
     .fn()
     .mockImplementation(() => Promise.resolve(handlers.upsert ?? { error: null }));
   const deleteIn = vi
     .fn()
     .mockImplementation(() => Promise.resolve(handlers.deleteIn ?? { error: null }));
+
+  /** Set by the latest `select()` — used to assert `.eq("project_id", …)`. */
+  let lastEq: ReturnType<typeof vi.fn> | null = null;
+
   const from = vi.fn(() => ({
-    select: vi.fn(() => ({ eq: selectEq })),
+    select: vi.fn((columns: string) => {
+      const isIdFirst = /^\s*id\s*,/i.test(columns);
+      const payload = isIdFirst
+        ? (handlers.existing ?? { data: [], error: null })
+        : (handlers.load ?? { data: [], error: null });
+      const eq = vi.fn(() => ({
+        order: vi.fn(() => ({
+          order: vi.fn(() => ({
+            range: vi.fn(() => Promise.resolve(payload)),
+          })),
+        })),
+      }));
+      lastEq = eq;
+      return { eq };
+    }),
     upsert,
     delete: vi.fn(() => ({ in: deleteIn })),
   }));
   return {
     client: { from } as unknown as SupabaseClient,
-    selectEq,
+    get lastEq() {
+      return lastEq;
+    },
     upsert,
     deleteIn,
   };
@@ -43,7 +69,7 @@ function createForecastEntriesClient(handlers: {
 
 describe("loadForecastEntries", () => {
   it("maps rows to CellValues keyed by scopeId-engineerId and ISO date", async () => {
-    const { client, selectEq } = createForecastEntriesClient({
+    const ctx = createForecastEntriesClient({
       load: {
         data: [
           { scope_id: "s1", engineer_id: E, date: "2026-01-05", hours: "4.2" },
@@ -52,14 +78,14 @@ describe("loadForecastEntries", () => {
         error: null,
       },
     });
-    const result = await loadForecastEntries(client, "p1");
+    const result = await loadForecastEntries(ctx.client, "p1");
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("expected ok");
     expect(result.values[`s1-${E}`]).toEqual({
       "2026-01-05": 4,
       "2026-01-06": 3,
     });
-    expect(selectEq).toHaveBeenCalledWith("project_id", "p1");
+    expect(ctx.lastEq).toHaveBeenCalledWith("project_id", "p1");
   });
 
   it("drops non-positive hours from the map", async () => {
@@ -83,6 +109,45 @@ describe("loadForecastEntries", () => {
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("expected err");
     expect(result.error).toBe("permission denied");
+  });
+
+  it("fetches every PostgREST page (merges beyond max_rows chunk)", async () => {
+    function addUtcDays(iso: string, n: number): string {
+      const [y, m, d] = iso.split("-").map(Number);
+      const t = new Date(Date.UTC(y, m - 1, d));
+      t.setUTCDate(t.getUTCDate() + n);
+      return `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, "0")}-${String(t.getUTCDate()).padStart(2, "0")}`;
+    }
+    const total = FORECAST_ENTRIES_PAGE_SIZE + 1;
+    const rows = Array.from({ length: total }, (_, i) => ({
+      scope_id: "s1",
+      engineer_id: E,
+      date: addUtcDays("2025-06-01", i),
+      hours: 1,
+    }));
+    let offset = 0;
+    const from = vi.fn(() => ({
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          order: vi.fn(() => ({
+            order: vi.fn(() => ({
+              range: vi.fn(() => {
+                const chunk = rows.slice(offset, offset + FORECAST_ENTRIES_PAGE_SIZE);
+                offset += FORECAST_ENTRIES_PAGE_SIZE;
+                return Promise.resolve({ data: chunk, error: null });
+              }),
+            })),
+          })),
+        })),
+      })),
+      upsert: vi.fn(),
+      delete: vi.fn(() => ({ in: vi.fn() })),
+    }));
+    const result = await loadForecastEntries({ from } as unknown as SupabaseClient, "p1");
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("expected ok");
+    expect(Object.keys(result.values[`s1-${E}`]!)).toHaveLength(total);
+    expect(from).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -250,5 +315,35 @@ describe("saveForecastEntries", () => {
     const result = await saveForecastEntries(client, "p1", {});
     expect(result.ok).toBe(true);
     expect(deleteIn).toHaveBeenCalledWith("id", ["a", "b"]);
+  });
+
+  it("chunks large upserts across multiple requests", async () => {
+    const n = FORECAST_ENTRIES_PAGE_SIZE + 1;
+    const { client, upsert } = createForecastEntriesClient({
+      existing: { data: [], error: null },
+    });
+    const values = cellValuesWithConsecutiveDates(`s1-${E}`, n);
+    const result = await saveForecastEntries(client, "p1", values);
+    expect(result.ok).toBe(true);
+    expect(upsert).toHaveBeenCalledTimes(2);
+    expect(upsert.mock.calls[0]![0]).toHaveLength(FORECAST_ENTRIES_PAGE_SIZE);
+    expect(upsert.mock.calls[1]![0]).toHaveLength(1);
+  });
+
+  it("chunks large deletes across multiple .in() requests", async () => {
+    const existing = Array.from({ length: 501 }, (_, i) => ({
+      id: `del-${i}`,
+      scope_id: "s1",
+      engineer_id: E,
+      date: "2026-01-01",
+    }));
+    const { client, deleteIn } = createForecastEntriesClient({
+      existing: { data: existing, error: null },
+    });
+    const result = await saveForecastEntries(client, "p1", {});
+    expect(result.ok).toBe(true);
+    expect(deleteIn).toHaveBeenCalledTimes(2);
+    expect(deleteIn.mock.calls[0]![1]).toHaveLength(500);
+    expect(deleteIn.mock.calls[1]![1]).toHaveLength(1);
   });
 });

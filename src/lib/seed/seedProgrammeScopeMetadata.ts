@@ -1,12 +1,14 @@
 import type { SeedProgrammeNode } from "@/lib/programme/seedProgrammeData";
 import { seedProgrammeData } from "@/lib/programme/seedProgrammeData";
+import { normalise } from "@/lib/timesheet/timesheetImportResolve";
 
 import { parseSeedDisplayDate } from "./parseSeedDisplayDate";
 import { distributePlannedHoursToTarget } from "./scopeEngineerPlannedDistribution";
 
 /**
  * Last calendar day (inclusive) **kept** in programme demo forecast / timesheet CSVs.
- * Hours are spread across the scope’s full WBS window first, then rows after this date are dropped, and totals are reconciled on kept days (see `seed/generate/generateProgrammeForecastRows`).
+ * Forecast hours are spread across weekdays from scope start through this date (inclusive), at most
+ * 8h per engineer per scope per day (see `MAX_FORECAST_HOURS_PER_DAY` in `generateProgrammeForecastRows`).
  */
 export const DEMO_FORECAST_PLAN_END_ISO = "2026-04-17" as const;
 
@@ -102,6 +104,30 @@ export function isProgrammeDemoForecastExactScope(
   return exactPlannedScopeIds.has(scopeId);
 }
 
+/** Strip leading `11. `-style numbering from programme scope titles (timesheet Task / description). */
+export function programmeScopeNameForTimesheetDisplay(fullName: string): string {
+  return fullName.replace(/^\d+\.\s*/, "").trim();
+}
+
+/** CSV Task column is scope display name or legacy scope id — resolve to programme scope id. */
+export function programmeDemoTimesheetTaskCellToScopeId(
+  taskCell: string,
+  specs: ReadonlyArray<{ scopeId: string; name: string }>
+): string {
+  const t = taskCell.trim();
+  for (const s of specs) {
+    if (s.scopeId === t) return s.scopeId;
+  }
+  const key = normalise(t);
+  for (const s of specs) {
+    if (normalise(s.name) === key) return s.scopeId;
+  }
+  for (const s of specs) {
+    if (normalise(programmeScopeNameForTimesheetDisplay(s.name)) === key) return s.scopeId;
+  }
+  throw new Error(`Programme demo timesheet: unknown Task column "${taskCell}"`);
+}
+
 export type SeedScopeAllocation = {
   code: string;
   isLead: boolean;
@@ -120,7 +146,7 @@ export type SeedScopeForecastSpec = {
   startIso: string;
   endIso: string;
   allocations: readonly SeedScopeAllocation[];
-  /** Activity ids under this scope (for timesheet task column). */
+  /** Activity ids under this scope (for timesheet description prefix). */
   activityIds: readonly string[];
 };
 

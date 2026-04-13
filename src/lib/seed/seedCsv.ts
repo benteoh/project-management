@@ -5,6 +5,37 @@ function escapeCsvCell(value: string): string {
   return value;
 }
 
+/** One CSV record line: splits on commas outside double quotes (`""` = literal quote). */
+export function parseCsvDataLine(line: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i]!;
+    if (inQuotes) {
+      if (c === '"') {
+        if (line[i + 1] === '"') {
+          cur += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        cur += c;
+      }
+    } else if (c === '"') {
+      inQuotes = true;
+    } else if (c === ",") {
+      out.push(cur);
+      cur = "";
+    } else {
+      cur += c;
+    }
+  }
+  out.push(cur);
+  return out;
+}
+
 export function toCsvRow(cells: string[]): string {
   return cells.map(escapeCsvCell).join(",");
 }

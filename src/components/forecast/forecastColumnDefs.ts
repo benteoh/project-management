@@ -11,8 +11,8 @@ import type {
   ValueParserParams,
 } from "ag-grid-community";
 
-import { formatIsoDateShort, toISODate } from "./utils";
-import { normSel, cellNumeric } from "./forecastCellUtils";
+import { formatIsoDateShort, toISODateUtc } from "./utils";
+import { normSel } from "./forecastCellUtils";
 import { NoColumnRenderer } from "./NoColumnRenderer";
 import type { RowData, SelRange } from "./forecastGridTypes";
 import { scopeBracketCellStyle } from "./scopeBracketCellStyle";
@@ -125,6 +125,7 @@ export function forecastColumnDefs({
         ] satisfies ColDef<RowData>[])
       : []),
     {
+      field: "_forecastHrsTotal",
       headerName: "Forecast hours",
       width: 100,
       minWidth: 80,
@@ -134,9 +135,8 @@ export function forecastColumnDefs({
       resizable: false,
       valueGetter: (p: ValueGetterParams<RowData>): number | null => {
         if (!p.data) return null;
-        let sum = 0;
-        for (const d of dailyDates) sum += cellNumeric(p.data[toISODate(d)]);
-        return sum > 0 ? Math.round(sum * 100) / 100 : null;
+        const v = p.data._forecastHrsTotal;
+        return v != null && !Number.isNaN(v) ? v : null;
       },
       valueFormatter: (p) => (p.value != null ? String(p.value) : ""),
     },
@@ -170,9 +170,9 @@ export function forecastColumnDefs({
               if (!p.data) return null;
               const rate = p.data._hourRate;
               if (rate == null) return null;
-              let sum = 0;
-              for (const d of dailyDates) sum += cellNumeric(p.data[toISODate(d)]);
-              return sum > 0 ? `£${(sum * Number(rate)).toFixed(2)}` : null;
+              const hrs = p.data._forecastHrsTotal;
+              if (hrs == null || hrs <= 0) return null;
+              return `£${(hrs * Number(rate)).toFixed(2)}`;
             },
           },
         ] satisfies ColDef<RowData>[])
@@ -180,13 +180,13 @@ export function forecastColumnDefs({
   ];
 
   const dateCols: ColDef<RowData>[] = dailyDates.map((date) => {
-    const iso = toISODate(date);
-    const dow = date.getDay();
+    const iso = toISODateUtc(date);
+    const dow = date.getUTCDay();
     const isWeekend = dow === 0 || dow === 6;
     const isBankHoliday = bankHolidays.has(iso);
     const isToday = iso === todayIso;
-    const dd = String(date.getDate()).padStart(2, "0");
-    const mm = String(date.getMonth() + 1).padStart(2, "0");
+    const dd = String(date.getUTCDate()).padStart(2, "0");
+    const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
 
     return {
       field: iso,

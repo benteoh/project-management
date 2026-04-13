@@ -246,15 +246,16 @@ export function ForecastTab({
     [showPast, projectStartDate, currentWeekStart]
   );
 
+  const todayPlus1Month = useMemo(() => addMonths(todayIso, 1), [todayIso]);
+
   const endDate = useMemo(() => {
     if (projectIsFinished) {
       // TODO: when demand forecast persistence is added, use max(projectEndDate, last entry date)
       return projectEndDate;
     }
-    // Active project: extend at least 1 month past today
-    const todayPlus1m = addMonths(todayIso, 1);
-    return todayPlus1m > projectEndDate ? todayPlus1m : projectEndDate;
-  }, [projectIsFinished, projectEndDate, todayIso]);
+    // Active project: extend at least 1 month past today (lexicographic max works for ISO dates).
+    return todayPlus1Month > projectEndDate ? todayPlus1Month : projectEndDate;
+  }, [projectIsFinished, projectEndDate, todayPlus1Month]);
 
   const dailyDates = useMemo(() => generateDailyDates(startDate, endDate), [startDate, endDate]);
   const bankHolidays = useMemo(() => new Set(bankHolidayDates), [bankHolidayDates]);

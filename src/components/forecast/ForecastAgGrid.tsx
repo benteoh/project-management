@@ -22,10 +22,11 @@ import {
 import { formatEngineerListLabel } from "@/lib/engineer-pool-display";
 
 import type { ForecastGridRow } from "./types";
-import { toISODate } from "./utils";
+import { toISODateUtc } from "./utils";
 import { FILL_HANDLE_SIZE } from "./forecastGridConstants";
 import { forecastTheme } from "./forecastTheme";
 import { forecastColumnDefs } from "./forecastColumnDefs";
+import { sumRowHoursAllDates } from "./forecastCellUtils";
 import { useCellStore } from "./useCellStore";
 import { useGridHistory } from "./useGridHistory";
 import { useGridSelection } from "./useGridSelection";
@@ -72,7 +73,7 @@ export const ForecastAgGrid = forwardRef<ForecastAgGridHandle, Props>(function F
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Ordered list of date field strings — used for range index calculations
-  const dateColFields = useMemo(() => dailyDates.map((d) => toISODate(d)), [dailyDates]);
+  const dateColFields = useMemo(() => dailyDates.map((d) => toISODateUtc(d)), [dailyDates]);
   const dateColFieldsRef = useRef(dateColFields);
   useEffect(() => {
     dateColFieldsRef.current = dateColFields;
@@ -263,6 +264,7 @@ export const ForecastAgGrid = forwardRef<ForecastAgGridHandle, Props>(function F
         const pending = pendingValuesRef.current[id] ?? {};
         const prevScopeId = idx > 0 ? rows[idx - 1].scope.id : null;
         const scopeLeadRow = idx === 0 || row.scope.id !== prevScopeId;
+        const forecastSum = sumRowHoursAllDates(saved, pending);
         const base: RowData = {
           _id: id,
           _no: idx + 1,
@@ -271,6 +273,7 @@ export const ForecastAgGrid = forwardRef<ForecastAgGridHandle, Props>(function F
           _person: formatEngineerListLabel(row.engineer, row.engineer.code),
           _hourRate: row.hourRate,
           _plannedHrs: row.plannedHrs,
+          _forecastHrsTotal: forecastSum > 0 ? Math.round(forecastSum * 100) / 100 : null,
           _weeklyScopeLimit: row.weeklyScopeLimit,
           _scopeDivider: idx > 0 && row.scope.id !== prevScopeId,
           _scopeLeadRow: scopeLeadRow,
@@ -278,7 +281,7 @@ export const ForecastAgGrid = forwardRef<ForecastAgGridHandle, Props>(function F
           _scopeEndIso: row.scopeEndDate,
         };
         for (const d of dailyDates) {
-          const field = toISODate(d);
+          const field = toISODateUtc(d);
           // Pending wins for ghost display; committed value is the fallback
           base[field] = (pending[field] ?? saved[field] ?? null) as string | number | null;
         }

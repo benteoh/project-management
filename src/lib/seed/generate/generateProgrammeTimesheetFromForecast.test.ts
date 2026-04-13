@@ -18,6 +18,7 @@ import {
   DEMO_FORECAST_PLAN_END_ISO,
   defaultSeedScopeForecastSpecs,
   programmeDemoForecastScopePayload,
+  programmeScopeNameForTimesheetDisplay,
 } from "../seedProgrammeScopeMetadata";
 
 describe("generateTimesheetRowsFromForecast (programme-wide)", () => {
@@ -50,9 +51,14 @@ describe("generateTimesheetRowsFromForecast (programme-wide)", () => {
       rng: rngF,
     });
 
+    const scopeDisplayNameByScopeId = new Map(
+      specs.map((s) => [s.scopeId, programmeScopeNameForTimesheetDisplay(s.name)])
+    );
+
     const { rows, stats, alignedForecastSlotKeys } = generateTimesheetRowsFromForecast({
       forecastRows: forecast,
       projectLabel: PROGRAMME_DEMO_PROJECT_LABEL,
+      scopeDisplayNameByScopeId,
       activityIdsByScopeId,
       rng: rngT,
     });
@@ -110,9 +116,14 @@ describe("generateTimesheetRowsFromForecast (programme-wide)", () => {
 
     const retention = new Map<string, number>([["s13", 0.74]]);
 
+    const scopeDisplayNameByScopeId = new Map(
+      specs.map((s) => [s.scopeId, programmeScopeNameForTimesheetDisplay(s.name)])
+    );
+
     const { rows } = generateTimesheetRowsFromForecast({
       forecastRows: forecast,
       projectLabel: PROGRAMME_DEMO_PROJECT_LABEL,
+      scopeDisplayNameByScopeId,
       activityIdsByScopeId,
       rng: rngT,
       timesheetForecastRetentionByScopeId: retention,

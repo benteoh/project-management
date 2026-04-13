@@ -6,6 +6,8 @@ import {
   displayValue,
   evalFormula,
   normSel,
+  sumRowHoursAllDates,
+  sumRowHoursFromStoredRow,
 } from "./forecastCellUtils";
 
 describe("evalFormula", () => {
@@ -88,5 +90,28 @@ describe("normSel", () => {
       c1: 1,
       c2: 3,
     });
+  });
+});
+
+describe("sumRowHoursFromStoredRow", () => {
+  it("sums ISO date keys using cellNumeric", () => {
+    expect(sumRowHoursFromStoredRow({ "2026-01-02": 4, "2026-06-01": 6, _meta: 99 })).toBe(10);
+  });
+});
+
+describe("sumRowHoursAllDates", () => {
+  it("sums every ISO date field, including dates outside the visible grid window", () => {
+    const saved = { "2026-01-02": 4, "2026-06-01": 6, _foo: 99 };
+    expect(sumRowHoursAllDates(saved, {})).toBe(10);
+  });
+
+  it("lets pending overlay committed values", () => {
+    const saved = { "2026-01-02": 4 };
+    const pending = { "2026-01-02": 8 };
+    expect(sumRowHoursAllDates(saved, pending)).toBe(8);
+  });
+
+  it("ignores non-date keys", () => {
+    expect(sumRowHoursAllDates({ scope: "x" }, {})).toBe(0);
   });
 });
