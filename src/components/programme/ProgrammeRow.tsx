@@ -27,6 +27,7 @@ interface ProgrammeRowProps {
     e: React.MouseEvent<HTMLElement>
   ) => void;
   onSaveField: (nodeId: string, field: keyof ProgrammeNode, raw: string) => void;
+  onSaveScopeQuotation: (nodeId: string, quotedRaw: string, warningRaw: string) => void;
   onContextMenu: (node: ProgrammeNode, e: React.MouseEvent) => void;
   onOpenEngPinned?: (scopeId: string, e: React.MouseEvent<HTMLDivElement>) => void;
   engPopupScopeId?: string | null;
@@ -59,6 +60,7 @@ export function ProgrammeRow({
   onCancelEdit,
   onOpenCal,
   onSaveField,
+  onSaveScopeQuotation,
   onContextMenu,
   onOpenEngPinned,
   engPopupScopeId,
@@ -84,6 +86,7 @@ export function ProgrammeRow({
     onCancelEdit,
     onOpenCal,
     onSaveField,
+    onSaveScopeQuotation,
     onOpenEngPinned,
     engPopupScopeId,
     engineerAnchorRef,
@@ -101,6 +104,7 @@ export function ProgrammeRow({
     onCancelEdit,
     onOpenCal,
     onSaveField,
+    onSaveScopeQuotation,
     onContextMenu,
     onOpenEngPinned,
     engPopupScopeId,

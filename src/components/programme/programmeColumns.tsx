@@ -2,6 +2,8 @@
 
 import type { RefObject } from "react";
 import { ChevronRight, ChevronDown } from "lucide-react";
+
+import { estimateScopeQuotationGbp } from "@/api/services/scopeQuotationEstimate";
 import { isRollupTotalHoursParent } from "@/lib/programme/totalHoursRollup";
 import type { EngineerPoolEntry } from "@/types/engineer-pool";
 import type { ForecastHoursByScopeRecord } from "@/types/forecast-scope";
@@ -13,6 +15,7 @@ import { cn } from "@/lib/utils";
 import type { ProgrammeNode, EditableField, EditingCell } from "./types";
 import { StatusBadge } from "./StatusBadge";
 import { EngineerChip } from "./EngineerChip";
+import { ScopeQuotationWidget } from "./ScopeQuotationWidget";
 import type { ProgrammeSortColumn } from "./programmeTableSort";
 
 // ─── Shared input styles ───────────────────────────────────────────────────────
@@ -82,6 +85,8 @@ export interface CellContext {
     e: React.MouseEvent<HTMLElement>
   ) => void;
   onSaveField: (nodeId: string, field: keyof ProgrammeNode, raw: string) => void;
+  /** Single commit for scope quotation PM fields (avoids double history / persist). */
+  onSaveScopeQuotation: (nodeId: string, quotedRaw: string, warningRaw: string) => void;
   onOpenEngPinned?: (scopeId: string, e: React.MouseEvent<HTMLDivElement>) => void;
   engPopupScopeId?: string | null;
   engineerAnchorRef?: RefObject<HTMLDivElement | null>;
@@ -213,12 +218,27 @@ export const PROGRAMME_COLUMNS: ColumnDef[] = [
               onClick={(e) => ctx.onOpenEngPinned!(node.id, e)}
             />
           )}
+
+          {node.type === "scope" && (
+            <ScopeQuotationWidget
+              scope={node}
+              engineerPool={ctx.engineerPool}
+              onSave={ctx.onSaveScopeQuotation}
+            />
+          )}
         </div>
       );
     },
     tsvValue: (node, helpers) => {
-      void helpers;
-      return node.name;
+      if (node.type !== "scope") return node.name;
+      const { subtotalGbp, warnings } = estimateScopeQuotationGbp(node, helpers.engineerPool);
+      const bits = [
+        node.name,
+        `est ${subtotalGbp}${warnings.length ? " (!)" : ""}`,
+        node.quotedAmount != null ? `quoted ${node.quotedAmount}` : null,
+        node.quotationWarningAmount != null ? `warn ${node.quotationWarningAmount}` : null,
+      ].filter(Boolean);
+      return bits.join(" · ");
     },
   },
 

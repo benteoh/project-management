@@ -18,5 +18,9 @@ export interface ProgrammeNodeDbRow {
   status: ActivityStatus;
   parent_id: string | null;
   position: number;
+  /** PM-entered agreed / issued quote for this scope (GBP). Scope rows only; null when unset. */
+  quoted_amount?: number | null;
+  /** PM-entered expected additional client quotation (GBP). Scope rows only. */
+  quotation_warning_amount?: number | null;
   updated_at?: string;
 }

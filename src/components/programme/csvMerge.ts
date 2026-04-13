@@ -137,7 +137,9 @@ function makeStructuralNode(
     finish: row.finish ?? "",
     status: "",
     children: [],
-    ...(type === "scope" ? { engineers: [] } : {}),
+    ...(type === "scope"
+      ? { engineers: [], quotedAmount: null, quotationWarningAmount: null }
+      : {}),
   };
 }
 

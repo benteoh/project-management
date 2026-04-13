@@ -32,6 +32,10 @@ export interface ProgrammeNode {
   children: ProgrammeNode[];
   /** Scope rows only — persisted in `scope_engineers`. */
   engineers?: EngineerAllocation[];
+  /** Scope only — PM input, GBP (`programme_nodes.quoted_amount`). */
+  quotedAmount?: number | null;
+  /** Scope only — PM input, GBP (`programme_nodes.quotation_warning_amount`). */
+  quotationWarningAmount?: number | null;
 }
 
 export type EditableField = "name" | "activityId" | "totalHours";

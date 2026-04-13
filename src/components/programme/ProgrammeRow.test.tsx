@@ -32,6 +32,7 @@ const baseProps = {
   onCancelEdit: vi.fn(),
   onOpenCal: vi.fn(),
   onSaveField: vi.fn(),
+  onSaveScopeQuotation: vi.fn(),
   onContextMenu: vi.fn(),
   selectedIds: new Set<string>(),
   copiedIds: new Set<string>(),

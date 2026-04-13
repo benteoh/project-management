@@ -26,6 +26,9 @@ export function flattenTree(
       status: node.type === "activity" ? node.status : "",
       parent_id: parentId,
       position,
+      quoted_amount: node.type === "scope" ? (node.quotedAmount ?? null) : null,
+      quotation_warning_amount:
+        node.type === "scope" ? (node.quotationWarningAmount ?? null) : null,
     });
 
     if (node.type === "scope" && node.engineers?.length) {
@@ -126,6 +129,12 @@ export function buildTreeFromRows(
           rate: e.rate,
         };
       });
+      node.quotedAmount =
+        r.quoted_amount !== null && r.quoted_amount !== undefined ? Number(r.quoted_amount) : null;
+      node.quotationWarningAmount =
+        r.quotation_warning_amount !== null && r.quotation_warning_amount !== undefined
+          ? Number(r.quotation_warning_amount)
+          : null;
     }
 
     byId.set(r.id, node);

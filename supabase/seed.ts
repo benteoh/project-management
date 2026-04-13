@@ -27,6 +27,7 @@ import {
   seedProjectTestRow,
 } from "../src/lib/programme/seedConfig";
 import { programmeNodesWithPrefixedIds } from "../src/lib/programme/seedProgrammeClone";
+import { applySeedScopeQuotations } from "../src/lib/programme/seedScopeQuotations";
 import { SEED_SCOPE_ENGINEER_FALLBACK } from "../src/lib/seed/programmeSeedDemo";
 import { parseCsvDataLine } from "../src/lib/seed/seedCsv";
 import {
@@ -388,7 +389,7 @@ async function seed() {
   console.log(`✓ ${SEED_ENGINEER_ROWS.length} engineers`);
 
   const codeToId = new Map(poolUpsertRows.map((r) => [r.code, r.id]));
-  const programmeNodes = buildProgrammeNodesFromSeed(codeToId);
+  const programmeNodes = applySeedScopeQuotations(buildProgrammeNodesFromSeed(codeToId));
   const programmeNodesTest = programmeNodesWithPrefixedIds(
     programmeNodes,
     SEED_PROJECT_TEST_NODE_ID_PREFIX

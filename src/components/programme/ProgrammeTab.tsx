@@ -298,7 +298,11 @@ export function ProgrammeTab({
       status: addForm.type === "scope" ? "" : formValues.status,
       children: [],
       ...(addForm.type === "scope"
-        ? { engineers: [] as NonNullable<ProgrammeNode["engineers"]> }
+        ? {
+            engineers: [] as NonNullable<ProgrammeNode["engineers"]>,
+            quotedAmount: null,
+            quotationWarningAmount: null,
+          }
         : {}),
     };
     if (addForm.type === "scope") {
@@ -377,6 +381,34 @@ export function ProgrammeTab({
     );
   };
 
+  function parseScopeMoney(raw: string): number | null {
+    const t = raw.replace(/,/g, "").trim();
+    if (t === "") return null;
+    const n = parseFloat(t);
+    if (Number.isNaN(n) || n < 0) return null;
+    return Math.round(n * 100) / 100;
+  }
+
+  const saveScopeQuotation = (nodeId: string, quotedRaw: string, warningRaw: string) => {
+    const node = findNodeInTree(present, nodeId);
+    if (!node || node.type !== "scope") return;
+    const q = parseScopeMoney(quotedRaw);
+    const w = parseScopeMoney(warningRaw);
+    let next = updateNodeInTree(
+      present,
+      nodeId,
+      "quotedAmount",
+      q as ProgrammeNode["quotedAmount"]
+    );
+    next = updateNodeInTree(
+      next,
+      nodeId,
+      "quotationWarningAmount",
+      w as ProgrammeNode["quotationWarningAmount"]
+    );
+    commit(next);
+  };
+
   const rowProps = {
     editingCell,
     onToggleCollapse: toggleCollapse,
@@ -386,6 +418,7 @@ export function ProgrammeTab({
     onCancelEdit: () => setEditingCell(null),
     onOpenCal: openCal,
     onSaveField: saveField,
+    onSaveScopeQuotation: saveScopeQuotation,
     onContextMenu: openCtxMenu,
     onOpenEngPinned: openEngPinned,
     selectedIds: selection.selectedIds,
