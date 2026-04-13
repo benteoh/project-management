@@ -13,6 +13,7 @@ import {
   findBestScopeId,
   matchActivityFromSpecifier,
   matchActivityIdInNotes,
+  normalise,
   type ProgrammeNodeImportRow,
   resolveProjectFromProjCell,
 } from "@/lib/timesheet/timesheetImportResolve";
@@ -131,10 +132,14 @@ export async function saveTimesheetUpload(
   headers: string[],
   rows: string[][]
 ): Promise<{ ok: true; upload: TimesheetUpload } | { ok: false; error: string }> {
-  const [engRes, projRes, nodeRes] = await Promise.all([
+  const [engRes, projRes, nodeRes, mappingRes] = await Promise.all([
     client.from("engineer_pool").select("id, code, first_name, last_name"),
     client.from("projects").select("id, name, project_code"),
     client.from("programme_nodes").select("id, project_id, parent_id, type, name, activity_id"),
+    client
+      .from("timesheet_scope_mappings")
+      .select("raw_text, scope_id")
+      .eq("project_id", projectId),
   ]);
   if (engRes.error) return { ok: false, error: `engineer_pool: ${engRes.error.message}` };
   if (projRes.error) return { ok: false, error: `projects: ${projRes.error.message}` };
@@ -148,6 +153,14 @@ export async function saveTimesheetUpload(
   }[];
   const projects = projRes.data as { id: string; name: string; project_code: string | null }[];
   const programmeNodes = nodeRes.data as ProgrammeNodeImportRow[];
+
+  // normalise(raw_text) → scope_id; checked before fuzzy matching
+  const importScopeMapping = new Map<string, string>();
+  if (!mappingRes.error) {
+    for (const row of mappingRes.data as { raw_text: string; scope_id: string }[]) {
+      importScopeMapping.set(normalise(row.raw_text), row.scope_id);
+    }
+  }
 
   const scopesByProject = new Map<string, { id: string; name: string }[]>();
   for (const n of programmeNodes) {
@@ -259,10 +272,14 @@ export async function saveTimesheetUpload(
     const scopesForProject = statedProjectId ? (scopesByProject.get(statedProjectId) ?? []) : [];
 
     const taskRaw = taskIdx >= 0 ? raw(taskIdx) : "";
+    const mappedScopeId = taskRaw.trim()
+      ? (importScopeMapping.get(normalise(taskRaw.trim())) ?? null)
+      : null;
     const scopeId =
-      statedProjectId && taskIdx >= 0
+      mappedScopeId ??
+      (statedProjectId && taskIdx >= 0
         ? findBestScopeId(taskRaw, scopesForProject, IMPORT_NAME_MIN_COVERAGE)
-        : null;
+        : null);
 
     let activityId: string | null = null;
     const actRaw = activityColIdx >= 0 ? raw(activityColIdx) : "";

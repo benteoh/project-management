@@ -21,15 +21,39 @@ function scoreTaskIdAgainstScopeName(csvValue: string, scopeName: string): numbe
 }
 
 /**
- * Best programme scope node for a Task ID / scope cell (same ≥80% word rule as issues).
+ * Best programme scope node for a Task ID / scope cell.
+ *
+ * Checks `scopeMappings` (normalised rawText → scopeId) first, then falls back
+ * to the ≥80% word-coverage fuzzy match against scope names.
  */
 export function resolveScopeNodeForTaskIdCell(
   csvValue: string,
-  programmeTree: ProgrammeNode[]
+  programmeTree: ProgrammeNode[],
+  scopeMappings?: Map<string, string>
 ): ProgrammeNode | null {
   const t = csvValue.trim();
   if (!t) return null;
 
+  // Check explicit mapping first
+  if (scopeMappings && scopeMappings.size > 0) {
+    const mappedScopeId = scopeMappings.get(normalise(t));
+    if (mappedScopeId) {
+      let found: ProgrammeNode | null = null;
+      const findById = (nodes: ProgrammeNode[]) => {
+        for (const n of nodes) {
+          if (n.id === mappedScopeId) {
+            found = n;
+            return;
+          }
+          if (n.children.length > 0) findById(n.children);
+        }
+      };
+      findById(programmeTree);
+      if (found) return found;
+    }
+  }
+
+  // Fuzzy match fallback
   let bestNode: ProgrammeNode | null = null;
   let bestScore = -1;
 

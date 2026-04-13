@@ -11,7 +11,8 @@ import {
   listTimesheetUploads,
   saveTimesheetUpload,
 } from "@/lib/timesheet/timesheetDb";
-import type { TimesheetEntry, TimesheetUpload } from "@/types/timesheet";
+import { getScopeMappings, upsertScopeMapping } from "@/lib/timesheet/scopeMappingDb";
+import type { TimesheetEntry, TimesheetScopeMapping, TimesheetUpload } from "@/types/timesheet";
 
 export async function saveProgrammeAction(projectId: string, tree: ProgrammeNode[]) {
   const repo = createSupabaseProgrammeRepository(await createServerSupabaseClient(), projectId);
@@ -56,4 +57,20 @@ export async function getTimesheetEntriesAction(
 ): Promise<{ entries: TimesheetEntry[]; headers: string[] } | { error: string }> {
   const client = await createServerSupabaseClient();
   return getTimesheetEntries(client, uploadId);
+}
+
+export async function getScopeMappingsAction(
+  projectId: string
+): Promise<{ mappings: TimesheetScopeMapping[] } | { error: string }> {
+  const client = await createServerSupabaseClient();
+  return getScopeMappings(client, projectId);
+}
+
+export async function upsertScopeMappingAction(
+  projectId: string,
+  rawText: string,
+  scopeId: string
+): Promise<{ ok: true; mapping: TimesheetScopeMapping } | { ok: false; error: string }> {
+  const client = await createServerSupabaseClient();
+  return upsertScopeMapping(client, projectId, rawText, scopeId);
 }

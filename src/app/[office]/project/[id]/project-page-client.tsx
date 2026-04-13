@@ -2,6 +2,8 @@
 
 import { useCallback, useMemo, useState } from "react";
 
+import { usePersistedTab } from "@/hooks/usePersistedTab";
+
 import { ForecastTab } from "@/components/forecast/ForecastTab";
 import { TimesheetTab } from "@/components/timesheet/TimesheetTab";
 import { ProgrammeTab } from "@/components/programme/ProgrammeTab";
@@ -49,7 +51,11 @@ export default function ProjectPageClient({
   initialTimesheetUploads: TimesheetUpload[];
   forecastHoursByScope: ForecastHoursByScopeRecord;
 }) {
-  const [activeTab, setActiveTab] = useState<Tab>("Programme");
+  const [activeTab, setActiveTab] = usePersistedTab<Tab>(
+    `project-tab:${projectId}`,
+    "Programme",
+    TABS
+  );
   const [programmeTree, setProgrammeTree] = useState<ProgrammeNode[]>(initialProgrammeTree);
   const engineerPool = initialEngineerPool;
 

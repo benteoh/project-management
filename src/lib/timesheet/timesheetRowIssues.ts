@@ -47,11 +47,22 @@ export type TimesheetIssuesContext = {
   knownEmployees: Set<string>;
   /** When null, project column checks are skipped. */
   project: { projectCode: string | null; name: string } | null;
+  /**
+   * Explicit user-defined mappings: normalised raw text → scope node id.
+   * Built from `timesheet_scope_mappings` for the project.
+   * A hit here suppresses the `scope_unmatched` issue.
+   */
+  scopeMappings: Map<string, string>;
 };
 
-function matchesAnyScope(csvValue: string, scopeNames: string[]): boolean {
+function matchesAnyScope(
+  csvValue: string,
+  scopeNames: string[],
+  scopeMappings: Map<string, string>
+): boolean {
   const t = csvValue.trim();
   if (!t) return false;
+  if (scopeMappings.has(normalise(t))) return true;
   const aWords = sigWords(t);
   if (aWords.length === 0) {
     return scopeNames.some((name) => t.toLowerCase() === name.trim().toLowerCase());
@@ -74,11 +85,17 @@ function notesMatchTaskId(notes: string, taskId: string): boolean | null {
   return wordCoverage(taskWords, notes) >= SCOPE_TASK_MIN_COVERAGE;
 }
 
-function scopeMatchForRow(row: string[], taskIdIdx: number, scopeNames: string[]): boolean | null {
-  if (scopeNames.length === 0 || taskIdIdx < 0) return null;
+function scopeMatchForRow(
+  row: string[],
+  taskIdIdx: number,
+  scopeNames: string[],
+  scopeMappings: Map<string, string>
+): boolean | null {
+  if (scopeNames.length === 0 && scopeMappings.size === 0) return null;
+  if (taskIdIdx < 0) return null;
   const val = (row[taskIdIdx] ?? "").trim();
   if (!val) return null;
-  return matchesAnyScope(val, scopeNames);
+  return matchesAnyScope(val, scopeNames, scopeMappings);
 }
 
 /**
@@ -132,6 +149,7 @@ export function computeTimesheetRowIssues(
     scopeNames,
     knownEmployees,
     project,
+    scopeMappings,
   } = ctx;
 
   if (hoursIdx >= 0) {
@@ -148,7 +166,7 @@ export function computeTimesheetRowIssues(
     }
   }
 
-  const scopeResult = scopeMatchForRow(row, taskIdIdx, scopeNames);
+  const scopeResult = scopeMatchForRow(row, taskIdIdx, scopeNames, scopeMappings);
   if (scopeResult === false && taskIdIdx >= 0) {
     issues.push({ issueId: "scope_unmatched", columnIndex: taskIdIdx });
   }

@@ -11,6 +11,7 @@ import {
   resolveEngineerFromEmployeeCell,
   type EngineerPoolRow,
 } from "@/lib/timesheet/employeeCellMatch";
+import { collectScopeNodes } from "@/lib/programme/programmeTree";
 import { resolveScopeNodeForTaskIdCell } from "@/lib/timesheet/timesheetLinkedResolve";
 import {
   computeTimesheetRowIssues,
@@ -70,7 +71,8 @@ function TimesheetDataCell({ value, issues }: { value: string; issues: Timesheet
 type LinkedSelection = {
   rowIndex: number;
   colIndex: number;
-  panel: TimesheetSidebarPanel;
+  linkKind: "project" | "employee" | "scope";
+  cellValue: string;
 } | null;
 
 export function TimesheetTable({
@@ -79,12 +81,16 @@ export function TimesheetTable({
   scopeNames,
   project,
   programmeTree,
+  scopeMappings,
+  onAddMapping,
 }: {
   sheet: SheetData;
   engineerPool: EngineerPoolEntry[];
   scopeNames: string[];
   project: Project | null;
   programmeTree: ProgrammeNode[];
+  scopeMappings: Map<string, string>;
+  onAddMapping: (rawText: string, scopeId: string) => Promise<void>;
 }) {
   const [activeFilters, setActiveFilters] = useState<Set<TimesheetIssueId> | null>(null);
   const [filterAnchor, setFilterAnchor] = useState<DOMRect | null>(null);
@@ -123,6 +129,8 @@ export function TimesheetTable({
 
   const engRows = useMemo(() => poolToEngRows(engineerPool), [engineerPool]);
 
+  const programmeScopes = useMemo(() => collectScopeNodes(programmeTree), [programmeTree]);
+
   const issuesContext = useMemo(
     () => ({
       hoursIdx,
@@ -133,8 +141,19 @@ export function TimesheetTable({
       scopeNames,
       knownEmployees,
       project: project ? { projectCode: project.projectCode, name: project.name } : null,
+      scopeMappings,
     }),
-    [hoursIdx, employeeIdx, taskIdIdx, notesIdx, projectIdx, scopeNames, knownEmployees, project]
+    [
+      hoursIdx,
+      employeeIdx,
+      taskIdIdx,
+      notesIdx,
+      projectIdx,
+      scopeNames,
+      knownEmployees,
+      project,
+      scopeMappings,
+    ]
   );
 
   const rowIssueRows = useMemo(
@@ -165,27 +184,28 @@ export function TimesheetTable({
               : null;
 
       if (!linkKind) return;
+      if (linkKind === "project" && !project) return;
 
-      let panel: TimesheetSidebarPanel | null = null;
-      if (linkKind === "project" && project) {
-        panel = { kind: "project", project, cellValue: cell };
-      } else if (linkKind === "employee") {
-        const { engineerId } = resolveEngineerFromEmployeeCell(cell, engRows);
-        const engineer = engineerId
-          ? (engineerPool.find((e) => e.id === engineerId) ?? null)
-          : null;
-        panel = { kind: "employee", engineer, cellValue: cell };
-      } else if (linkKind === "scope") {
-        const scope = resolveScopeNodeForTaskIdCell(cell, programmeTree);
-        panel = { kind: "scope", scope, cellValue: cell };
-      }
-
-      if (panel) {
-        setLinkedSelection({ rowIndex: ri, colIndex: ci, panel });
-      }
+      setLinkedSelection({ rowIndex: ri, colIndex: ci, linkKind, cellValue: cell });
     },
-    [employeeIdx, engRows, engineerPool, programmeTree, project, projectIdx, taskIdIdx]
+    [employeeIdx, project, projectIdx, taskIdIdx]
   );
+
+  const sidebarPanel = useMemo((): TimesheetSidebarPanel | null => {
+    if (!linkedSelection) return null;
+    const { linkKind, cellValue } = linkedSelection;
+    if (linkKind === "project") {
+      if (!project) return null;
+      return { kind: "project", project, cellValue };
+    }
+    if (linkKind === "employee") {
+      const { engineerId } = resolveEngineerFromEmployeeCell(cellValue, engRows);
+      const engineer = engineerId ? (engineerPool.find((e) => e.id === engineerId) ?? null) : null;
+      return { kind: "employee", engineer, cellValue };
+    }
+    const scope = resolveScopeNodeForTaskIdCell(cellValue, programmeTree, scopeMappings);
+    return { kind: "scope", scope, cellValue };
+  }, [linkedSelection, project, engRows, engineerPool, programmeTree, scopeMappings]);
 
   useEffect(() => {
     if (!linkedSelection) return;
@@ -236,7 +256,9 @@ export function TimesheetTable({
       </div>
 
       <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
-        <div className="min-h-0 min-w-0 flex-1 overflow-auto">
+        <div
+          className={`min-h-0 min-w-0 flex-1 overflow-auto ${linkedSelection ? "pr-[min(20rem,100vw)]" : ""}`}
+        >
           <table className="border-border w-max border-collapse text-sm">
             <thead className="bg-card sticky top-0 z-10">
               <tr>
@@ -349,8 +371,10 @@ export function TimesheetTable({
         </div>
 
         <TimesheetLinkSidebar
-          panel={linkedSelection?.panel ?? null}
+          panel={sidebarPanel}
           engineerPool={engineerPool}
+          programmeScopes={programmeScopes}
+          onAddMapping={onAddMapping}
           onClose={() => setLinkedSelection(null)}
         />
       </div>

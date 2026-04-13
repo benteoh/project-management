@@ -46,6 +46,33 @@ export interface TimesheetEntry {
 }
 
 // ---------------------------------------------------------------------------
+// Scope mapping types
+// ---------------------------------------------------------------------------
+
+/**
+ * A user-defined mapping from a raw timesheet scope text string to a
+ * programme scope node. Stored per-project; checked before fuzzy matching.
+ */
+export interface TimesheetScopeMapping {
+  id: string;
+  projectId: string;
+  /** Original text as it appeared in the timesheet (trimmed). */
+  rawText: string;
+  /** `programme_nodes.id` of the scope node the user mapped this text to. */
+  scopeId: string;
+  createdAt: string;
+}
+
+/** DB row shape for `public.timesheet_scope_mappings`. */
+export interface TimesheetScopeMappingDbRow {
+  id: string;
+  project_id: string;
+  raw_text: string;
+  scope_id: string;
+  created_at: string;
+}
+
+// ---------------------------------------------------------------------------
 // DB row types (snake_case, mirrors Supabase schema)
 // ---------------------------------------------------------------------------
 

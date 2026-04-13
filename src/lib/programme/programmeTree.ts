@@ -76,6 +76,19 @@ export function collectScopeNames(nodes: ProgrammeNode[]): string[] {
   return names;
 }
 
+/** All scope nodes in the tree as `{ id, name }` pairs, in tree order. */
+export function collectScopeNodes(nodes: ProgrammeNode[]): { id: string; name: string }[] {
+  const result: { id: string; name: string }[] = [];
+  const walk = (list: ProgrammeNode[]) => {
+    for (const n of list) {
+      if (n.type === "scope") result.push({ id: n.id, name: n.name });
+      walk(n.children);
+    }
+  };
+  walk(nodes);
+  return result;
+}
+
 export function buildTreeFromRows(
   rows: ProgrammeNodeDbRow[],
   engineerRows: ScopeEngineerDbRow[]

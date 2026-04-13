@@ -16,6 +16,7 @@ export function ProjectSettingsSection() {
         key={selectedProjectId}
         projectId={selectedProjectId}
         onBackToProjects={handleBackToList}
+        onDuplicated={setSelectedProjectId}
       />
     );
   }

@@ -16,6 +16,7 @@ import {
   loadProjectById,
   updateProjectInDb,
 } from "@/lib/projects/projectDb";
+import { duplicateProjectInDb } from "@/lib/projects/projectDuplicateDb";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { Engineer } from "@/types/engineer-pool";
 import type { Project } from "@/types/project";
@@ -164,6 +165,20 @@ export async function createProjectAction(
   });
   if ("error" in r) return { ok: false, error: r.error };
   return loadProjectsForSettingsAction();
+}
+
+export type DuplicateProjectResult =
+  | { ok: true; newProjectId: string }
+  | { ok: false; error: string };
+
+export async function duplicateProjectAction(
+  sourceProjectId: string
+): Promise<DuplicateProjectResult> {
+  if (!sourceProjectId) return { ok: false, error: "Project id is required." };
+  const client = await createServerSupabaseClient();
+  const r = await duplicateProjectInDb(client, sourceProjectId);
+  if ("error" in r) return { ok: false, error: r.error };
+  return { ok: true, newProjectId: r.projectId };
 }
 
 export async function updateProjectAction(

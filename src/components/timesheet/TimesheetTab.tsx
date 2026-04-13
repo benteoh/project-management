@@ -5,9 +5,12 @@ import { Upload } from "lucide-react";
 
 import {
   getTimesheetEntriesAction,
+  getScopeMappingsAction,
   listTimesheetUploadsAction,
   saveTimesheetUploadAction,
+  upsertScopeMappingAction,
 } from "@/app/[office]/project/[id]/actions";
+import { normalise } from "@/lib/timesheet/timesheetImportResolve";
 import type { TimesheetUpload } from "@/types/timesheet";
 
 import { SavedUploadsList } from "./SavedUploadsList";
@@ -34,7 +37,23 @@ export function TimesheetTab({
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [uploads, setUploads] = useState<TimesheetUpload[]>(initialUploads);
+  const [scopeMappings, setScopeMappings] = useState<Map<string, string>>(new Map());
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    getScopeMappingsAction(projectId).then((res) => {
+      if ("mappings" in res) {
+        setScopeMappings(new Map(res.mappings.map((m) => [normalise(m.rawText), m.scopeId])));
+      }
+    });
+  }, [projectId]);
+
+  async function handleAddMapping(rawText: string, scopeId: string) {
+    const res = await upsertScopeMappingAction(projectId, rawText, scopeId);
+    if (res.ok) {
+      setScopeMappings((prev) => new Map([...prev, [normalise(rawText), scopeId]]));
+    }
+  }
 
   // On mount: if there are saved uploads, restore the most recent one automatically
   // so a page refresh doesn't lose the view.
@@ -211,6 +230,8 @@ export function TimesheetTab({
           scopeNames={scopeNames}
           project={project}
           programmeTree={programmeTree}
+          scopeMappings={scopeMappings}
+          onAddMapping={handleAddMapping}
         />
       </div>
     </div>

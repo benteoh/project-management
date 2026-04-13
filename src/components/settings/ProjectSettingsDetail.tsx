@@ -2,7 +2,11 @@
 
 import { useEffect, useState } from "react";
 
-import { loadProjectForSettingsAction, updateProjectAction } from "@/app/settings/actions";
+import {
+  duplicateProjectAction,
+  loadProjectForSettingsAction,
+  updateProjectAction,
+} from "@/app/settings/actions";
 import { ProjectEngineersPanel } from "@/components/settings/ProjectEngineersPanel";
 import type { Project } from "@/types/project";
 
@@ -32,9 +36,12 @@ function projectToPayload(p: Project): ProjectCreatePayload {
 export function ProjectSettingsDetail({
   projectId,
   onBackToProjects,
+  onDuplicated,
 }: {
   projectId: string;
   onBackToProjects: () => void;
+  /** When set, called with the new project id after a successful duplicate. */
+  onDuplicated?: (newProjectId: string) => void;
 }) {
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
@@ -43,6 +50,7 @@ export function ProjectSettingsDetail({
 
   const [editDraft, setEditDraft] = useState<ProjectCreatePayload | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDuplicating, setIsDuplicating] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -62,6 +70,19 @@ export function ProjectSettingsDetail({
       cancelled = true;
     };
   }, [projectId]);
+
+  const handleDuplicateProject = async () => {
+    if (!project) return;
+    setIsDuplicating(true);
+    setError(null);
+    const r = await duplicateProjectAction(project.id);
+    setIsDuplicating(false);
+    if (r.ok) {
+      onDuplicated?.(r.newProjectId);
+    } else {
+      setError(r.error);
+    }
+  };
 
   const handleSaveDetails = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -137,11 +158,23 @@ export function ProjectSettingsDetail({
           <div className="min-h-0 flex-1 overflow-auto pt-2">
             {activeSubTab === "Details" && editDraft && (
               <form onSubmit={handleSaveDetails} className="flex flex-col gap-4">
-                <ProjectFormFields value={editDraft} disabled={isSaving} onChange={setEditDraft} />
-                <div className="flex justify-end">
+                <ProjectFormFields
+                  value={editDraft}
+                  disabled={isSaving || isDuplicating}
+                  onChange={setEditDraft}
+                />
+                <div className="flex flex-wrap justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleDuplicateProject()}
+                    disabled={isSaving || isDuplicating}
+                    className="border-border bg-background text-foreground hover:bg-muted rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-60"
+                  >
+                    {isDuplicating ? "Duplicating…" : "Duplicate project"}
+                  </button>
                   <button
                     type="submit"
-                    disabled={isSaving}
+                    disabled={isSaving || isDuplicating}
                     className="bg-primary text-primary-foreground rounded-md px-4 py-2 text-sm font-medium disabled:opacity-60"
                   >
                     {isSaving ? "Saving…" : "Save changes"}

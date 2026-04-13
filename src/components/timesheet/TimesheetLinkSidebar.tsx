@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { X } from "lucide-react";
 
 import type { ProgrammeNode } from "@/components/programme/types";
@@ -64,13 +65,85 @@ function TimesheetEmployeeSidebarDetails({ engineer }: { engineer: EngineerPoolE
   );
 }
 
+/** Local state resets when `cellValue` changes via parent `key`. */
+function UnmappedScopeMappingForm({
+  cellValue,
+  programmeScopes,
+  onAddMapping,
+}: {
+  cellValue: string;
+  programmeScopes: { id: string; name: string }[];
+  onAddMapping: (rawText: string, scopeId: string) => Promise<void>;
+}) {
+  const [selectedScopeId, setSelectedScopeId] = useState("");
+  const [mappingState, setMappingState] = useState<"idle" | "saving" | "saved">("idle");
+
+  return (
+    <div className="space-y-4">
+      <p className="text-muted-foreground text-sm">
+        No scope on this programme matches this task / scope text. Map it to an existing scope so
+        future imports resolve it automatically.
+      </p>
+      {programmeScopes.length > 0 ? (
+        <div className="space-y-3">
+          <label className="block">
+            <span className="text-muted-foreground mb-1.5 block text-xs font-medium tracking-wide uppercase">
+              Map to scope
+            </span>
+            <select
+              value={selectedScopeId}
+              onChange={(e) => {
+                setSelectedScopeId(e.target.value);
+                setMappingState("idle");
+              }}
+              className="border-border bg-card text-foreground focus:ring-gold w-full rounded-md border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
+            >
+              <option value="">Select a scope…</option>
+              {programmeScopes.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          {mappingState === "saved" ? (
+            <p className="text-status-healthy text-xs font-medium">
+              Mapping saved. This text will now resolve correctly.
+            </p>
+          ) : (
+            <button
+              type="button"
+              disabled={!selectedScopeId || mappingState === "saving"}
+              onClick={async () => {
+                if (!selectedScopeId) return;
+                setMappingState("saving");
+                await onAddMapping(cellValue, selectedScopeId);
+                setMappingState("saved");
+              }}
+              className="bg-gold text-foreground w-full rounded-md px-3 py-2 text-sm font-medium transition-opacity disabled:opacity-40"
+            >
+              {mappingState === "saving" ? "Saving…" : "Save mapping"}
+            </button>
+          )}
+        </div>
+      ) : (
+        <p className="text-muted-foreground text-sm">No scopes defined in the programme yet.</p>
+      )}
+    </div>
+  );
+}
+
 export function TimesheetLinkSidebar({
   panel,
   engineerPool,
+  programmeScopes,
+  onAddMapping,
   onClose,
 }: {
   panel: TimesheetSidebarPanel | null;
   engineerPool: EngineerPoolEntry[];
+  programmeScopes: { id: string; name: string }[];
+  onAddMapping: (rawText: string, scopeId: string) => Promise<void>;
   onClose: () => void;
 }) {
   if (!panel) return null;
@@ -83,7 +156,10 @@ export function TimesheetLinkSidebar({
   }
 
   return (
-    <aside className="border-border bg-muted/45 flex w-[min(100%,20rem)] shrink-0 flex-col border-l-2 shadow-sm">
+    <aside
+      className="border-border bg-card text-card-foreground shadow-elevated ring-border fixed top-14 right-0 bottom-0 z-30 flex w-[min(100vw,20rem)] flex-col border-l-2 ring-1"
+      aria-label="Linked cell details"
+    >
       <div className="border-border flex items-center justify-between gap-2 border-b px-4 py-3">
         <h3 className="text-foreground text-sm font-semibold">
           {panel.kind === "project" && "Project"}
@@ -214,10 +290,12 @@ export function TimesheetLinkSidebar({
               ) : null}
             </dl>
           ) : (
-            <p className="text-muted-foreground text-sm">
-              No scope on this programme matches this task / scope text strongly enough (same rule
-              as the import checker).
-            </p>
+            <UnmappedScopeMappingForm
+              key={panel.cellValue}
+              cellValue={panel.cellValue}
+              programmeScopes={programmeScopes}
+              onAddMapping={onAddMapping}
+            />
           ))}
       </div>
     </aside>
