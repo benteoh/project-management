@@ -240,10 +240,6 @@ export function TimesheetTable({
       )}
 
       <div className="border-border bg-background flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-2">
-        <p className="text-muted-foreground max-w-xl text-xs">
-          Issues are marked with a small warning on the cell. Hover the marker for details. Click
-          project, employee, or task / scope cells to see details on the right.
-        </p>
         <button
           type="button"
           onClick={(e) => setFilterAnchor(e.currentTarget.getBoundingClientRect())}
@@ -253,6 +249,10 @@ export function TimesheetTable({
           <FilterFunnelIcon />
           Filter by issue
         </button>
+        <p className="text-muted-foreground max-w-xl text-xs">
+          Issues are marked with a small warning on the cell. Hover the marker for details. Click
+          project, employee, or task / scope cells to see details on the right.
+        </p>
       </div>
 
       <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">

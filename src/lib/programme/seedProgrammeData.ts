@@ -1,6 +1,7 @@
 import type { EngineerAllocation, ProgrammeNode } from "@/components/programme/types";
 
 import { applyProgrammeRollups } from "./applyProgrammeRollups";
+import { rollupTotalHoursForSeedNodes } from "./totalHoursRollup";
 
 type SeedAlloc = { code: string; isLead: boolean; plannedHrs: number | null };
 
@@ -18,9 +19,11 @@ export type SeedProgrammeNode = Omit<ProgrammeNode, "children" | "engineers"> & 
 /**
  * Static WBS for the sample project (`SEED_PROJECT_ID` in `seedConfig.ts`).
  * Engineer rows use codes; `buildProgrammeNodesFromSeed` maps codes to `engineer_pool.id`.
+ * Parent `totalHours` here may be stale placeholders — {@link seedProgrammeData} replaces them
+ * by summing children (activities / leaf nodes keep the authored hours).
  * Used only by `npm run seed` — the app loads the tree from Supabase.
  */
-export const seedProgrammeData: SeedProgrammeNode[] = [
+const rawSeedProgrammeData: SeedProgrammeNode[] = [
   {
     id: "s11",
     name: "11. CGMM - Early Design Workstream",
@@ -1402,6 +1405,10 @@ export const seedProgrammeData: SeedProgrammeNode[] = [
     ],
   },
 ];
+
+/** WBS totals on scope/task/subtask rows are derived from children before any export. */
+export const seedProgrammeData: SeedProgrammeNode[] =
+  rollupTotalHoursForSeedNodes(rawSeedProgrammeData);
 
 export function buildProgrammeNodesFromSeed(codeToId: Map<string, string>): ProgrammeNode[] {
   function mapAlloc(a: SeedAlloc): EngineerAllocation {

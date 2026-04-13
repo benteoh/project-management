@@ -2,6 +2,7 @@
 
 import type { ProgrammeNode } from "@/components/programme/types";
 import { getEngineerByCodeFromDb } from "@/lib/engineers/engineerDb";
+import { loadForecastHoursByScopeForProject } from "@/lib/forecast/forecastDb";
 import { upsertEngineerPoolCodeInDb } from "@/lib/programme/programmeDb";
 import { createSupabaseProgrammeRepository } from "@/lib/programme/supabaseProgrammeRepository";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -12,7 +13,10 @@ import {
   saveTimesheetUpload,
 } from "@/lib/timesheet/timesheetDb";
 import { getScopeMappings, upsertScopeMapping } from "@/lib/timesheet/scopeMappingDb";
+import { getTimesheetActualsForProject } from "@/lib/timesheet/timesheetActualsDb";
+import type { TimesheetActualEntry } from "@/lib/timesheet/timesheetActualsDb";
 import type { TimesheetEntry, TimesheetScopeMapping, TimesheetUpload } from "@/types/timesheet";
+import type { ForecastHoursByScopeRecord } from "@/types/forecast-scope";
 
 export async function saveProgrammeAction(projectId: string, tree: ProgrammeNode[]) {
   const repo = createSupabaseProgrammeRepository(await createServerSupabaseClient(), projectId);
@@ -73,4 +77,20 @@ export async function upsertScopeMappingAction(
 ): Promise<{ ok: true; mapping: TimesheetScopeMapping } | { ok: false; error: string }> {
   const client = await createServerSupabaseClient();
   return upsertScopeMapping(client, projectId, rawText, scopeId);
+}
+
+export async function getTimesheetProjectActualsAction(
+  projectId: string
+): Promise<{ rows: TimesheetActualEntry[] } | { error: string }> {
+  const client = await createServerSupabaseClient();
+  return getTimesheetActualsForProject(client, projectId);
+}
+
+export async function getProjectForecastHoursByScopeAction(
+  projectId: string
+): Promise<{ byScope: ForecastHoursByScopeRecord } | { error: string }> {
+  const client = await createServerSupabaseClient();
+  const result = await loadForecastHoursByScopeForProject(client, projectId);
+  if (!result.ok) return { error: result.error };
+  return { byScope: result.byScope };
 }

@@ -11,13 +11,17 @@ import {
   upsertScopeMappingAction,
 } from "@/app/[office]/project/[id]/actions";
 import { normalise } from "@/lib/timesheet/timesheetImportResolve";
+import { cn } from "@/lib/utils";
 import type { TimesheetUpload } from "@/types/timesheet";
 
+import { ActualsVsPlanned } from "./ActualsVsPlanned";
 import { SavedUploadsList } from "./SavedUploadsList";
 import { TimesheetTable } from "./TimesheetTable";
 import type { SaveState, SheetData, TimesheetTabProps, ViewingUpload } from "./types";
 import { parseTimesheetWorkbook } from "./timesheetWorkbook";
 import { stripExcludedColumns } from "./timesheetSheetNormalize";
+
+type Subtab = "entries" | "actuals";
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
@@ -29,6 +33,7 @@ export function TimesheetTab({
   project,
   programmeTree,
 }: TimesheetTabProps) {
+  const [subtab, setSubtab] = useState<Subtab>("entries");
   const [sheet, setSheet] = useState<SheetData | null>(null);
   const [viewingUpload, setViewingUpload] = useState<ViewingUpload>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -151,89 +156,126 @@ export function TimesheetTab({
     setLoadError(null);
   }
 
-  if (!sheet) {
-    return (
-      <div
-        className="flex flex-1 flex-col items-center justify-center gap-4"
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={onDrop}
-      >
-        <input
-          ref={inputRef}
-          type="file"
-          accept=".csv,.xlsx,.xls"
-          className="hidden"
-          onChange={onInputChange}
-        />
-        <button
-          type="button"
-          onClick={() => inputRef.current?.click()}
-          className="border-border text-foreground hover:border-gold hover:text-gold flex flex-col items-center gap-3 rounded-lg border-2 border-dashed px-12 py-10 transition-colors"
-        >
-          <Upload className="h-8 w-8" strokeWidth={1.5} />
-          <span className="text-sm font-medium">Upload timesheet</span>
-          <span className="text-muted-foreground text-xs">CSV or Excel (.xlsx, .xls)</span>
-        </button>
-        {loading && <p className="text-muted-foreground text-sm">Parsing file…</p>}
-        {parseError && <p className="text-status-critical text-sm">{parseError}</p>}
-        {loadError && <p className="text-status-critical text-sm">{loadError}</p>}
-        <SavedUploadsList
-          uploads={uploads}
-          onView={handleViewSaved}
-          onDelete={handleDeleteUpload}
-        />
-      </div>
-    );
-  }
-
   const isSaved = saveState === "saved" || viewingUpload !== null;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="border-border flex shrink-0 items-center justify-between border-b px-4 py-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <p className="text-muted-foreground truncate text-xs">
-            {sheet.fileName} — {sheet.rows.length} rows
-          </p>
-          {isSaved && (
-            <span className="text-status-healthy shrink-0 text-xs font-medium">· Saved</span>
+      {/* Persistent subtab bar — Actuals vs Planned: re-enable with `true &&` where `false &&` appears below */}
+      <div className="border-border flex shrink-0 items-center gap-1 border-b px-4 py-2">
+        <button
+          type="button"
+          onClick={() => setSubtab("entries")}
+          className={cn(
+            "rounded-md px-3 py-1 text-xs font-medium transition-colors",
+            subtab === "entries"
+              ? "bg-foreground text-background"
+              : "text-muted-foreground hover:text-foreground"
           )}
-        </div>
-        <div className="flex shrink-0 items-center gap-3">
-          {saveState === "error" && saveError && (
-            <p className="text-status-critical text-xs">{saveError}</p>
-          )}
-          {!isSaved && (
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={saveState === "saving"}
-              className="bg-gold text-foreground rounded-md px-3 py-1 text-xs font-medium transition-opacity disabled:opacity-50"
-            >
-              {saveState === "saving" ? "Saving…" : "Save to project"}
-            </button>
-          )}
+        >
+          Entries
+        </button>
+        {false && (
           <button
             type="button"
-            onClick={handleClose}
-            className="text-muted-foreground hover:text-foreground text-xs underline-offset-2 hover:underline"
+            onClick={() => setSubtab("actuals")}
+            className={cn(
+              "rounded-md px-3 py-1 text-xs font-medium transition-colors",
+              subtab === "actuals"
+                ? "bg-foreground text-background"
+                : "text-muted-foreground hover:text-foreground"
+            )}
           >
-            {isSaved ? "Back to list" : "Upload different file"}
+            Actuals vs Planned
           </button>
-        </div>
+        )}
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <TimesheetTable
-          sheet={sheet}
-          engineerPool={engineerPool}
-          scopeNames={scopeNames}
-          project={project}
-          programmeTree={programmeTree}
-          scopeMappings={scopeMappings}
-          onAddMapping={handleAddMapping}
-        />
-      </div>
+      {false && subtab === "actuals" ? (
+        <div className="flex-1 overflow-auto">
+          <ActualsVsPlanned
+            projectId={projectId}
+            programmeTree={programmeTree}
+            engineerPool={engineerPool}
+          />
+        </div>
+      ) : !sheet ? (
+        <div
+          className="flex flex-1 flex-col items-center justify-center gap-4"
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={onDrop}
+        >
+          <input
+            ref={inputRef}
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            className="hidden"
+            onChange={onInputChange}
+          />
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            className="border-border text-foreground hover:border-gold hover:text-gold flex flex-col items-center gap-3 rounded-lg border-2 border-dashed px-12 py-10 transition-colors"
+          >
+            <Upload className="h-8 w-8" strokeWidth={1.5} />
+            <span className="text-sm font-medium">Upload timesheet</span>
+            <span className="text-muted-foreground text-xs">CSV or Excel (.xlsx, .xls)</span>
+          </button>
+          {loading && <p className="text-muted-foreground text-sm">Parsing file…</p>}
+          {parseError && <p className="text-status-critical text-sm">{parseError}</p>}
+          {loadError && <p className="text-status-critical text-sm">{loadError}</p>}
+          <SavedUploadsList
+            uploads={uploads}
+            onView={handleViewSaved}
+            onDelete={handleDeleteUpload}
+          />
+        </div>
+      ) : (
+        <>
+          <div className="border-border flex shrink-0 items-center justify-between border-b px-4 py-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <p className="text-muted-foreground truncate text-xs">
+                {sheet.fileName} — {sheet.rows.length} rows
+              </p>
+              {isSaved && (
+                <span className="text-status-healthy shrink-0 text-xs font-medium">· Saved</span>
+              )}
+            </div>
+            <div className="flex shrink-0 items-center gap-3">
+              {saveState === "error" && saveError && (
+                <p className="text-status-critical text-xs">{saveError}</p>
+              )}
+              {!isSaved && (
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={saveState === "saving"}
+                  className="bg-gold text-foreground rounded-md px-3 py-1 text-xs font-medium transition-opacity disabled:opacity-50"
+                >
+                  {saveState === "saving" ? "Saving…" : "Save to project"}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleClose}
+                className="text-muted-foreground hover:text-foreground text-xs underline-offset-2 hover:underline"
+              >
+                {isSaved ? "Back to list" : "Upload different file"}
+              </button>
+            </div>
+          </div>
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <TimesheetTable
+              sheet={sheet}
+              engineerPool={engineerPool}
+              scopeNames={scopeNames}
+              project={project}
+              programmeTree={programmeTree}
+              scopeMappings={scopeMappings}
+              onAddMapping={handleAddMapping}
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 }

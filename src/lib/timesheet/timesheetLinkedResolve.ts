@@ -26,6 +26,17 @@ function scoreTaskIdAgainstScopeName(csvValue: string, scopeName: string): numbe
  * Checks `scopeMappings` (normalised rawText → scopeId) first, then falls back
  * to the ≥80% word-coverage fuzzy match against scope names.
  */
+function findScopeNodeById(nodes: ProgrammeNode[], id: string): ProgrammeNode | null {
+  for (const n of nodes) {
+    if (n.type === "scope" && n.id === id) return n;
+    if (n.children.length > 0) {
+      const d = findScopeNodeById(n.children, id);
+      if (d) return d;
+    }
+  }
+  return null;
+}
+
 export function resolveScopeNodeForTaskIdCell(
   csvValue: string,
   programmeTree: ProgrammeNode[],
@@ -38,20 +49,14 @@ export function resolveScopeNodeForTaskIdCell(
   if (scopeMappings && scopeMappings.size > 0) {
     const mappedScopeId = scopeMappings.get(normalise(t));
     if (mappedScopeId) {
-      let found: ProgrammeNode | null = null;
-      const findById = (nodes: ProgrammeNode[]) => {
-        for (const n of nodes) {
-          if (n.id === mappedScopeId) {
-            found = n;
-            return;
-          }
-          if (n.children.length > 0) findById(n.children);
-        }
-      };
-      findById(programmeTree);
+      const found = findScopeNodeById(programmeTree, mappedScopeId);
       if (found) return found;
     }
   }
+
+  // Exact programme scope id (e.g. seed CSV Task column = `s11`)
+  const byExactId = findScopeNodeById(programmeTree, t);
+  if (byExactId) return byExactId;
 
   // Fuzzy match fallback
   let bestNode: ProgrammeNode | null = null;
