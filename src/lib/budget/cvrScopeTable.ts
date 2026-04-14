@@ -17,26 +17,30 @@ export interface CvrScopeRow {
   spentSoFar: number;
 }
 
-/** Transposed CVR grid: each column is a scope; rows are metrics then one row per calendar month, then spent so far. */
+/** Transposed CVR grid: each column is a scope; rows are budget lines, spent so far (aggregate), variance, forecast months, expected variance. */
 export interface CvrTransposedTable {
   scopes: { id: string; name: string }[];
-  /** Every `YYYY-MM` from earliest to latest timesheet activity (inclusive), with gaps filled. */
-  months: string[];
+  /**
+   * Every `YYYY-MM` from earliest to latest **future-dated** forecast cell (inclusive), with gaps
+   * filled. Empty when there is no forecast slice or no upcoming hours.
+   */
+  upcomingMonths: string[];
   byScopeId: Record<
     string,
     {
       quotation: number | null;
       quotationEw: number | null;
       approvedBudget: number;
-      /** £ in that month only */
-      monthly: Record<string, number>;
-      /** Sum of all dated, costed timesheet £ for this scope */
+      /** Sum of all dated, costed timesheet £ for this scope (not split by month). */
       spentSoFar: number;
       /** Approved budget − spent so far */
       variance: number;
       /**
-       * £ from demand forecast for dates **strictly after** {@link CvrForecastSlice.afterDateExclusive}.
+       * £ from demand forecast for dates **strictly after** {@link CvrForecastSlice.afterDateExclusive},
+       * by calendar month (keys match {@link CvrTransposedTable.upcomingMonths}).
        */
+      upcomingMonthly: Record<string, number>;
+      /** Total upcoming forecast £ (sum of per-month `upcomingMonthly` values). */
       upcomingForecastGbp: number;
       /** Variance − upcoming forecast £ */
       expectedVariance: number;
@@ -103,14 +107,21 @@ function entrySpendGbp(
   return round2(hours * rate);
 }
 
-function accumulateUpcomingForecastGbpByScope(
+/**
+ * Upcoming forecast £ per scope per calendar month (only cells with `dateKey > afterDateExclusive`).
+ */
+function accumulateUpcomingForecastGbpByScopeMonth(
   forecastValues: CellValues,
   scopeById: Map<string, ProgrammeNode>,
   poolById: Map<string, EngineerPoolEntry>,
   afterDateExclusive: string
-): Map<string, number> {
-  const byScope = new Map<string, number>();
-  if (!ISO_DATE.test(afterDateExclusive)) return byScope;
+): {
+  monthlyByScope: Map<string, Map<string, number>>;
+  monthsSeen: Set<string>;
+} {
+  const monthlyByScope = new Map<string, Map<string, number>>();
+  const monthsSeen = new Set<string>();
+  if (!ISO_DATE.test(afterDateExclusive)) return { monthlyByScope, monthsSeen };
 
   for (const [rowId, dates] of Object.entries(forecastValues)) {
     const parsed = parseForecastRowId(rowId);
@@ -123,10 +134,32 @@ function accumulateUpcomingForecastGbpByScope(
       if (raw == null || hrs <= 0 || Number.isNaN(hrs)) continue;
       const gbp = entrySpendGbp(scope, parsed.engineerId, hrs, poolById);
       if (gbp <= 0) continue;
-      byScope.set(parsed.scopeId, round2((byScope.get(parsed.scopeId) ?? 0) + gbp));
+      const ym = dateKey.slice(0, 7);
+      monthsSeen.add(ym);
+      if (!monthlyByScope.has(parsed.scopeId)) monthlyByScope.set(parsed.scopeId, new Map());
+      const perMonth = monthlyByScope.get(parsed.scopeId)!;
+      perMonth.set(ym, round2((perMonth.get(ym) ?? 0) + gbp));
     }
   }
-  return byScope;
+  return { monthlyByScope, monthsSeen };
+}
+
+/** Total costed timesheet £ per scope (all dated rows). */
+function accumulateSpentSoFarByScope(
+  entries: TimesheetCvrEntry[],
+  scopeById: Map<string, ProgrammeNode>,
+  poolById: Map<string, EngineerPoolEntry>
+): Map<string, number> {
+  const spentAllByScope = new Map<string, number>();
+  for (const e of entries) {
+    if (!e.scopeId || !e.entryDate || !e.hours || e.hours <= 0) continue;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(e.entryDate)) continue;
+    const scope = scopeById.get(e.scopeId);
+    const gbp = entrySpendGbp(scope, e.engineerId, e.hours, poolById);
+    if (gbp <= 0) continue;
+    spentAllByScope.set(e.scopeId, round2((spentAllByScope.get(e.scopeId) ?? 0) + gbp));
+  }
+  return spentAllByScope;
 }
 
 function accumulateSpendByScopeMonth(
@@ -206,8 +239,8 @@ function sumMonthlyThrough(perMonth: Map<string, number>, throughYm: string): nu
 }
 
 /**
- * Full transposed dataset: scopes as columns; rows = quotation, EW, approved budget, months, spent,
- * variance, upcoming forecast £, expected variance.
+ * Full transposed dataset: scopes as columns; rows = quotation, EW, approved budget, spent so far,
+ * variance, upcoming forecast by month, expected variance.
  */
 export function buildCvrTransposedTable(
   programmeTree: ProgrammeNode[],
@@ -219,49 +252,52 @@ export function buildCvrTransposedTable(
   const poolById = new Map(engineerPool.map((e) => [e.id, e]));
   const scopeById = new Map(scopes.map((s) => [s.id, s]));
 
-  const { monthlyByScope, spentAllByScope, monthsSeen } = accumulateSpendByScopeMonth(
-    entries,
-    scopeById,
-    poolById
-  );
-  const months = monthRangeFromSeen(monthsSeen);
+  const spentAllByScope = accumulateSpentSoFarByScope(entries, scopeById, poolById);
 
-  const upcomingByScope = forecast
-    ? accumulateUpcomingForecastGbpByScope(
+  const upcomingAgg = forecast
+    ? accumulateUpcomingForecastGbpByScopeMonth(
         forecast.values,
         scopeById,
         poolById,
         forecast.afterDateExclusive
       )
-    : new Map<string, number>();
+    : { monthlyByScope: new Map<string, Map<string, number>>(), monthsSeen: new Set<string>() };
+
+  const upcomingMonths = monthRangeFromSeen(upcomingAgg.monthsSeen);
 
   const byScopeId: CvrTransposedTable["byScopeId"] = {};
 
   for (const scope of scopes) {
-    const perMonth = monthlyByScope.get(scope.id) ?? new Map<string, number>();
-    const monthly: Record<string, number> = {};
-    for (const ym of months) {
-      monthly[ym] = perMonth.get(ym) ?? 0;
+    const upcomingPerMonth = upcomingAgg.monthlyByScope.get(scope.id) ?? new Map<string, number>();
+    const upcomingMonthly: Record<string, number> = {};
+    let upcomingForecastGbp = 0;
+    for (const ym of upcomingMonths) {
+      const v = upcomingPerMonth.get(ym) ?? 0;
+      upcomingMonthly[ym] = v;
+      upcomingForecastGbp = round2(upcomingForecastGbp + v);
     }
     const spentSoFar = spentAllByScope.get(scope.id) ?? 0;
     const approvedBudget = approvedBudgetFromQuotations(scope);
     const variance = round2(approvedBudget - spentSoFar);
-    const upcomingForecastGbp = upcomingByScope.get(scope.id) ?? 0;
     const expectedVariance = round2(variance - upcomingForecastGbp);
 
     byScopeId[scope.id] = {
       quotation: scope.quotedAmount ?? null,
       quotationEw: scope.quotationWarningAmount ?? null,
       approvedBudget,
-      monthly,
       spentSoFar,
       variance,
+      upcomingMonthly,
       upcomingForecastGbp,
       expectedVariance,
     };
   }
 
-  return { scopes: scopes.map((s) => ({ id: s.id, name: s.name })), months, byScopeId };
+  return {
+    scopes: scopes.map((s) => ({ id: s.id, name: s.name })),
+    upcomingMonths,
+    byScopeId,
+  };
 }
 
 /**
@@ -334,9 +370,9 @@ export function cvrTransposedRowTotals(
     | { kind: "quotation" }
     | { kind: "quotationEw" }
     | { kind: "approvedBudget" }
-    | { kind: "month"; monthKey: string }
     | { kind: "spentSoFar" }
     | { kind: "variance" }
+    | { kind: "upcomingMonth"; monthKey: string }
     | { kind: "upcomingForecast" }
     | { kind: "expectedVariance" }
 ): number | null {
@@ -362,11 +398,6 @@ export function cvrTransposedRowTotals(
     for (const id of ids) t = round2(t + (table.byScopeId[id]?.approvedBudget ?? 0));
     return t;
   }
-  if (row.kind === "month") {
-    let t = 0;
-    for (const id of ids) t = round2(t + (table.byScopeId[id]?.monthly[row.monthKey] ?? 0));
-    return t;
-  }
   if (row.kind === "spentSoFar") {
     let t = 0;
     for (const id of ids) t = round2(t + (table.byScopeId[id]?.spentSoFar ?? 0));
@@ -375,6 +406,13 @@ export function cvrTransposedRowTotals(
   if (row.kind === "variance") {
     let t = 0;
     for (const id of ids) t = round2(t + (table.byScopeId[id]?.variance ?? 0));
+    return t;
+  }
+  if (row.kind === "upcomingMonth") {
+    let t = 0;
+    for (const id of ids) {
+      t = round2(t + (table.byScopeId[id]?.upcomingMonthly[row.monthKey] ?? 0));
+    }
     return t;
   }
   if (row.kind === "upcomingForecast") {

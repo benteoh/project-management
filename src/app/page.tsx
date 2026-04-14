@@ -2,8 +2,10 @@ import Link from "next/link";
 import { Building2 } from "lucide-react";
 
 import { officeNameToUrlPathSegment } from "@/lib/offices/officeUrl";
+import { listOfficesFromDb } from "@/lib/offices/officeDb";
 import { listProjectsFromDb } from "@/lib/projects/projectDb";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import type { Office } from "@/types/office";
 import type { Project } from "@/types/project";
 
 type OfficeGroup = {
@@ -13,21 +15,52 @@ type OfficeGroup = {
   totalCount: number;
 };
 
-function groupByOffice(projects: Project[]): OfficeGroup[] {
-  const map = new Map<string, OfficeGroup>();
+/** One entry per office in `public.offices` (sorted by name), with project counts; zero-filled when missing. */
+function buildOfficeGroupsFromModel(allOffices: Office[], projects: Project[]): OfficeGroup[] {
+  const knownIds = new Set(allOffices.map((o) => o.id));
+  const countsByOfficeId = new Map<
+    string,
+    { ongoingCount: number; completedCount: number; totalCount: number; name: string }
+  >();
+
   for (const p of projects) {
-    const existing = map.get(p.officeName) ?? {
-      name: p.officeName,
+    const existing = countsByOfficeId.get(p.officeId) ?? {
       ongoingCount: 0,
       completedCount: 0,
       totalCount: 0,
+      name: p.officeName,
     };
     existing.totalCount += 1;
     if (p.status === "complete") existing.completedCount += 1;
     else if (p.status === "active") existing.ongoingCount += 1;
-    map.set(p.officeName, existing);
+    existing.name = p.officeName || existing.name;
+    countsByOfficeId.set(p.officeId, existing);
   }
-  return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+
+  const fromModel: OfficeGroup[] = allOffices.map((o) => {
+    const c = countsByOfficeId.get(o.id);
+    return {
+      name: o.name,
+      ongoingCount: c?.ongoingCount ?? 0,
+      completedCount: c?.completedCount ?? 0,
+      totalCount: c?.totalCount ?? 0,
+    };
+  });
+
+  const orphanIds = [...new Set(projects.map((p) => p.officeId))].filter((id) => !knownIds.has(id));
+  const orphans: OfficeGroup[] = orphanIds
+    .map((id) => {
+      const c = countsByOfficeId.get(id)!;
+      return {
+        name: c.name.trim() || "Unknown office",
+        ongoingCount: c.ongoingCount,
+        completedCount: c.completedCount,
+        totalCount: c.totalCount,
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  return [...fromModel, ...orphans];
 }
 
 export default async function HomePage() {
@@ -36,11 +69,16 @@ export default async function HomePage() {
 
   try {
     const client = await createServerSupabaseClient();
-    const result = await listProjectsFromDb(client);
-    if ("projects" in result) {
-      offices = groupByOffice(result.projects);
+    const [officesRes, projectsRes] = await Promise.all([
+      listOfficesFromDb(client),
+      listProjectsFromDb(client),
+    ]);
+    if ("error" in officesRes) {
+      error = officesRes.error;
+    } else if ("projects" in projectsRes) {
+      offices = buildOfficeGroupsFromModel(officesRes.offices, projectsRes.projects);
     } else {
-      error = result.error;
+      error = projectsRes.error;
     }
   } catch (e) {
     error = e instanceof Error ? e.message : "Failed to load offices";

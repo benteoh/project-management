@@ -139,11 +139,10 @@ export function CvrTab({
           <h2 className="text-foreground text-sm font-semibold">Scope cost summary</h2>
           <p className="text-muted-foreground mt-0.5 text-xs">
             Each column is one scope. Planned budget is your main quote plus the extra quote line.
-            Spent so far is taken from saved timesheets. Upcoming is work dated after today in your
-            forecast, shown in pounds the same way as past spend. Variance is planned budget minus
-            spent so far. Expected variance takes off that upcoming figure too; the last row turns
-            green when you&apos;re likely to finish with money left, red when you&apos;re heading
-            over.
+            Spent so far is the total from saved timesheets (costed rows with dates). Upcoming rows
+            are forecast work dated after today, by month. Variance is planned budget minus spent so
+            far. Expected variance subtracts upcoming forecast too; that row turns green when
+            you&apos;re likely to finish under budget, red when over.
           </p>
         </div>
 
@@ -303,38 +302,6 @@ export function CvrTab({
                     {formatCurrency(cvrTransposedRowTotals(table, { kind: "approvedBudget" }) ?? 0)}
                   </td>
                 </tr>
-                {table.months.map((ym) => (
-                  <tr key={ym}>
-                    <th
-                      scope="row"
-                      className={cvrLabelCell(
-                        "text-muted-foreground text-xs font-medium tracking-wide uppercase"
-                      )}
-                    >
-                      {formatMonthHeading(ym)}
-                    </th>
-                    {table.scopes.map((s, colIndex) => (
-                      <td
-                        key={s.id}
-                        className={cvrScopeCell(
-                          colIndex,
-                          "text-foreground text-right whitespace-nowrap tabular-nums"
-                        )}
-                      >
-                        {formatCurrency(table.byScopeId[s.id]?.monthly[ym] ?? 0)}
-                      </td>
-                    ))}
-                    <td
-                      className={cvrTotalCell(
-                        "text-foreground text-right text-xs font-semibold whitespace-nowrap tabular-nums"
-                      )}
-                    >
-                      {formatCurrency(
-                        cvrTransposedRowTotals(table, { kind: "month", monthKey: ym }) ?? 0
-                      )}
-                    </td>
-                  </tr>
-                ))}
                 <tr>
                   <th
                     scope="row"
@@ -391,36 +358,78 @@ export function CvrTab({
                     {formatCurrency(cvrTransposedRowTotals(table, { kind: "variance" }) ?? 0)}
                   </td>
                 </tr>
-                <tr>
-                  <th
-                    scope="row"
-                    className={cvrLabelCell(
-                      "border-border text-muted-foreground border-t-4 border-double text-xs font-medium tracking-wide uppercase"
-                    )}
-                  >
-                    Upcoming (forecast)
-                  </th>
-                  {table.scopes.map((s, colIndex) => (
-                    <td
-                      key={s.id}
-                      className={cvrScopeCell(
-                        colIndex,
-                        "border-border text-foreground border-t-4 border-double text-right whitespace-nowrap tabular-nums"
+                {table.upcomingMonths.length === 0 ? (
+                  <tr>
+                    <th
+                      scope="row"
+                      className={cvrLabelCell(
+                        "border-border text-muted-foreground border-t-4 border-double text-xs font-medium tracking-wide uppercase"
                       )}
                     >
-                      {formatCurrency(table.byScopeId[s.id]?.upcomingForecastGbp ?? 0)}
+                      Upcoming (forecast)
+                    </th>
+                    {table.scopes.map((s, colIndex) => (
+                      <td
+                        key={s.id}
+                        className={cvrScopeCell(
+                          colIndex,
+                          "border-border text-foreground border-t-4 border-double text-right whitespace-nowrap tabular-nums"
+                        )}
+                      >
+                        {formatCurrency(table.byScopeId[s.id]?.upcomingForecastGbp ?? 0)}
+                      </td>
+                    ))}
+                    <td
+                      className={cvrTotalCell(
+                        "border-border text-foreground border-t-4 border-double text-right text-xs font-semibold whitespace-nowrap tabular-nums"
+                      )}
+                    >
+                      {formatCurrency(
+                        cvrTransposedRowTotals(table, { kind: "upcomingForecast" }) ?? 0
+                      )}
                     </td>
-                  ))}
-                  <td
-                    className={cvrTotalCell(
-                      "border-border text-foreground border-t-4 border-double text-right text-xs font-semibold whitespace-nowrap tabular-nums"
-                    )}
-                  >
-                    {formatCurrency(
-                      cvrTransposedRowTotals(table, { kind: "upcomingForecast" }) ?? 0
-                    )}
-                  </td>
-                </tr>
+                  </tr>
+                ) : (
+                  table.upcomingMonths.map((ym, i) => (
+                    <tr key={`up-${ym}`}>
+                      <th
+                        scope="row"
+                        className={cvrLabelCell(
+                          i === 0
+                            ? "border-border text-muted-foreground border-t-4 border-double text-xs font-medium tracking-wide uppercase"
+                            : "text-muted-foreground text-xs font-medium tracking-wide uppercase"
+                        )}
+                      >
+                        Upcoming · {formatMonthHeading(ym)}
+                      </th>
+                      {table.scopes.map((s, colIndex) => (
+                        <td
+                          key={s.id}
+                          className={cvrScopeCell(
+                            colIndex,
+                            i === 0
+                              ? "border-border text-foreground border-t-4 border-double text-right whitespace-nowrap tabular-nums"
+                              : "text-foreground text-right whitespace-nowrap tabular-nums"
+                          )}
+                        >
+                          {formatCurrency(table.byScopeId[s.id]?.upcomingMonthly[ym] ?? 0)}
+                        </td>
+                      ))}
+                      <td
+                        className={cvrTotalCell(
+                          i === 0
+                            ? "border-border text-foreground border-t-4 border-double text-right text-xs font-semibold whitespace-nowrap tabular-nums"
+                            : "text-foreground text-right text-xs font-semibold whitespace-nowrap tabular-nums"
+                        )}
+                      >
+                        {formatCurrency(
+                          cvrTransposedRowTotals(table, { kind: "upcomingMonth", monthKey: ym }) ??
+                            0
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
                 <tr>
                   <th
                     scope="row"

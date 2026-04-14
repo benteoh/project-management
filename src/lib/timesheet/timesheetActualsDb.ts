@@ -2,6 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { TimesheetAllocationRow } from "@/types/allocations";
 
+import { TIMESHEET_ENTRIES_LOAD_PAGE_SIZE } from "./timesheetDb";
+
 export interface TimesheetActualEntry {
   engineerId: string | null;
   scopeId: string | null;
@@ -13,12 +15,6 @@ export interface TimesheetCvrEntry extends TimesheetActualEntry {
   /** ISO `YYYY-MM-DD` from `timesheet_entries.entry_date`, or null when missing. */
   entryDate: string | null;
 }
-
-/**
- * PostgREST caps each response (local default 1000 — `supabase/config.toml` [api].max_rows).
- * Hosted Supabase enforces a similar limit. Paginate reads with `.range()` so every row loads.
- */
-const TIMESHEET_ENTRIES_PAGE_SIZE = 1000;
 
 /**
  * All saved rows for the given uploads (`row_index >= 0`), ordered by `id` for stable paging.
@@ -33,7 +29,7 @@ async function fetchAllTimesheetEntriesForUploads(
   const rows: unknown[] = [];
   let rangeStart = 0;
   for (;;) {
-    const rangeEnd = rangeStart + TIMESHEET_ENTRIES_PAGE_SIZE - 1;
+    const rangeEnd = rangeStart + TIMESHEET_ENTRIES_LOAD_PAGE_SIZE - 1;
     const { data, error } = await client
       .from("timesheet_entries")
       .select(selectColumns)
@@ -46,8 +42,8 @@ async function fetchAllTimesheetEntriesForUploads(
     const batch = data ?? [];
     if (batch.length === 0) break;
     rows.push(...batch);
-    if (batch.length < TIMESHEET_ENTRIES_PAGE_SIZE) break;
-    rangeStart += TIMESHEET_ENTRIES_PAGE_SIZE;
+    if (batch.length < TIMESHEET_ENTRIES_LOAD_PAGE_SIZE) break;
+    rangeStart += TIMESHEET_ENTRIES_LOAD_PAGE_SIZE;
   }
   return { rows };
 }

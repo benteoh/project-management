@@ -280,6 +280,12 @@ function rowToEntry(r: TimesheetEntryDbRow): TimesheetEntry {
 // Public DB functions
 // ---------------------------------------------------------------------------
 
+/**
+ * PostgREST caps each response (local default 1000 — `supabase/config.toml` [api].max_rows).
+ * Hosted Supabase enforces a similar limit. Paginate reads with `.range()` so every row loads.
+ */
+export const TIMESHEET_ENTRIES_LOAD_PAGE_SIZE = 1000;
+
 /** List all uploads for a project, newest first. */
 export async function listTimesheetUploads(
   client: SupabaseClient,
@@ -305,14 +311,24 @@ export async function getTimesheetEntries(
   client: SupabaseClient,
   uploadId: string
 ): Promise<{ entries: TimesheetEntry[]; headers: string[] } | { error: string }> {
-  const { data, error } = await client
-    .from("timesheet_entries")
-    .select("*")
-    .eq("upload_id", uploadId)
-    .order("row_index", { ascending: true });
-  if (error) return { error: error.message };
+  const rows: TimesheetEntryDbRow[] = [];
+  let rangeStart = 0;
+  for (;;) {
+    const rangeEnd = rangeStart + TIMESHEET_ENTRIES_LOAD_PAGE_SIZE - 1;
+    const { data, error } = await client
+      .from("timesheet_entries")
+      .select("*")
+      .eq("upload_id", uploadId)
+      .order("row_index", { ascending: true })
+      .range(rangeStart, rangeEnd);
+    if (error) return { error: error.message };
 
-  const rows = data as TimesheetEntryDbRow[];
+    const batch = (data ?? []) as TimesheetEntryDbRow[];
+    if (batch.length === 0) break;
+    rows.push(...batch);
+    if (batch.length < TIMESHEET_ENTRIES_LOAD_PAGE_SIZE) break;
+    rangeStart += TIMESHEET_ENTRIES_LOAD_PAGE_SIZE;
+  }
   const sentinel = rows.find((r) => r.row_index === -1);
   const dataRows = rows.filter((r) => r.row_index >= 0);
 

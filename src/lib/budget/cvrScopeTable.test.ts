@@ -122,10 +122,7 @@ describe("buildCvrTransposedTable", () => {
     ];
     const t = buildCvrTransposedTable(tree, pool, entries);
     expect(t.scopes.map((s) => s.id)).toEqual(["s1", "s2"]);
-    expect(t.months).toEqual(["2026-01", "2026-02", "2026-03"]);
-    expect(t.byScopeId.s1.monthly["2026-01"]).toBe(100);
-    expect(t.byScopeId.s1.monthly["2026-02"]).toBe(0);
-    expect(t.byScopeId.s2.monthly["2026-03"]).toBe(100);
+    expect(t.upcomingMonths).toEqual([]);
     expect(t.byScopeId.s1.spentSoFar).toBe(100);
     expect(t.byScopeId.s1.approvedBudget).toBe(110);
     expect(t.byScopeId.s1.variance).toBe(10);
@@ -134,7 +131,7 @@ describe("buildCvrTransposedTable", () => {
     expect(t.byScopeId.s2.approvedBudget).toBe(55);
     expect(t.byScopeId.s2.spentSoFar).toBe(100);
     expect(t.byScopeId.s2.variance).toBe(-45);
-    expect(cvrTransposedRowTotals(t, { kind: "month", monthKey: "2026-01" })).toBe(100);
+    expect(cvrTransposedRowTotals(t, { kind: "spentSoFar" })).toBe(200);
   });
 
   it("costs upcoming forecast hours after a cutoff date", () => {
@@ -179,9 +176,60 @@ describe("buildCvrTransposedTable", () => {
       },
       afterDateExclusive: "2026-04-01",
     });
+    expect(t.upcomingMonths).toEqual(["2026-05"]);
+    expect(t.byScopeId[UUID_S1].upcomingMonthly["2026-05"]).toBe(200);
     expect(t.byScopeId[UUID_S1].upcomingForecastGbp).toBe(200);
     expect(t.byScopeId[UUID_S1].variance).toBe(500);
     expect(t.byScopeId[UUID_S1].expectedVariance).toBe(300);
+    expect(cvrTransposedRowTotals(t, { kind: "upcomingMonth", monthKey: "2026-05" })).toBe(200);
+  });
+
+  it("splits upcoming forecast across months with gaps filled", () => {
+    const tree: ProgrammeNode[] = [
+      {
+        id: UUID_S1,
+        name: "Scoped",
+        type: "scope",
+        totalHours: null,
+        start: "",
+        finish: "",
+        status: "",
+        children: [],
+        quotedAmount: 1000,
+        quotationWarningAmount: 0,
+        engineers: [
+          {
+            engineerId: UUID_E1,
+            isLead: false,
+            plannedHrs: null,
+            weeklyScopeLimitHrs: null,
+            rate: "A",
+          },
+        ],
+      },
+    ];
+    const poolOne: EngineerPoolEntry[] = [
+      {
+        id: UUID_E1,
+        code: "E1",
+        rates: [100, 80, null, null, null],
+      },
+    ];
+    const rowId = forecastRowId(UUID_S1, UUID_E1);
+    const t = buildCvrTransposedTable(tree, poolOne, [], {
+      values: {
+        [rowId]: {
+          "2026-05-01": 1,
+          "2026-07-15": 1,
+        },
+      },
+      afterDateExclusive: "2026-04-01",
+    });
+    expect(t.upcomingMonths).toEqual(["2026-05", "2026-06", "2026-07"]);
+    expect(t.byScopeId[UUID_S1].upcomingMonthly["2026-05"]).toBe(100);
+    expect(t.byScopeId[UUID_S1].upcomingMonthly["2026-06"]).toBe(0);
+    expect(t.byScopeId[UUID_S1].upcomingMonthly["2026-07"]).toBe(100);
+    expect(t.byScopeId[UUID_S1].upcomingForecastGbp).toBe(200);
   });
 });
 
