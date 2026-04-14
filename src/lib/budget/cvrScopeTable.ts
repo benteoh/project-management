@@ -1,0 +1,388 @@
+import type { CellValues } from "@/components/forecast/forecastGridTypes";
+import type { ProgrammeNode } from "@/components/programme/types";
+import { hourRateForScopeSlot } from "@/lib/forecast/hourRateForScopeSlot";
+import { parseForecastRowId } from "@/lib/forecast/forecastRowId";
+import type { TimesheetCvrEntry } from "@/lib/timesheet/timesheetActualsDb";
+import type { EngineerPoolEntry } from "@/types/engineer-pool";
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+export interface CvrScopeRow {
+  scopeId: string;
+  scopeName: string;
+  quotation: number | null;
+  quotationEw: number | null;
+  approvedBudget: number;
+  monthlySpend: number;
+  spentSoFar: number;
+}
+
+/** Transposed CVR grid: each column is a scope; rows are metrics then one row per calendar month, then spent so far. */
+export interface CvrTransposedTable {
+  scopes: { id: string; name: string }[];
+  /** Every `YYYY-MM` from earliest to latest timesheet activity (inclusive), with gaps filled. */
+  months: string[];
+  byScopeId: Record<
+    string,
+    {
+      quotation: number | null;
+      quotationEw: number | null;
+      approvedBudget: number;
+      /** £ in that month only */
+      monthly: Record<string, number>;
+      /** Sum of all dated, costed timesheet £ for this scope */
+      spentSoFar: number;
+      /** Approved budget − spent so far */
+      variance: number;
+      /**
+       * £ from demand forecast for dates **strictly after** {@link CvrForecastSlice.afterDateExclusive}.
+       */
+      upcomingForecastGbp: number;
+      /** Variance − upcoming forecast £ */
+      expectedVariance: number;
+    }
+  >;
+}
+
+/** Forecast slice: cell values + “today” boundary (ISO); only future dated hours count as upcoming. */
+export type CvrForecastSlice = {
+  values: CellValues;
+  /** Sum hours on dates `> afterDateExclusive` (typically calendar today in the viewer’s timezone). */
+  afterDateExclusive: string;
+};
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+function collectScopesInOrder(nodes: ProgrammeNode[]): ProgrammeNode[] {
+  const result: ProgrammeNode[] = [];
+  function walk(node: ProgrammeNode) {
+    if (node.type === "scope") result.push(node);
+    node.children.forEach(walk);
+  }
+  nodes.forEach(walk);
+  return result;
+}
+
+/** Inclusive end of calendar month as ISO `YYYY-MM-DD` (local date parts from `yyyyMm`). */
+function endOfMonthIso(yyyyMm: string): string | null {
+  const m = /^(\d{4})-(\d{2})$/.exec(yyyyMm);
+  if (!m) return null;
+  const y = Number(m[1]);
+  const month = Number(m[2]);
+  if (month < 1 || month > 12) return null;
+  const last = new Date(y, month, 0);
+  const d = last.getDate();
+  return `${y}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+/** Approved budget = quotation + quotation EW (null amounts treated as 0). */
+function approvedBudgetFromQuotations(scope: ProgrammeNode): number {
+  const q = scope.quotedAmount ?? 0;
+  const ew = scope.quotationWarningAmount ?? 0;
+  return round2(q + ew);
+}
+
+/**
+ * £ for one timesheet row using the scope’s engineer rate slot (same rule as the forecast grid).
+ */
+function entrySpendGbp(
+  scope: ProgrammeNode | undefined,
+  engineerId: string | null,
+  hours: number | null,
+  poolById: Map<string, EngineerPoolEntry>
+): number {
+  if (!scope || !engineerId || !hours || hours <= 0) return 0;
+  const alloc = scope.engineers?.find((a) => a.engineerId === engineerId);
+  if (!alloc) return 0;
+  const eng = poolById.get(engineerId);
+  if (!eng) return 0;
+  const rate = hourRateForScopeSlot(eng, alloc.rate);
+  if (rate === null || rate <= 0) return 0;
+  return round2(hours * rate);
+}
+
+function accumulateUpcomingForecastGbpByScope(
+  forecastValues: CellValues,
+  scopeById: Map<string, ProgrammeNode>,
+  poolById: Map<string, EngineerPoolEntry>,
+  afterDateExclusive: string
+): Map<string, number> {
+  const byScope = new Map<string, number>();
+  if (!ISO_DATE.test(afterDateExclusive)) return byScope;
+
+  for (const [rowId, dates] of Object.entries(forecastValues)) {
+    const parsed = parseForecastRowId(rowId);
+    if (!parsed) continue;
+    const scope = scopeById.get(parsed.scopeId);
+    for (const [dateKey, raw] of Object.entries(dates)) {
+      if (!ISO_DATE.test(dateKey)) continue;
+      if (dateKey <= afterDateExclusive) continue;
+      const hrs = typeof raw === "number" ? raw : Number(raw);
+      if (raw == null || hrs <= 0 || Number.isNaN(hrs)) continue;
+      const gbp = entrySpendGbp(scope, parsed.engineerId, hrs, poolById);
+      if (gbp <= 0) continue;
+      byScope.set(parsed.scopeId, round2((byScope.get(parsed.scopeId) ?? 0) + gbp));
+    }
+  }
+  return byScope;
+}
+
+function accumulateSpendByScopeMonth(
+  entries: TimesheetCvrEntry[],
+  scopeById: Map<string, ProgrammeNode>,
+  poolById: Map<string, EngineerPoolEntry>
+): {
+  monthlyByScope: Map<string, Map<string, number>>;
+  spentAllByScope: Map<string, number>;
+  monthsSeen: Set<string>;
+} {
+  const monthlyByScope = new Map<string, Map<string, number>>();
+  const spentAllByScope = new Map<string, number>();
+  const monthsSeen = new Set<string>();
+
+  for (const e of entries) {
+    if (!e.scopeId || !e.entryDate || !e.hours || e.hours <= 0) continue;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(e.entryDate)) continue;
+    const scope = scopeById.get(e.scopeId);
+    const gbp = entrySpendGbp(scope, e.engineerId, e.hours, poolById);
+    if (gbp <= 0) continue;
+
+    const ym = e.entryDate.slice(0, 7);
+    monthsSeen.add(ym);
+
+    if (!monthlyByScope.has(e.scopeId)) monthlyByScope.set(e.scopeId, new Map());
+    const perMonth = monthlyByScope.get(e.scopeId)!;
+    perMonth.set(ym, round2((perMonth.get(ym) ?? 0) + gbp));
+
+    spentAllByScope.set(e.scopeId, round2((spentAllByScope.get(e.scopeId) ?? 0) + gbp));
+  }
+
+  return { monthlyByScope, spentAllByScope, monthsSeen };
+}
+
+/** Every `YYYY-MM` from `minYm` through `maxYm` inclusive. */
+export function expandMonthRange(minYm: string, maxYm: string): string[] {
+  const p = (s: string) => {
+    const m = /^(\d{4})-(\d{2})$/.exec(s);
+    if (!m) return null;
+    return { y: Number(m[1]), mo: Number(m[2]) };
+  };
+  const a = p(minYm);
+  const b = p(maxYm);
+  if (!a || !b || a.mo < 1 || a.mo > 12 || b.mo < 1 || b.mo > 12) return [];
+  if (minYm > maxYm) return [];
+
+  const out: string[] = [];
+  let y = a.y;
+  let mo = a.mo;
+  for (;;) {
+    const key = `${y}-${String(mo).padStart(2, "0")}`;
+    out.push(key);
+    if (key === maxYm) break;
+    mo += 1;
+    if (mo > 12) {
+      mo = 1;
+      y += 1;
+    }
+    if (out.length > 1200) break;
+  }
+  return out;
+}
+
+function monthRangeFromSeen(monthsSeen: Set<string>): string[] {
+  if (monthsSeen.size === 0) return [];
+  const sorted = [...monthsSeen].sort();
+  return expandMonthRange(sorted[0]!, sorted[sorted.length - 1]!);
+}
+
+function sumMonthlyThrough(perMonth: Map<string, number>, throughYm: string): number {
+  let s = 0;
+  for (const [ym, v] of perMonth) {
+    if (ym <= throughYm) s += v;
+  }
+  return round2(s);
+}
+
+/**
+ * Full transposed dataset: scopes as columns; rows = quotation, EW, approved budget, months, spent,
+ * variance, upcoming forecast £, expected variance.
+ */
+export function buildCvrTransposedTable(
+  programmeTree: ProgrammeNode[],
+  engineerPool: EngineerPoolEntry[],
+  entries: TimesheetCvrEntry[],
+  forecast?: CvrForecastSlice | null
+): CvrTransposedTable {
+  const scopes = collectScopesInOrder(programmeTree);
+  const poolById = new Map(engineerPool.map((e) => [e.id, e]));
+  const scopeById = new Map(scopes.map((s) => [s.id, s]));
+
+  const { monthlyByScope, spentAllByScope, monthsSeen } = accumulateSpendByScopeMonth(
+    entries,
+    scopeById,
+    poolById
+  );
+  const months = monthRangeFromSeen(monthsSeen);
+
+  const upcomingByScope = forecast
+    ? accumulateUpcomingForecastGbpByScope(
+        forecast.values,
+        scopeById,
+        poolById,
+        forecast.afterDateExclusive
+      )
+    : new Map<string, number>();
+
+  const byScopeId: CvrTransposedTable["byScopeId"] = {};
+
+  for (const scope of scopes) {
+    const perMonth = monthlyByScope.get(scope.id) ?? new Map<string, number>();
+    const monthly: Record<string, number> = {};
+    for (const ym of months) {
+      monthly[ym] = perMonth.get(ym) ?? 0;
+    }
+    const spentSoFar = spentAllByScope.get(scope.id) ?? 0;
+    const approvedBudget = approvedBudgetFromQuotations(scope);
+    const variance = round2(approvedBudget - spentSoFar);
+    const upcomingForecastGbp = upcomingByScope.get(scope.id) ?? 0;
+    const expectedVariance = round2(variance - upcomingForecastGbp);
+
+    byScopeId[scope.id] = {
+      quotation: scope.quotedAmount ?? null,
+      quotationEw: scope.quotationWarningAmount ?? null,
+      approvedBudget,
+      monthly,
+      spentSoFar,
+      variance,
+      upcomingForecastGbp,
+      expectedVariance,
+    };
+  }
+
+  return { scopes: scopes.map((s) => ({ id: s.id, name: s.name })), months, byScopeId };
+}
+
+/**
+ * Per-scope CVR cost table for the selected calendar month (`YYYY-MM`).
+ *
+ * **Monthly spend** — £ in that month only (rows with `entryDate` in that month).
+ *
+ * **Spent so far** — £ from all rows with `entryDate` on or before the last day of the selected month.
+ * Rows without a date do not contribute to either spend column.
+ */
+export function buildCvrScopeRows(
+  programmeTree: ProgrammeNode[],
+  engineerPool: EngineerPoolEntry[],
+  entries: TimesheetCvrEntry[],
+  selectedMonth: string
+): CvrScopeRow[] {
+  const scopes = collectScopesInOrder(programmeTree);
+  const poolById = new Map(engineerPool.map((e) => [e.id, e]));
+  const scopeById = new Map(scopes.map((s) => [s.id, s]));
+
+  const { monthlyByScope } = accumulateSpendByScopeMonth(entries, scopeById, poolById);
+
+  return scopes.map((scope) => {
+    const perMonth = monthlyByScope.get(scope.id) ?? new Map<string, number>();
+    const monthlySpend = perMonth.get(selectedMonth) ?? 0;
+    const spentSoFar = endOfMonthIso(selectedMonth)
+      ? sumMonthlyThrough(perMonth, selectedMonth)
+      : 0;
+
+    return {
+      scopeId: scope.id,
+      scopeName: scope.name,
+      quotation: scope.quotedAmount ?? null,
+      quotationEw: scope.quotationWarningAmount ?? null,
+      approvedBudget: approvedBudgetFromQuotations(scope),
+      monthlySpend,
+      spentSoFar,
+    };
+  });
+}
+
+export function cvrScopeRowsTotals(rows: CvrScopeRow[]): {
+  quotation: number | null;
+  quotationEw: number | null;
+  approvedBudget: number;
+  monthlySpend: number;
+  spentSoFar: number;
+} {
+  let quotation: number | null = null;
+  let quotationEw: number | null = null;
+  let approvedBudget = 0;
+  let monthlySpend = 0;
+  let spentSoFar = 0;
+
+  for (const r of rows) {
+    if (r.quotation != null) quotation = round2((quotation ?? 0) + r.quotation);
+    if (r.quotationEw != null) quotationEw = round2((quotationEw ?? 0) + r.quotationEw);
+    approvedBudget = round2(approvedBudget + r.approvedBudget);
+    monthlySpend = round2(monthlySpend + r.monthlySpend);
+    spentSoFar = round2(spentSoFar + r.spentSoFar);
+  }
+
+  return { quotation, quotationEw, approvedBudget, monthlySpend, spentSoFar };
+}
+
+/** Row sums for the transposed table (totals column). */
+export function cvrTransposedRowTotals(
+  table: CvrTransposedTable,
+  row:
+    | { kind: "quotation" }
+    | { kind: "quotationEw" }
+    | { kind: "approvedBudget" }
+    | { kind: "month"; monthKey: string }
+    | { kind: "spentSoFar" }
+    | { kind: "variance" }
+    | { kind: "upcomingForecast" }
+    | { kind: "expectedVariance" }
+): number | null {
+  const ids = table.scopes.map((s) => s.id);
+  if (row.kind === "quotation") {
+    let t: number | null = null;
+    for (const id of ids) {
+      const v = table.byScopeId[id]?.quotation;
+      if (v != null) t = round2((t ?? 0) + v);
+    }
+    return t;
+  }
+  if (row.kind === "quotationEw") {
+    let t: number | null = null;
+    for (const id of ids) {
+      const v = table.byScopeId[id]?.quotationEw;
+      if (v != null) t = round2((t ?? 0) + v);
+    }
+    return t;
+  }
+  if (row.kind === "approvedBudget") {
+    let t = 0;
+    for (const id of ids) t = round2(t + (table.byScopeId[id]?.approvedBudget ?? 0));
+    return t;
+  }
+  if (row.kind === "month") {
+    let t = 0;
+    for (const id of ids) t = round2(t + (table.byScopeId[id]?.monthly[row.monthKey] ?? 0));
+    return t;
+  }
+  if (row.kind === "spentSoFar") {
+    let t = 0;
+    for (const id of ids) t = round2(t + (table.byScopeId[id]?.spentSoFar ?? 0));
+    return t;
+  }
+  if (row.kind === "variance") {
+    let t = 0;
+    for (const id of ids) t = round2(t + (table.byScopeId[id]?.variance ?? 0));
+    return t;
+  }
+  if (row.kind === "upcomingForecast") {
+    let t = 0;
+    for (const id of ids) t = round2(t + (table.byScopeId[id]?.upcomingForecastGbp ?? 0));
+    return t;
+  }
+  let t = 0;
+  for (const id of ids) t = round2(t + (table.byScopeId[id]?.expectedVariance ?? 0));
+  return t;
+}

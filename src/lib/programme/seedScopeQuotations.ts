@@ -9,8 +9,8 @@ export const SEED_SCOPE_QUOTATION_GBP: Record<
   { quotedAmount: number; quotationWarningAmount: number | null }
 > = {
   s11: { quotedAmount: 55_500, quotationWarningAmount: null },
-  s12: { quotedAmount: 55_000, quotationWarningAmount: 22_000 },
-  s13: { quotedAmount: 198_000, quotationWarningAmount: null },
+  s12: { quotedAmount: 20_000, quotationWarningAmount: 22_000 },
+  s13: { quotedAmount: 120_000, quotationWarningAmount: null },
   s14: { quotedAmount: 145_000, quotationWarningAmount: null },
   s15: { quotedAmount: 30_000, quotationWarningAmount: 45_000 },
   s16: { quotedAmount: 50_000, quotationWarningAmount: null },

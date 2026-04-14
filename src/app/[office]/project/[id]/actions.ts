@@ -2,7 +2,8 @@
 
 import type { ProgrammeNode } from "@/components/programme/types";
 import { getEngineerByCodeFromDb } from "@/lib/engineers/engineerDb";
-import { loadForecastHoursByScopeForProject } from "@/lib/forecast/forecastDb";
+import type { CellValues } from "@/components/forecast/forecastGridTypes";
+import { loadForecastEntries, loadForecastHoursByScopeForProject } from "@/lib/forecast/forecastDb";
 import { upsertEngineerPoolCodeInDb } from "@/lib/programme/programmeDb";
 import { createSupabaseProgrammeRepository } from "@/lib/programme/supabaseProgrammeRepository";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -13,8 +14,11 @@ import {
   saveTimesheetUpload,
 } from "@/lib/timesheet/timesheetDb";
 import { getScopeMappings, upsertScopeMapping } from "@/lib/timesheet/scopeMappingDb";
-import { getTimesheetActualsForProject } from "@/lib/timesheet/timesheetActualsDb";
-import type { TimesheetActualEntry } from "@/lib/timesheet/timesheetActualsDb";
+import {
+  getTimesheetActualsForProject,
+  getTimesheetCvrEntriesForProject,
+} from "@/lib/timesheet/timesheetActualsDb";
+import type { TimesheetActualEntry, TimesheetCvrEntry } from "@/lib/timesheet/timesheetActualsDb";
 import type { TimesheetEntry, TimesheetScopeMapping, TimesheetUpload } from "@/types/timesheet";
 import type { ForecastHoursByScopeRecord } from "@/types/forecast-scope";
 
@@ -86,6 +90,13 @@ export async function getTimesheetProjectActualsAction(
   return getTimesheetActualsForProject(client, projectId);
 }
 
+export async function getTimesheetCvrEntriesAction(
+  projectId: string
+): Promise<{ rows: TimesheetCvrEntry[] } | { error: string }> {
+  const client = await createServerSupabaseClient();
+  return getTimesheetCvrEntriesForProject(client, projectId);
+}
+
 export async function getProjectForecastHoursByScopeAction(
   projectId: string
 ): Promise<{ byScope: ForecastHoursByScopeRecord } | { error: string }> {
@@ -93,4 +104,14 @@ export async function getProjectForecastHoursByScopeAction(
   const result = await loadForecastHoursByScopeForProject(client, projectId);
   if (!result.ok) return { error: result.error };
   return { byScope: result.byScope };
+}
+
+/** Dated forecast grid cells for CVR upcoming £ (same shape as the demand forecast tab). */
+export async function getForecastCellValuesForCvrAction(
+  projectId: string
+): Promise<{ values: CellValues } | { error: string }> {
+  const client = await createServerSupabaseClient();
+  const result = await loadForecastEntries(client, projectId);
+  if (!result.ok) return { error: result.error };
+  return { values: result.values };
 }

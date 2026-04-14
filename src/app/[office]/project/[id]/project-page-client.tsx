@@ -1,9 +1,12 @@
 "use client";
 
+import Link from "next/link";
+import { useParams } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 
 import { usePersistedTab } from "@/hooks/usePersistedTab";
 
+import { CvrTab } from "@/components/cvr/CvrTab";
 import { ForecastTab } from "@/components/forecast/ForecastTab";
 import { TimesheetTab } from "@/components/timesheet/TimesheetTab";
 import { ProgrammeTab } from "@/components/programme/ProgrammeTab";
@@ -13,6 +16,7 @@ import {
   ProjectActivityStateWidget,
 } from "@/components/project/ProjectActivityStateWidget";
 import { useViewportFitsProjectWorkspace } from "@/hooks/useViewportFitsProjectWorkspace";
+import { normalizeOfficeUrlParam } from "@/lib/offices/officeUrl";
 import { buildActivityStateBuckets } from "@/lib/programme/activityStateSummary";
 import { collectScopeNames } from "@/lib/programme/programmeTree";
 import { formatDate } from "@/lib/utils";
@@ -28,6 +32,10 @@ type Tab = (typeof TABS)[number];
 
 function formatProjectStatus(status: Project["status"]): string {
   return status.replace(/_/g, " ");
+}
+
+function projectBreadcrumbTitle(p: Project): string {
+  return p.projectCode ? `${p.projectCode} - ${p.name}` : p.name;
 }
 
 export default function ProjectPageClient({
@@ -51,6 +59,13 @@ export default function ProjectPageClient({
   initialTimesheetUploads: TimesheetUpload[];
   forecastHoursByScope: ForecastHoursByScopeRecord;
 }) {
+  const params = useParams();
+  const officeParam = typeof params.office === "string" ? params.office : "";
+  const officePathSegment = officeParam
+    ? encodeURIComponent(normalizeOfficeUrlParam(officeParam))
+    : "";
+  const officeProjectsHref = officePathSegment ? `/${officePathSegment}` : "/";
+
   const [activeTab, setActiveTab] = usePersistedTab<Tab>(
     `project-tab:${projectId}`,
     "Programme",
@@ -86,6 +101,12 @@ export default function ProjectPageClient({
   if (!viewportFits) {
     return (
       <div className="bg-background text-foreground flex min-h-0 flex-1 flex-col items-center justify-center px-6 py-10 text-center">
+        <Link
+          href={officeProjectsHref}
+          className="text-muted-foreground hover:text-foreground mb-4 text-xs transition-colors"
+        >
+          ← Back to projects
+        </Link>
         <p className="text-sm font-semibold">This window is too small</p>
         <p className="text-muted-foreground mt-2 max-w-sm text-sm">
           The project workspace needs a larger display. Please widen your browser or use a bigger
@@ -98,6 +119,26 @@ export default function ProjectPageClient({
   return (
     <div className="bg-background flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="shrink-0 px-6 pt-6 pb-0">
+        <nav
+          aria-label="Breadcrumb"
+          className="text-muted-foreground mb-3 flex flex-wrap items-center gap-1.5 text-xs"
+        >
+          <Link href="/" className="hover:text-foreground transition-colors">
+            Offices
+          </Link>
+          <span aria-hidden className="text-muted-foreground">
+            /
+          </span>
+          <Link href={officeProjectsHref} className="hover:text-foreground transition-colors">
+            {project?.officeName ?? (decodeURIComponent(officeParam || "") || "Office")}
+          </Link>
+          <span aria-hidden className="text-muted-foreground">
+            /
+          </span>
+          <span className="text-foreground font-medium">
+            {project ? projectBreadcrumbTitle(project) : projectLoadError ? "Project" : "…"}
+          </span>
+        </nav>
         {projectLoadError && (
           <div className="border-border bg-status-critical-bg text-status-critical mb-3 rounded-lg border px-4 py-2 text-sm">
             {projectLoadError}
@@ -173,14 +214,7 @@ export default function ProjectPageClient({
           />
         )}
         {activeTab === "CVR" && (
-          <div className="flex flex-1 items-center justify-center overflow-auto p-6">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/cvr-chart.png"
-              alt="CVR chart"
-              className="max-h-full max-w-full object-contain"
-            />
-          </div>
+          <CvrTab projectId={projectId} programmeTree={programmeTree} engineerPool={engineerPool} />
         )}
         {activeTab === "Forecast" &&
           (project ? (

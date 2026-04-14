@@ -6,6 +6,50 @@ export interface TimesheetActualEntry {
   hours: number | null;
 }
 
+/** Timesheet row fields needed for CVR £ roll-up by month (includes {@link TimesheetActualEntry}). */
+export interface TimesheetCvrEntry extends TimesheetActualEntry {
+  /** ISO `YYYY-MM-DD` from `timesheet_entries.entry_date`, or null when missing. */
+  entryDate: string | null;
+}
+
+/**
+ * PostgREST caps each response (local default 1000 — `supabase/config.toml` [api].max_rows).
+ * Hosted Supabase enforces a similar limit. Paginate reads with `.range()` so every row loads.
+ */
+const TIMESHEET_ENTRIES_PAGE_SIZE = 1000;
+
+/**
+ * All saved rows for the given uploads (`row_index >= 0`), ordered by `id` for stable paging.
+ */
+async function fetchAllTimesheetEntriesForUploads(
+  client: SupabaseClient,
+  uploadIds: string[],
+  selectColumns: string
+): Promise<{ rows: unknown[] } | { error: string }> {
+  if (uploadIds.length === 0) return { rows: [] };
+
+  const rows: unknown[] = [];
+  let rangeStart = 0;
+  for (;;) {
+    const rangeEnd = rangeStart + TIMESHEET_ENTRIES_PAGE_SIZE - 1;
+    const { data, error } = await client
+      .from("timesheet_entries")
+      .select(selectColumns)
+      .in("upload_id", uploadIds)
+      .gte("row_index", 0)
+      .order("id", { ascending: true })
+      .range(rangeStart, rangeEnd);
+
+    if (error) return { error: error.message };
+    const batch = data ?? [];
+    if (batch.length === 0) break;
+    rows.push(...batch);
+    if (batch.length < TIMESHEET_ENTRIES_PAGE_SIZE) break;
+    rangeStart += TIMESHEET_ENTRIES_PAGE_SIZE;
+  }
+  return { rows };
+}
+
 /**
  * Returns all saved timesheet entry rows for a project across every upload,
  * selecting only the fields needed for actuals aggregation.
@@ -24,12 +68,13 @@ export async function getTimesheetActualsForProject(
   const ids = (uploads as { id: string }[]).map((u) => u.id);
   if (ids.length === 0) return { rows: [] };
 
-  const { data, error } = await client
-    .from("timesheet_entries")
-    .select("engineer_id, scope_id, hours")
-    .in("upload_id", ids)
-    .gte("row_index", 0);
-  if (error) return { error: error.message };
+  const fetched = await fetchAllTimesheetEntriesForUploads(
+    client,
+    ids,
+    "engineer_id, scope_id, hours"
+  );
+  if ("error" in fetched) return { error: fetched.error };
+  const data = fetched.rows;
 
   return {
     rows: (
@@ -38,6 +83,50 @@ export async function getTimesheetActualsForProject(
       engineerId: r.engineer_id,
       scopeId: r.scope_id,
       hours: r.hours !== null ? Number(r.hours) : null,
+    })),
+  };
+}
+
+/**
+ * Same as {@link getTimesheetActualsForProject} but includes `entry_date` for monthly / cumulative £.
+ */
+export async function getTimesheetCvrEntriesForProject(
+  client: SupabaseClient,
+  projectId: string
+): Promise<{ rows: TimesheetCvrEntry[] } | { error: string }> {
+  const { data: uploads, error: uploadsErr } = await client
+    .from("timesheet_uploads")
+    .select("id")
+    .eq("project_id", projectId);
+  if (uploadsErr) return { error: uploadsErr.message };
+
+  const ids = (uploads as { id: string }[]).map((u) => u.id);
+  if (ids.length === 0) return { rows: [] };
+
+  const fetched = await fetchAllTimesheetEntriesForUploads(
+    client,
+    ids,
+    "engineer_id, scope_id, hours, entry_date"
+  );
+  if ("error" in fetched) return { error: fetched.error };
+  const data = fetched.rows;
+
+  return {
+    rows: (
+      data as {
+        engineer_id: string | null;
+        scope_id: string | null;
+        hours: number | null;
+        entry_date: string | null;
+      }[]
+    ).map((r) => ({
+      engineerId: r.engineer_id,
+      scopeId: r.scope_id,
+      hours: r.hours !== null ? Number(r.hours) : null,
+      entryDate:
+        r.entry_date !== null && r.entry_date !== undefined
+          ? String(r.entry_date).slice(0, 10)
+          : null,
     })),
   };
 }
