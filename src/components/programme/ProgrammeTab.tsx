@@ -19,7 +19,7 @@ import {
   updateNodeInTree,
   addNodeToTree,
   addScopeToRoot,
-  deleteNodeFromTree,
+  deleteNodesFromTree,
   findNodeInTree,
   flattenVisibleNodes,
   cloneNodesWithNewIds,
@@ -90,6 +90,14 @@ export function ProgrammeTab({
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
   const [calendar, setCalendar] = useState<CalendarState | null>(null);
   const [ctxMenu, setCtxMenu] = useState<ContextMenuState | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    nodeIds: Set<string>;
+    hasScope: boolean;
+  } | null>(null);
+  const presentRef = useRef(present);
+  useEffect(() => {
+    presentRef.current = present;
+  });
   const [engPopup, setEngPopup] = useState<{
     scopeId: string;
     rect: { top: number; left: number; width: number; height: number };
@@ -202,6 +210,22 @@ export function ProgrammeTab({
     el?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [present]);
 
+  /** Initiate delete for a set of node IDs: confirm if any are scopes, else delete immediately. */
+  const requestDelete = useCallback(
+    (nodeIds: Set<string>) => {
+      if (nodeIds.size === 0) return;
+      const tree = presentRef.current;
+      const hasScope = [...nodeIds].some((id) => findNodeInTree(tree, id)?.type === "scope");
+      if (hasScope) {
+        setDeleteConfirm({ nodeIds, hasScope });
+      } else {
+        commit(deleteNodesFromTree(tree, nodeIds));
+        selection.clearSelection();
+      }
+    },
+    [commit, selection]
+  );
+
   // ─── Keyboard shortcuts ──────────────────────────────────────────────────────
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -228,11 +252,18 @@ export function ProgrammeTab({
       }
       if (e.key === "Escape") {
         selection.clearSelection();
+        return;
+      }
+      if (e.key === "Delete" || e.key === "Backspace") {
+        if (selection.selectedIds.size > 0 && !editingCell) {
+          e.preventDefault();
+          requestDelete(new Set(selection.selectedIds));
+        }
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [undo, redo, clipboard, selection]);
+  }, [undo, redo, clipboard, selection, editingCell, requestDelete]);
 
   const saveField = (nodeId: string, field: keyof ProgrammeNode, raw: string) => {
     if (field === "status") {
@@ -592,7 +623,13 @@ export function ProgrammeTab({
             });
           }}
           onDelete={(nodeId) => {
-            commit(deleteNodeFromTree(present, nodeId));
+            // Delete the whole selection if the right-clicked node is part of it,
+            // otherwise just delete the single right-clicked node.
+            const ids =
+              selection.selectedIds.has(nodeId) && selection.selectedIds.size > 1
+                ? selection.selectedIds
+                : new Set([nodeId]);
+            requestDelete(ids);
           }}
           onCopy={() => void clipboard.copy()}
           onPaste={() => clipboard.paste(ctxMenu.nodeId)}
@@ -607,6 +644,43 @@ export function ProgrammeTab({
           hasSelection={selection.selectedIds.size > 0}
           hasStash={clipboard.hasStash}
         />
+      )}
+
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-200 flex items-center justify-center bg-black/40">
+          <div className="border-border bg-card shadow-overlay w-full max-w-sm rounded-lg border p-6">
+            <h2 className="text-foreground mb-1 text-sm font-semibold">
+              Delete{" "}
+              {deleteConfirm.nodeIds.size === 1 ? "scope" : `${deleteConfirm.nodeIds.size} items`}?
+            </h2>
+            <p className="text-muted-foreground mb-4 text-sm">
+              This will permanently delete{" "}
+              {deleteConfirm.nodeIds.size === 1 ? "this scope" : "these items"} and all their
+              children. Any linked data — including forecast hours — will be erased and{" "}
+              <span className="text-status-critical font-medium">cannot be undone</span>.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirm(null)}
+                className="border-border bg-background text-foreground hover:bg-muted rounded-md border px-4 py-2 text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  commit(deleteNodesFromTree(present, deleteConfirm.nodeIds));
+                  selection.clearSelection();
+                  setDeleteConfirm(null);
+                }}
+                className="bg-status-critical hover:bg-status-critical/90 rounded-md px-4 py-2 text-sm font-medium text-white"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {engPopup && engPopupScopeNode && (

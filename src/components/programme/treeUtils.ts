@@ -70,6 +70,12 @@ export function deleteNodeFromTree(nodes: ProgrammeNode[], nodeId: string): Prog
     .map((n) => ({ ...n, children: deleteNodeFromTree(n.children, nodeId) }));
 }
 
+export function deleteNodesFromTree(nodes: ProgrammeNode[], nodeIds: Set<string>): ProgrammeNode[] {
+  return nodes
+    .filter((n) => !nodeIds.has(n.id))
+    .map((n) => ({ ...n, children: deleteNodesFromTree(n.children, nodeIds) }));
+}
+
 export function findNodeInTree(nodes: ProgrammeNode[], nodeId: string): ProgrammeNode | null {
   for (const n of nodes) {
     if (n.id === nodeId) return n;

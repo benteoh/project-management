@@ -1,6 +1,6 @@
 import type { EngineerPoolEntry } from "@/types/engineer-pool";
 
-/** e.g. "Jane D." — first name plus last initial; falls back to code or id when names are missing. */
+/** e.g. "Jane Doe" — full name; falls back to code or id when names are missing. */
 export function formatEngineerListLabel(
   entry: EngineerPoolEntry | undefined,
   fallbackId: string
@@ -8,9 +8,9 @@ export function formatEngineerListLabel(
   if (!entry) return fallbackId;
   const fn = entry.firstName?.trim();
   const ln = entry.lastName?.trim();
-  if (fn && ln) return `${fn} ${ln[0]}.`;
+  if (fn && ln) return `${fn} ${ln}`;
   if (fn) return fn;
-  if (ln) return `${ln[0]}.`;
+  if (ln) return ln;
   return entry.code;
 }
 

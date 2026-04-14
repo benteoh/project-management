@@ -1,16 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
-import {
-  getForecastCellValuesForCvrAction,
-  getTimesheetCvrEntriesAction,
-} from "@/app/[office]/project/[id]/actions";
-import type { ProgrammeNode } from "@/components/programme/types";
-import { buildCvrTransposedTable, cvrTransposedRowTotals } from "@/lib/budget/cvrScopeTable";
+import { getCvrTableAction } from "@/app/[office]/project/[id]/actions";
 import { cn, formatCurrency } from "@/lib/utils";
-import type { EngineerPoolEntry } from "@/types/engineer-pool";
-import type { TimesheetCvrEntry } from "@/lib/timesheet/timesheetActualsDb";
+import type { CvrTransposedTable } from "@/lib/budget/cvrScopeTable";
 
 function formatMoneyCell(value: number | null): string {
   if (value === null) return "—";
@@ -67,56 +61,32 @@ function cvrTotalCell(...extra: (string | undefined)[]) {
   return cn("border-border box-border border-r border-b bg-secondary/40 px-2 py-3", ...extra);
 }
 
-/** Calendar “today” in the browser timezone (ISO date). */
+/** Calendar "today" in the browser timezone (ISO date). */
 function localTodayIso(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-export function CvrTab({
-  projectId,
-  programmeTree,
-  engineerPool,
-}: {
-  projectId: string;
-  programmeTree: ProgrammeNode[];
-  engineerPool: EngineerPoolEntry[];
-}) {
-  const [entriesResult, setEntriesResult] = useState<
-    { rows: TimesheetCvrEntry[] } | { error: string } | null
-  >(null);
-  const [forecastResult, setForecastResult] = useState<Awaited<
-    ReturnType<typeof getForecastCellValuesForCvrAction>
-  > | null>(null);
+export function CvrTab({ projectId }: { projectId: string }) {
+  const [table, setTable] = useState<CvrTransposedTable | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
-      getTimesheetCvrEntriesAction(projectId),
-      getForecastCellValuesForCvrAction(projectId),
-    ]).then(([e, f]) => {
+    getCvrTableAction(projectId, localTodayIso()).then((result) => {
       if (cancelled) return;
-      setEntriesResult("error" in e ? e : { rows: e.rows });
-      setForecastResult(f);
+      if ("error" in result) {
+        setError(result.error);
+      } else {
+        setTable(result.table);
+      }
+      setLoading(false);
     });
     return () => {
       cancelled = true;
     };
   }, [projectId]);
-
-  const table = useMemo(() => {
-    if (!entriesResult || "error" in entriesResult || !forecastResult) return null;
-    const values = "values" in forecastResult ? forecastResult.values : {};
-    return buildCvrTransposedTable(programmeTree, engineerPool, entriesResult.rows, {
-      values,
-      afterDateExclusive: localTodayIso(),
-    });
-  }, [entriesResult, forecastResult, programmeTree, engineerPool]);
-
-  const loadError = entriesResult && "error" in entriesResult ? entriesResult.error : null;
-  const forecastLoadError =
-    forecastResult && "error" in forecastResult ? forecastResult.error : null;
-  const loading = entriesResult === null || forecastResult === null;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-auto p-6">
@@ -146,24 +116,17 @@ export function CvrTab({
           </p>
         </div>
 
-        {loadError && <p className="text-status-critical text-sm">{loadError}</p>}
+        {error && <p className="text-status-critical text-sm">{error}</p>}
 
-        {forecastLoadError && !loadError && (
-          <p className="text-muted-foreground text-sm">
-            Forecast could not be loaded ({forecastLoadError}). Upcoming and expected variance show
-            £0.
-          </p>
-        )}
-
-        {loading && !loadError && (
+        {loading && !error && (
           <p className="text-muted-foreground text-sm">Loading costs and forecast…</p>
         )}
 
-        {!loading && !loadError && table && table.scopes.length === 0 && (
+        {!loading && !error && table && table.scopes.length === 0 && (
           <p className="text-muted-foreground text-sm">No scopes in the programme yet.</p>
         )}
 
-        {!loading && !loadError && table && table.scopes.length > 0 && (
+        {!loading && !error && table && table.scopes.length > 0 && (
           <div className="border-border bg-card shadow-card w-full max-w-full min-w-0 overflow-x-auto rounded-lg border">
             <table
               className="border-border w-full min-w-full table-fixed border-collapse border text-sm"
@@ -243,7 +206,7 @@ export function CvrTab({
                       "text-foreground text-right text-xs font-semibold whitespace-nowrap tabular-nums"
                     )}
                   >
-                    {formatMoneyCell(cvrTransposedRowTotals(table, { kind: "quotation" }))}
+                    {formatMoneyCell(table.totals.quotation)}
                   </td>
                 </tr>
                 <tr>
@@ -271,7 +234,7 @@ export function CvrTab({
                       "text-foreground text-right text-xs font-semibold whitespace-nowrap tabular-nums"
                     )}
                   >
-                    {formatMoneyCell(cvrTransposedRowTotals(table, { kind: "quotationEw" }))}
+                    {formatMoneyCell(table.totals.quotationEw)}
                   </td>
                 </tr>
                 <tr>
@@ -299,7 +262,7 @@ export function CvrTab({
                       "border-border text-foreground border-b-4 border-double text-right text-xs font-semibold whitespace-nowrap tabular-nums"
                     )}
                   >
-                    {formatCurrency(cvrTransposedRowTotals(table, { kind: "approvedBudget" }) ?? 0)}
+                    {formatCurrency(table.totals.approvedBudget)}
                   </td>
                 </tr>
                 <tr>
@@ -327,7 +290,7 @@ export function CvrTab({
                       "border-border text-foreground border-t-2 text-right text-xs font-semibold whitespace-nowrap tabular-nums"
                     )}
                   >
-                    {formatCurrency(cvrTransposedRowTotals(table, { kind: "spentSoFar" }) ?? 0)}
+                    {formatCurrency(table.totals.spentSoFar)}
                   </td>
                 </tr>
                 <tr>
@@ -355,7 +318,7 @@ export function CvrTab({
                       "text-foreground text-right text-xs font-semibold whitespace-nowrap tabular-nums"
                     )}
                   >
-                    {formatCurrency(cvrTransposedRowTotals(table, { kind: "variance" }) ?? 0)}
+                    {formatCurrency(table.totals.variance)}
                   </td>
                 </tr>
                 {table.upcomingMonths.length === 0 ? (
@@ -384,9 +347,7 @@ export function CvrTab({
                         "border-border text-foreground border-t-4 border-double text-right text-xs font-semibold whitespace-nowrap tabular-nums"
                       )}
                     >
-                      {formatCurrency(
-                        cvrTransposedRowTotals(table, { kind: "upcomingForecast" }) ?? 0
-                      )}
+                      {formatCurrency(table.totals.upcomingForecast)}
                     </td>
                   </tr>
                 ) : (
@@ -422,10 +383,7 @@ export function CvrTab({
                             : "text-foreground text-right text-xs font-semibold whitespace-nowrap tabular-nums"
                         )}
                       >
-                        {formatCurrency(
-                          cvrTransposedRowTotals(table, { kind: "upcomingMonth", monthKey: ym }) ??
-                            0
-                        )}
+                        {formatCurrency(table.totals.upcomingMonthly[ym] ?? 0)}
                       </td>
                     </tr>
                   ))
@@ -460,15 +418,11 @@ export function CvrTab({
                     className={cvrTotalCell(
                       cn(
                         "text-right text-xs font-semibold whitespace-nowrap tabular-nums",
-                        expectedVarianceCellTone(
-                          cvrTransposedRowTotals(table, { kind: "expectedVariance" }) ?? 0
-                        )
+                        expectedVarianceCellTone(table.totals.expectedVariance)
                       )
                     )}
                   >
-                    {formatCurrency(
-                      cvrTransposedRowTotals(table, { kind: "expectedVariance" }) ?? 0
-                    )}
+                    {formatCurrency(table.totals.expectedVariance)}
                   </td>
                 </tr>
               </tbody>

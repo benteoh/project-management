@@ -124,7 +124,7 @@ export function ForecastTab({
     draftTimerRef.current = setTimeout(() => {
       const vals = gridRef.current?.getCellValues() ?? {};
       saveDraft(projectId, vals);
-    }, 300);
+    }, 800);
   }, [projectId]);
 
   const onPersistableChange = useCallback(() => {

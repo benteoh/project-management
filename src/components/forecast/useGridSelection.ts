@@ -27,6 +27,9 @@ export function useGridSelection({
   const isDraggingSelRef = useRef(false);
   const selAnchorRef = useRef<{ r: number; c: number } | null>(null);
 
+  // Tracks the selection from the previous refresh so we can un-highlight those rows too.
+  const prevSelRef = useRef<SelRange | null>(null);
+
   const isFillDragRef = useRef(false);
   const rafRef = useRef<number | null>(null);
   const fillDragDirRef = useRef<"down" | "right" | null>(null);
@@ -84,13 +87,54 @@ export function useGridSelection({
     el.style.display = "none";
   }
 
+  /** Refresh only rows in the union of old + new selection — avoids full-grid repaint. */
   function refreshSelection() {
     if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+    // Snapshot both selections now; selRef may change again before the rAF fires.
+    const newSel = selRef.current;
+    const prevSel = prevSelRef.current;
+    prevSelRef.current = newSel;
     rafRef.current = requestAnimationFrame(() => {
-      gridRef.current?.api?.refreshCells({ force: true });
+      const api = gridRef.current?.api;
+      if (api) {
+        const rowIndices = new Set<number>();
+        if (newSel) {
+          const n = normSel(newSel);
+          for (let r = n.r1; r <= n.r2; r++) rowIndices.add(r);
+        }
+        if (prevSel) {
+          const n = normSel(prevSel);
+          for (let r = n.r1; r <= n.r2; r++) rowIndices.add(r);
+        }
+        const rowNodes = [...rowIndices]
+          .map((r) => api.getDisplayedRowAtIndex(r))
+          .filter((n): n is IRowNode<RowData> => n != null);
+        if (rowNodes.length > 0) {
+          api.refreshCells({ rowNodes, force: true });
+        }
+      }
       updateFillHandlePos();
       rafRef.current = null;
     });
+  }
+
+  /** Clear the current selection and refresh only the rows that had highlight. */
+  function clearAndRefreshSel() {
+    const prev = selRef.current;
+    selRef.current = null;
+    prevSelRef.current = null;
+    setHasSelection(false);
+    hideFillHandle();
+    const api = gridRef.current?.api;
+    if (api && prev) {
+      const n = normSel(prev);
+      const rowNodes = [];
+      for (let r = n.r1; r <= n.r2; r++) {
+        const node = api.getDisplayedRowAtIndex(r);
+        if (node) rowNodes.push(node);
+      }
+      if (rowNodes.length > 0) api.refreshCells({ rowNodes, force: true });
+    }
   }
 
   /** Select all displayed rows × all visible date columns (used by Ctrl/Cmd+A). */
@@ -101,11 +145,15 @@ export function useGridSelection({
     const fields = dateColFieldsRef.current;
     if (rowCount === 0 || fields.length === 0) {
       selRef.current = null;
+      prevSelRef.current = null;
       setHasSelection(false);
       hideFillHandle();
       api.refreshCells({ force: true });
       return;
     }
+    // Selecting all rows — full refresh needed regardless; reset prevSel so refreshSelection
+    // doesn't try to union with a potentially huge previous range unnecessarily.
+    prevSelRef.current = null;
     selRef.current = {
       r1: 0,
       r2: rowCount - 1,
@@ -127,10 +175,7 @@ export function useGridSelection({
       const colId = e.column.getColId();
       const ci = colIndexOf(colId);
       if (ci === -1 || e.rowIndex == null) {
-        selRef.current = null;
-        setHasSelection(false);
-        hideFillHandle();
-        gridRef.current?.api?.refreshCells({ force: true });
+        clearAndRefreshSel();
         return;
       }
       isDraggingSelRef.current = true;
@@ -174,10 +219,7 @@ export function useGridSelection({
   useEffect(() => {
     function onDocMouseDown(e: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        selRef.current = null;
-        setHasSelection(false);
-        hideFillHandle();
-        gridRef.current?.api?.refreshCells({ force: true });
+        clearAndRefreshSel();
       }
     }
     document.addEventListener("mousedown", onDocMouseDown);
@@ -203,10 +245,7 @@ export function useGridSelection({
 
       if (ci === -1) {
         // Non-date header (Scope, Person, etc.) — clear selection
-        selRef.current = null;
-        setHasSelection(false);
-        hideFillHandle();
-        gridRef.current?.api?.refreshCells({ force: true });
+        clearAndRefreshSel();
         return;
       }
 

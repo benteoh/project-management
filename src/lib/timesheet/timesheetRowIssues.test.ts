@@ -6,12 +6,14 @@ const baseContext: TimesheetIssuesContext = {
   hoursIdx: 0,
   employeeIdx: -1,
   taskIdIdx: 1,
+  activityColIdx: -1,
   notesIdx: -1,
   projectIdx: -1,
   scopeNames: ["Endwalls Design", "Boiler Room"],
   knownEmployees: new Set(),
   project: null,
   scopeMappings: new Map(),
+  programmeTree: [],
 };
 
 describe("computeTimesheetRowIssues — scope_unmatched", () => {

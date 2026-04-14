@@ -63,15 +63,6 @@ export function TimesheetTab({
     }
   }
 
-  // On mount: if there are saved uploads, restore the most recent one automatically
-  // so a page refresh doesn't lose the view.
-  useEffect(() => {
-    if (initialUploads.length > 0) {
-      handleViewSaved(initialUploads[0]);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   async function handleFile(file: File | undefined) {
     if (!file) return;
     if (file.size > MAX_FILE_BYTES) {

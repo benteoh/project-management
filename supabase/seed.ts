@@ -1,5 +1,5 @@
 /**
- * Seeds Supabase with programme nodes, engineer pool, and programme demo CSVs (forecast, scope engineers, timesheet) for project 1. Project 2 is programme tree + scope engineers only; timesheets are cleared on re-seed.
+ * Seeds Supabase with programme nodes, engineer pool, and programme demo CSVs (forecast, scope engineers, timesheet) for the primary Euston seed project. Timesheets are cleared on re-seed for that project.
  * Requires CSVs under `supabase/seed/csv/` — run `npm run seed:programme-csv` if missing.
  * npm run seed  (loads `.env`, then `.env.local` overrides — same idea as Next.js)
  */
@@ -21,12 +21,8 @@ import {
   SEED_OFFICES,
   SEED_PROJECT_ENGINEER_RATE_ROWS,
   SEED_PROJECT_ID,
-  SEED_PROJECT_TEST_ID,
-  SEED_PROJECT_TEST_NODE_ID_PREFIX,
   seedProjectRow,
-  seedProjectTestRow,
 } from "../src/lib/programme/seedConfig";
-import { programmeNodesWithPrefixedIds } from "../src/lib/programme/seedProgrammeClone";
 import { applySeedScopeQuotations } from "../src/lib/programme/seedScopeQuotations";
 import { SEED_SCOPE_ENGINEER_FALLBACK } from "../src/lib/seed/programmeSeedDemo";
 import { parseCsvDataLine } from "../src/lib/seed/seedCsv";
@@ -353,9 +349,9 @@ async function seed() {
 
   const { error: projectErr } = await supabase
     .from("projects")
-    .upsert([seedProjectRow, seedProjectTestRow], { onConflict: "id" });
+    .upsert([seedProjectRow], { onConflict: "id" });
   if (projectErr) throw new Error(`projects: ${projectErr.message}`);
-  console.log("\u2713 projects (Euston + Euston Test)");
+  console.log("\u2713 project (Euston Station)");
 
   const { data: existingPool, error: existingPoolErr } = await supabase
     .from("engineer_pool")
@@ -390,20 +386,15 @@ async function seed() {
 
   const codeToId = new Map(poolUpsertRows.map((r) => [r.code, r.id]));
   const programmeNodes = applySeedScopeQuotations(buildProgrammeNodesFromSeed(codeToId));
-  const programmeNodesTest = programmeNodesWithPrefixedIds(
-    programmeNodes,
-    SEED_PROJECT_TEST_NODE_ID_PREFIX
-  );
 
   const primary = flattenTree(programmeNodes, SEED_PROJECT_ID);
-  const test = flattenTree(programmeNodesTest, SEED_PROJECT_TEST_ID);
-  const nodeRows = [...primary.nodeRows, ...test.nodeRows];
+  const nodeRows = primary.nodeRows;
 
   const { error: nodesErr } = await supabase
     .from("programme_nodes")
     .upsert(nodeRows, { onConflict: "id" });
   if (nodesErr) throw new Error(`programme_nodes: ${nodesErr.message}`);
-  console.log(`\u2713 ${nodeRows.length} programme nodes (2 projects)`);
+  console.log(`\u2713 ${nodeRows.length} programme nodes`);
 
   const project1ScopeIds = collectScopeIds(programmeNodes);
   if (project1ScopeIds.length > 0) {
@@ -425,15 +416,7 @@ async function seed() {
     `\u2713 ${demoScopeEng.length} scope-engineer rows (project ${SEED_PROJECT_ID}, demo CSV)`
   );
 
-  if (test.engineerRows.length > 0) {
-    const { error: engErr } = await supabase
-      .from("scope_engineers")
-      .upsert(test.engineerRows, { onConflict: "scope_id,engineer_id" });
-    if (engErr) throw new Error(`scope_engineers (test project): ${engErr.message}`);
-    console.log(`\u2713 ${test.engineerRows.length} scope-engineer rows (test project)`);
-  }
-
-  const projectEngineerRows = [SEED_PROJECT_ID, SEED_PROJECT_TEST_ID].flatMap((projectId) =>
+  const projectEngineerRows = [SEED_PROJECT_ID].flatMap((projectId) =>
     SEED_PROJECT_ENGINEER_RATE_ROWS.map((r) => {
       const engineerId = codeToId.get(r.code);
       if (!engineerId) {
@@ -471,14 +454,12 @@ async function seed() {
     `\u2713 ${forecastRows.length} forecast entries (project ${SEED_PROJECT_ID}, demo CSV)`
   );
 
-  // ---- Timesheet (programme demo CSV, project 1 only) -------------------
-  for (const pid of [SEED_PROJECT_ID, SEED_PROJECT_TEST_ID] as const) {
-    const { error: delUpErr } = await supabase
-      .from("timesheet_uploads")
-      .delete()
-      .eq("project_id", pid);
-    if (delUpErr) throw new Error(`timesheet_uploads delete (${pid}): ${delUpErr.message}`);
-  }
+  // ---- Timesheet (programme demo CSV) -----------------------------------
+  const { error: delUpErr } = await supabase
+    .from("timesheet_uploads")
+    .delete()
+    .eq("project_id", SEED_PROJECT_ID);
+  if (delUpErr) throw new Error(`timesheet_uploads delete: ${delUpErr.message}`);
 
   const demoScopeSpecs = defaultSeedScopeForecastSpecs(SEED_SCOPE_ENGINEER_FALLBACK);
   const demoTimesheetRows = parseTimesheetProgrammeDemoCsv(

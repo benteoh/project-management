@@ -3,13 +3,19 @@
  * Used by the timesheet table for per-cell markers and row filters.
  */
 
+import type { ProgrammeNode } from "@/components/programme/types";
 import { employeeCellIsKnown } from "@/lib/timesheet/employeeCellMatch";
 import {
+  activityCodeMatchLengthAt,
   normalise,
   normaliseProjCellRaw,
   sigWords,
   wordCoverage,
 } from "@/lib/timesheet/timesheetImportResolve";
+import {
+  collectActivityNodesUnderScope,
+  resolveScopeNodeForTaskIdCell,
+} from "@/lib/timesheet/timesheetLinkedResolve";
 
 const SCOPE_TASK_MIN_COVERAGE = 0.8;
 
@@ -18,7 +24,8 @@ export const TIMESHEET_ISSUE_IDS = [
   "unknown_employee",
   "scope_unmatched",
   "project_unmatched",
-  "notes_task_mismatch",
+  "activity_not_under_scope",
+  "activity_not_in_notes",
 ] as const;
 
 export type TimesheetIssueId = (typeof TIMESHEET_ISSUE_IDS)[number];
@@ -28,7 +35,8 @@ export const TIMESHEET_ISSUE_LABELS: Record<TimesheetIssueId, string> = {
   unknown_employee: "Unregistered employee",
   scope_unmatched: "Can't match to scope",
   project_unmatched: "Can't match to project",
-  notes_task_mismatch: "Notes don't match task / scope id",
+  activity_not_under_scope: "Activity not under scope",
+  activity_not_in_notes: "Activity ID not in notes",
 };
 
 export type TimesheetRowIssue = {
@@ -41,6 +49,7 @@ export type TimesheetIssuesContext = {
   hoursIdx: number;
   employeeIdx: number;
   taskIdIdx: number;
+  activityColIdx: number;
   notesIdx: number;
   projectIdx: number;
   scopeNames: string[];
@@ -53,6 +62,8 @@ export type TimesheetIssuesContext = {
    * A hit here suppresses the `scope_unmatched` issue.
    */
   scopeMappings: Map<string, string>;
+  /** Full programme tree for resolving activity → scope relationships. */
+  programmeTree: ProgrammeNode[];
 };
 
 function matchesAnyScope(
@@ -71,18 +82,6 @@ function matchesAnyScope(
     (name) =>
       normalise(t) === normalise(name) || wordCoverage(aWords, name) >= SCOPE_TASK_MIN_COVERAGE
   );
-}
-
-/**
- * Returns true if ≥80% of the task ID's significant words appear in the notes
- * text. Returns null when either value is empty (no issue from this rule).
- */
-function notesMatchTaskId(notes: string, taskId: string): boolean | null {
-  const taskWords = sigWords(taskId);
-  if (taskWords.length === 0) return null;
-  const noteWords = sigWords(notes);
-  if (noteWords.length === 0) return null;
-  return wordCoverage(taskWords, notes) >= SCOPE_TASK_MIN_COVERAGE;
 }
 
 function scopeMatchForRow(
@@ -134,6 +133,23 @@ export function timesheetProjectCellMatches(
   return false;
 }
 
+function findActivityNodeByCode(code: string, nodes: ProgrammeNode[]): ProgrammeNode | null {
+  const lower = code.toLowerCase();
+  const walk = (ns: ProgrammeNode[]): ProgrammeNode | null => {
+    for (const n of ns) {
+      if (n.type === "activity") {
+        if (n.activityId?.trim().toLowerCase() === lower || n.id === code) return n;
+      }
+      if (n.children.length > 0) {
+        const found = walk(n.children);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+  return walk(nodes);
+}
+
 export function computeTimesheetRowIssues(
   row: string[],
   ctx: TimesheetIssuesContext
@@ -144,12 +160,14 @@ export function computeTimesheetRowIssues(
     hoursIdx,
     employeeIdx,
     taskIdIdx,
+    activityColIdx,
     notesIdx,
     projectIdx,
     scopeNames,
     knownEmployees,
     project,
     scopeMappings,
+    programmeTree,
   } = ctx;
 
   if (hoursIdx >= 0) {
@@ -178,11 +196,50 @@ export function computeTimesheetRowIssues(
     }
   }
 
-  if (notesIdx >= 0 && taskIdIdx >= 0) {
-    const notesVal = (row[notesIdx] ?? "").trim();
-    const taskIdVal = (row[taskIdIdx] ?? "").trim();
-    if (notesMatchTaskId(notesVal, taskIdVal) === false) {
-      issues.push({ issueId: "notes_task_mismatch", columnIndex: notesIdx });
+  // Notes present but contain no programme activity code
+  if (notesIdx >= 0 && programmeTree.length > 0) {
+    const notesText = (row[notesIdx] ?? "").trim();
+    if (notesText) {
+      const activityCodes: string[] = [];
+      const collectCodes = (nodes: ProgrammeNode[]) => {
+        for (const n of nodes) {
+          if (n.type === "activity" && n.activityId?.trim()) {
+            activityCodes.push(n.activityId.trim());
+          }
+          if (n.children.length > 0) collectCodes(n.children);
+        }
+      };
+      collectCodes(programmeTree);
+
+      if (activityCodes.length > 0) {
+        const found = activityCodes.some((code) => {
+          for (let i = 0; i < notesText.length; i++) {
+            if (activityCodeMatchLengthAt(notesText, i, code) !== null) return true;
+          }
+          return false;
+        });
+        if (!found) {
+          issues.push({ issueId: "activity_not_in_notes", columnIndex: notesIdx });
+        }
+      }
+    }
+  }
+
+  // Activity code present in the programme but not under the matched scope
+  if (activityColIdx >= 0 && taskIdIdx >= 0 && programmeTree.length > 0) {
+    const activityCode = (row[activityColIdx] ?? "").trim();
+    if (activityCode) {
+      const matchedActivity = findActivityNodeByCode(activityCode, programmeTree);
+      if (matchedActivity) {
+        const scopeCell = (row[taskIdIdx] ?? "").trim();
+        const scope = resolveScopeNodeForTaskIdCell(scopeCell, programmeTree, scopeMappings);
+        if (scope) {
+          const underScope = collectActivityNodesUnderScope(scope);
+          if (!underScope.some((a) => a.id === matchedActivity.id)) {
+            issues.push({ issueId: "activity_not_under_scope", columnIndex: activityColIdx });
+          }
+        }
+      }
     }
   }
 

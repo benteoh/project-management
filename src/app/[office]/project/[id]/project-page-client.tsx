@@ -217,9 +217,7 @@ export default function ProjectPageClient({
             activityFilterIds={activityFilterIds}
           />
         )}
-        {activeTab === "CVR" && (
-          <CvrTab projectId={projectId} programmeTree={programmeTree} engineerPool={engineerPool} />
-        )}
+        {activeTab === "CVR" && <CvrTab projectId={projectId} />}
         {activeTab === "Forecast" &&
           (project ? (
             <ForecastTab

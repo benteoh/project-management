@@ -46,6 +46,18 @@ export interface CvrTransposedTable {
       expectedVariance: number;
     }
   >;
+  /** Pre-computed column totals — use these in the render instead of calling cvrTransposedRowTotals. */
+  totals: {
+    quotation: number | null;
+    quotationEw: number | null;
+    approvedBudget: number;
+    spentSoFar: number;
+    variance: number;
+    upcomingForecast: number;
+    expectedVariance: number;
+    /** Total per upcoming month (keys match upcomingMonths). */
+    upcomingMonthly: Record<string, number>;
+  };
 }
 
 /** Forecast slice: cell values + “today” boundary (ISO); only future dated hours count as upcoming. */
@@ -293,10 +305,46 @@ export function buildCvrTransposedTable(
     };
   }
 
+  // Compute totals in a single pass over scopes — stored on the result so
+  // the render never calls cvrTransposedRowTotals() repeatedly.
+  let totalQuotation: number | null = null;
+  let totalQuotationEw: number | null = null;
+  let totalApprovedBudget = 0;
+  let totalSpentSoFar = 0;
+  let totalVariance = 0;
+  let totalUpcomingForecast = 0;
+  let totalExpectedVariance = 0;
+  const totalUpcomingMonthly: Record<string, number> = {};
+
+  for (const scope of scopes) {
+    const row = byScopeId[scope.id]!;
+    if (row.quotation != null) totalQuotation = round2((totalQuotation ?? 0) + row.quotation);
+    if (row.quotationEw != null)
+      totalQuotationEw = round2((totalQuotationEw ?? 0) + row.quotationEw);
+    totalApprovedBudget = round2(totalApprovedBudget + row.approvedBudget);
+    totalSpentSoFar = round2(totalSpentSoFar + row.spentSoFar);
+    totalVariance = round2(totalVariance + row.variance);
+    totalUpcomingForecast = round2(totalUpcomingForecast + row.upcomingForecastGbp);
+    totalExpectedVariance = round2(totalExpectedVariance + row.expectedVariance);
+    for (const [ym, v] of Object.entries(row.upcomingMonthly)) {
+      totalUpcomingMonthly[ym] = round2((totalUpcomingMonthly[ym] ?? 0) + v);
+    }
+  }
+
   return {
     scopes: scopes.map((s) => ({ id: s.id, name: s.name })),
     upcomingMonths,
     byScopeId,
+    totals: {
+      quotation: totalQuotation,
+      quotationEw: totalQuotationEw,
+      approvedBudget: totalApprovedBudget,
+      spentSoFar: totalSpentSoFar,
+      variance: totalVariance,
+      upcomingForecast: totalUpcomingForecast,
+      expectedVariance: totalExpectedVariance,
+      upcomingMonthly: totalUpcomingMonthly,
+    },
   };
 }
 

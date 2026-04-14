@@ -179,6 +179,9 @@ export function forecastColumnDefs({
       : []),
   ];
 
+  // Pre-build index lookup so each cellStyle call is O(1) instead of O(n indexOf).
+  const isoToColIdx = new Map(dailyDates.map((d, i) => [toISODateUtc(d), i]));
+
   const dateCols: ColDef<RowData>[] = dailyDates.map((date) => {
     const iso = toISODateUtc(date);
     const dow = date.getUTCDay();
@@ -214,7 +217,7 @@ export function forecastColumnDefs({
         .filter(Boolean)
         .join(" "),
       cellStyle: (p): Record<string, string | number> => {
-        const colIdx = dateColFieldsRef.current.indexOf(iso);
+        const colIdx = isoToColIdx.get(iso) ?? -1;
         const ri = p.node.rowIndex;
 
         // Base background — weekend / bank holiday / plain

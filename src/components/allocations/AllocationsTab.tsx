@@ -20,7 +20,7 @@ import { collectActivityNodesUnderScopeId, collectScopeNodes } from "@/lib/progr
 import { cn } from "@/lib/utils";
 import type { EngineerPoolEntry } from "@/types/engineer-pool";
 import type { TimesheetAllocationRow } from "@/types/allocations";
-import type { ForecastHoursByScopeRecord } from "@/types/forecast-scope";
+import type { ForecastHoursByScopeRecord, ForecastHoursPerEngineer } from "@/types/forecast-scope";
 
 const VIEWS = ["Engineers", "Scope", "Activity"] as const;
 type AllocationsView = (typeof VIEWS)[number];
@@ -280,12 +280,15 @@ function ActivityHoursPanel({
   selection,
   activityDisplayLabel,
   engineerLabel,
+  scopeForecastEngineers,
 }: {
   allocationRows: TimesheetAllocationRow[];
   scopeId: string;
   selection: ActivityViewSelection;
   activityDisplayLabel: string;
   engineerLabel: (engineerId: string | null) => string;
+  /** Per-engineer forecast hours for this scope (from demand forecast grid). */
+  scopeForecastEngineers: ForecastHoursPerEngineer[];
 }) {
   const rollup = rollupForActivityView(
     allocationRows,
@@ -294,6 +297,15 @@ function ActivityHoursPanel({
     activityDisplayLabel,
     engineerLabel
   );
+
+  const forecastByEngineerId = new Map(
+    scopeForecastEngineers.map((e) => [e.engineerId, roundHours1(Number(e.hours))])
+  );
+  const totalForecast =
+    scopeForecastEngineers.length > 0
+      ? roundHours1(scopeForecastEngineers.reduce((s, e) => s + Number(e.hours), 0))
+      : null;
+
   return (
     <div className="space-y-3">
       <div className="space-y-1">
@@ -302,8 +314,7 @@ function ActivityHoursPanel({
           <span
             className={cn(
               "font-medium tabular-nums",
-              hoursComparisonClass(rollup.spentHours, rollup.plannedActivityHours) ??
-                "text-foreground"
+              hoursComparisonClass(rollup.spentHours, totalForecast) ?? "text-foreground"
             )}
           >
             {formatHours(rollup.spentHours)}
@@ -311,21 +322,67 @@ function ActivityHoursPanel({
           <span> spent</span>
           <span className="text-muted-foreground"> · </span>
           <span className="text-foreground font-medium tabular-nums">
-            {rollup.plannedActivityHours != null ? formatHours(rollup.plannedActivityHours) : "—"}
+            {totalForecast != null ? formatHours(totalForecast) : "—"}
           </span>
-          <span> planned</span>
+          <span> forecast (scope total)</span>
         </p>
       </div>
-      <HoursTable
-        title="Engineers on this activity"
-        rows={rollup.byEngineer}
-        nameHeader="Engineer"
-        hoursHeader="Hrs spent"
-      />
+
+      {rollup.byEngineer.length === 0 ? (
+        <div className="border-border bg-muted/40 rounded-lg border p-4">
+          <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+            Engineers on this activity
+          </p>
+          <p className="text-muted-foreground mt-2 text-sm">No rows.</p>
+        </div>
+      ) : (
+        <div className="border-border bg-card shadow-card overflow-hidden rounded-lg border">
+          <p className={TABLE_SECTION_TITLE}>Engineers on this activity</p>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className={DATA_TABLE_HEAD}>
+                <th className="px-4 py-2.5">Engineer</th>
+                <th className="px-4 py-2.5 text-right">Hrs spent</th>
+                <th className="px-4 py-2.5 text-right">Forecast</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rollup.byEngineer.map((r, i) => {
+                const fc = r.id ? (forecastByEngineerId.get(r.id) ?? null) : null;
+                return (
+                  <tr
+                    key={`${r.label}-${i}`}
+                    className={cn("border-border/70 border-b last:border-b-0", tableRowStripe(i))}
+                  >
+                    <td
+                      className="text-foreground max-w-[14rem] truncate px-4 py-2.5"
+                      title={r.label}
+                    >
+                      {r.label}
+                    </td>
+                    <td
+                      className={cn(
+                        "px-4 py-2.5 text-right font-medium tabular-nums",
+                        hoursComparisonClass(r.hours, fc) ?? "text-foreground"
+                      )}
+                    >
+                      {formatHours(r.hours)}
+                    </td>
+                    <td className="text-foreground px-4 py-2.5 text-right tabular-nums">
+                      {fc != null ? formatHours(fc) : "—"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       <p className="text-muted-foreground text-xs">
-        Spent = saved timesheet hours on this activity. Planned = scoped hours from the programme
-        (activity budget). Spent is <span className="text-status-healthy">green</span> when it
-        matches planned, <span className="text-status-warning">amber</span> when under,{" "}
+        Spent = saved timesheet hours on this activity. Forecast = demand forecast hours for this
+        scope per engineer. Spent is <span className="text-status-healthy">green</span> when it
+        matches forecast, <span className="text-status-warning">amber</span> when under,{" "}
         <span className="text-status-critical">red</span> when over.
       </p>
     </div>
@@ -948,6 +1005,7 @@ export function AllocationsTab({
                               selection={{ mode: "unmapped" }}
                               activityDisplayLabel="No activity linked"
                               engineerLabel={engineerLabel}
+                              scopeForecastEngineers={forecastHoursByScope[s.id] ?? []}
                             />
                           </NestedAccordionRow>
                           {acts.map((a) => {
@@ -970,6 +1028,7 @@ export function AllocationsTab({
                                   selection={{ mode: "node", node: a }}
                                   activityDisplayLabel={lab}
                                   engineerLabel={engineerLabel}
+                                  scopeForecastEngineers={forecastHoursByScope[s.id] ?? []}
                                 />
                               </NestedAccordionRow>
                             );

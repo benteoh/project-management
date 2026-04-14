@@ -26,7 +26,6 @@ import {
   computeTimesheetRowIssues,
   TIMESHEET_ISSUE_IDS,
   TIMESHEET_ISSUE_LABELS,
-  type TimesheetIssueId,
   type TimesheetRowIssue,
 } from "@/lib/timesheet/timesheetRowIssues";
 import { findCol } from "@/lib/xlsx/xlsxUtils";
@@ -157,7 +156,7 @@ export function TimesheetTable({
   scopeMappings: Map<string, string>;
   onAddMapping: (rawText: string, scopeId: string) => Promise<void>;
 }) {
-  const [activeFilters, setActiveFilters] = useState<Set<TimesheetIssueId> | null>(null);
+  const [activeFilters, setActiveFilters] = useState<Set<string> | null>(null);
   const [filterAnchor, setFilterAnchor] = useState<DOMRect | null>(null);
   const [linkedSelection, setLinkedSelection] = useState<LinkedSelection>(null);
 
@@ -211,23 +210,27 @@ export function TimesheetTable({
       hoursIdx,
       employeeIdx,
       taskIdIdx,
+      activityColIdx,
       notesIdx,
       projectIdx,
       scopeNames,
       knownEmployees,
       project: project ? { projectCode: project.projectCode, name: project.name } : null,
       scopeMappings,
+      programmeTree,
     }),
     [
       hoursIdx,
       employeeIdx,
       taskIdIdx,
+      activityColIdx,
       notesIdx,
       projectIdx,
       scopeNames,
       knownEmployees,
       project,
       scopeMappings,
+      programmeTree,
     ]
   );
 
@@ -240,12 +243,19 @@ export function TimesheetTable({
     [sheet.rows, issuesContext]
   );
 
-  const issueLabelRecord = TIMESHEET_ISSUE_LABELS as Record<string, string>;
+  const issueLabelRecord: Record<string, string> = {
+    ...TIMESHEET_ISSUE_LABELS,
+    no_issue: "No issues",
+  };
+  const allFilterOptions = ["no_issue", ...TIMESHEET_ISSUE_IDS];
 
   const visibleRows =
     activeFilters === null
       ? rowIssueRows
-      : rowIssueRows.filter(({ issues }) => issues.some((i) => activeFilters.has(i.issueId)));
+      : rowIssueRows.filter(({ issues }) => {
+          if (issues.length === 0) return activeFilters.has("no_issue");
+          return issues.some((i) => activeFilters.has(i.issueId));
+        });
 
   const openLinkedPanel = useCallback(
     (ri: number, ci: number, cell: string) => {
@@ -334,20 +344,16 @@ export function TimesheetTable({
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {filterAnchor && (
         <ColumnFilter
-          options={[...TIMESHEET_ISSUE_IDS]}
+          options={allFilterOptions}
           optionLabels={issueLabelRecord}
-          selected={activeFilters === null ? null : activeFilters}
+          selected={activeFilters}
           anchorRect={filterAnchor}
           onChange={(selected) => {
-            if (selected === null) {
-              setActiveFilters(new Set(TIMESHEET_ISSUE_IDS));
-              return;
-            }
-            if (selected.size === 0) {
+            if (selected === null || selected.size === 0) {
               setActiveFilters(null);
               return;
             }
-            setActiveFilters(selected as Set<TimesheetIssueId>);
+            setActiveFilters(selected);
           }}
           onClose={() => setFilterAnchor(null)}
         />

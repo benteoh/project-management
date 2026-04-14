@@ -16,6 +16,7 @@ import {
   type CellValueChangedEvent,
   type GetRowIdParams,
   type GridReadyEvent,
+  type IRowNode,
   type SuppressKeyboardEventParams,
 } from "ag-grid-community";
 
@@ -203,11 +204,16 @@ export const ForecastAgGrid = forwardRef<ForecastAgGridHandle, Props>(function F
     restorePreviewRef,
   });
 
-  // Refresh all cells after pendingFill changes so value-getter columns
-  // (Forecast hours, Total Spent) pick up the merged pending values from rowData.
+  // Refresh only rows touched by the pending fill so value-getter columns pick up new values.
   useEffect(() => {
     if (!pendingFill) return;
-    gridRef.current?.api?.refreshCells({ force: true });
+    const api = gridRef.current?.api;
+    if (!api) return;
+    const rowIds = new Set(pendingFill.changes.map((c) => c.rowId));
+    const rowNodes = [...rowIds]
+      .map((id) => api.getRowNode(id))
+      .filter((n): n is IRowNode<RowData> => n != null);
+    if (rowNodes.length > 0) api.refreshCells({ rowNodes, force: true });
   }, [pendingFill]);
 
   // ── Scroll to today ────────────────────────────────────────────────────────
@@ -479,7 +485,7 @@ export const ForecastAgGrid = forwardRef<ForecastAgGridHandle, Props>(function F
               if (isPreviewActiveRef.current) {
                 // During preview, route edits into the pending store instead of committing
                 addPendingChange(e.node.id, field, captured.value, e.newValue);
-                gridRef.current?.api?.refreshCells({ force: true });
+                gridRef.current?.api?.refreshCells({ rowNodes: [e.node], force: true });
               } else {
                 setCellValue(e.node, field, e.newValue);
                 pushHistory([

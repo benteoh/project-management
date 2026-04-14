@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { AddDemoProjectButton } from "./add-demo-project-button";
 import { normalizeOfficeUrlParam, officeNameMatchesUrlParam } from "@/lib/offices/officeUrl";
 import { listProjectsFromDb } from "@/lib/projects/projectDb";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -58,10 +59,15 @@ export default async function OfficePage({ params }: Props) {
           <span className="text-muted-foreground text-xs">/</span>
           <span className="text-foreground text-xs font-medium">{displayOfficeName}</span>
         </div>
-        <h1 className="text-foreground text-2xl font-semibold">{displayOfficeName}</h1>
-        <p className="text-muted-foreground mt-0.5 text-sm">
-          {projects.length} project{projects.length !== 1 ? "s" : ""}
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-foreground text-2xl font-semibold">{displayOfficeName}</h1>
+            <p className="text-muted-foreground mt-0.5 text-sm">
+              {projects.length} project{projects.length !== 1 ? "s" : ""}
+            </p>
+          </div>
+          {!error && <AddDemoProjectButton />}
+        </div>
       </div>
 
       {error && (

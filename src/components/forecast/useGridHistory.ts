@@ -52,14 +52,20 @@ export function useGridHistory({ gridRef, setCellValue, onHistoryApplied }: Para
     (entry: HistoryEntry, direction: "undo" | "redo") => {
       const api = gridRef.current?.api;
       if (!api) return;
+      const rowIds = new Set<string>();
       for (const change of entry) {
         const node = api.getRowNode(change.rowId);
         if (!node) continue;
         setCellValue(node, change.field, direction === "undo" ? change.oldValue : change.newValue);
+        rowIds.add(change.rowId);
       }
       // Notify before refreshCells so rowData recomputes first
       onHistoryAppliedRef.current?.(entry, direction);
-      api.refreshCells({ force: true });
+      // Scope refresh to only the rows touched by this entry — avoids full-grid repaint.
+      const rowNodes = [...rowIds]
+        .map((id) => api.getRowNode(id))
+        .filter((n): n is IRowNode<RowData> => n != null);
+      api.refreshCells({ rowNodes, force: true });
     },
     // gridRef is a stable ref object; setCellValue is stable from useCellStore
     // eslint-disable-next-line react-hooks/exhaustive-deps

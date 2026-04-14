@@ -229,7 +229,13 @@ export function useGridKeyboard({
           }
         }
         pushHistory(entry);
-        api.refreshCells({ force: true });
+        if (entry.length > 0) {
+          const rowIds = new Set(entry.map((c) => c.rowId));
+          const rowNodes = [...rowIds]
+            .map((id) => api.getRowNode(id))
+            .filter((n): n is IRowNode<RowData> => n != null);
+          api.refreshCells({ rowNodes, force: true });
+        }
         return;
       }
 
@@ -258,7 +264,13 @@ export function useGridKeyboard({
           setCellValue(node, field, newValue);
         }
         pushHistory(entry);
-        api.refreshCells({ force: true });
+        if (entry.length > 0) {
+          const rowIds = new Set(entry.map((c) => c.rowId));
+          const rowNodes = [...rowIds]
+            .map((id) => api.getRowNode(id))
+            .filter((n): n is IRowNode<RowData> => n != null);
+          api.refreshCells({ rowNodes, force: true });
+        }
         return;
       }
 
@@ -281,7 +293,13 @@ export function useGridKeyboard({
           }
         }
         pushHistory(entry);
-        api.refreshCells({ force: true });
+        if (entry.length > 0) {
+          const rowIds = new Set(entry.map((c) => c.rowId));
+          const rowNodes = [...rowIds]
+            .map((id) => api.getRowNode(id))
+            .filter((n): n is IRowNode<RowData> => n != null);
+          api.refreshCells({ rowNodes, force: true });
+        }
       }
     };
 
@@ -331,7 +349,13 @@ export function useGridKeyboard({
         });
       });
       pushHistory(pasteEntry);
-      api.refreshCells({ force: true });
+      if (pasteEntry.length > 0) {
+        const rowIds = new Set(pasteEntry.map((c) => c.rowId));
+        const rowNodes = [...rowIds]
+          .map((id) => api.getRowNode(id))
+          .filter((n): n is IRowNode<RowData> => n != null);
+        api.refreshCells({ rowNodes, force: true });
+      }
     };
 
     document.addEventListener("keydown", onKeyDown, true);

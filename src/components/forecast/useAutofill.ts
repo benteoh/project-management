@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { AgGridReact } from "ag-grid-react";
 import type { IRowNode } from "ag-grid-community";
 
@@ -22,7 +22,7 @@ type Params = {
 
 export type UseAutofillResult = {
   pendingFill: PendingFill | null;
-  pendingFillRef: React.RefObject<PendingFill | null>;
+  pendingFillRef: React.MutableRefObject<PendingFill | null>;
   pendingValuesRef: React.MutableRefObject<Record<string, Record<string, unknown>>>;
   triggerAutofill: (mode: "all" | "selection") => void;
   addPendingChange: (rowId: string, field: string, oldValue: unknown, newValue: unknown) => void;
@@ -123,7 +123,14 @@ export function useAutofill({
         };
       });
 
-      gridRef.current?.api?.refreshCells({ force: true });
+      const api = gridRef.current?.api;
+      if (api && result.changes.length > 0) {
+        const rowIds = new Set(result.changes.map((c) => c.rowId));
+        const rowNodes = [...rowIds]
+          .map((id) => api.getRowNode(id))
+          .filter((n): n is IRowNode<RowData> => n != null);
+        api.refreshCells({ rowNodes, force: true });
+      }
     },
     [rows, dateColFields, selRef, gridRef, cellValuesRef, bankHolidays]
   );
@@ -159,13 +166,29 @@ export function useAutofill({
 
     pendingValuesRef.current = {};
     setPendingFill(null);
-    api.refreshCells({ force: true });
+    if (fill.changes.length > 0) {
+      const rowIds = new Set(fill.changes.map((c) => c.rowId));
+      const rowNodes = [...rowIds]
+        .map((id) => api.getRowNode(id))
+        .filter((n): n is IRowNode<RowData> => n != null);
+      api.refreshCells({ rowNodes, force: true });
+    }
   }, [pendingFill, gridRef, cellValuesRef, setCellValue, pushHistory]);
 
   const discardFill = useCallback(() => {
+    const prev = pendingFillRef.current;
     pendingValuesRef.current = {};
     setPendingFill(null);
-    gridRef.current?.api?.refreshCells({ force: true });
+    const api = gridRef.current?.api;
+    if (api && prev && prev.changes.length > 0) {
+      const rowIds = new Set(prev.changes.map((c) => c.rowId));
+      const rowNodes = [...rowIds]
+        .map((id) => api.getRowNode(id))
+        .filter((n): n is IRowNode<RowData> => n != null);
+      api.refreshCells({ rowNodes, force: true });
+    } else {
+      api?.refreshCells({ force: true });
+    }
   }, [gridRef]);
 
   // Restores a previously discarded fill back into preview (used by redo after undo-discard)
@@ -177,16 +200,22 @@ export function useAutofill({
         pendingValuesRef.current[c.rowId][c.field] = c.newValue;
       }
       setPendingFill(fill);
-      gridRef.current?.api?.refreshCells({ force: true });
+      const api = gridRef.current?.api;
+      if (api && fill.changes.length > 0) {
+        const rowIds = new Set(fill.changes.map((c) => c.rowId));
+        const rowNodes = [...rowIds]
+          .map((id) => api.getRowNode(id))
+          .filter((n): n is IRowNode<RowData> => n != null);
+        api.refreshCells({ rowNodes, force: true });
+      }
     },
     [gridRef]
   );
 
   // Always-current ref so stable keyboard closures can read pendingFill without stale closure issues
   const pendingFillRef = useRef<PendingFill | null>(null);
-  useEffect(() => {
-    pendingFillRef.current = pendingFill;
-  });
+  // eslint-disable-next-line react-hooks/immutability -- intentional "latest value ref" pattern; keyboard handlers in useGridKeyboard read this without needing pendingFill in their deps
+  pendingFillRef.current = pendingFill;
 
   // Route manual edits into the pending store during preview
   const addPendingChange = useCallback(

@@ -80,7 +80,7 @@ export function resolveScopeNodeForTaskIdCell(
 }
 
 /** Activities nested under a scope node (recursive). */
-function collectActivityNodesUnderScope(scope: ProgrammeNode | null): ProgrammeNode[] {
+export function collectActivityNodesUnderScope(scope: ProgrammeNode | null): ProgrammeNode[] {
   if (!scope) return [];
   const out: ProgrammeNode[] = [];
   const walk = (nodes: ProgrammeNode[]) => {

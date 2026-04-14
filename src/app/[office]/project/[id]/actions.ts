@@ -22,6 +22,9 @@ import {
 import type { TimesheetActualEntry, TimesheetCvrEntry } from "@/lib/timesheet/timesheetActualsDb";
 import type { TimesheetEntry, TimesheetScopeMapping, TimesheetUpload } from "@/types/timesheet";
 import type { ForecastHoursByScopeRecord } from "@/types/forecast-scope";
+import { buildCvrTransposedTable, type CvrTransposedTable } from "@/lib/budget/cvrScopeTable";
+import { listProjectEngineersForProjectFromDb } from "@/lib/projectEngineers/projectEngineersDb";
+import type { ProjectEngineerRates } from "@/types/project-engineer";
 
 export async function saveProgrammeAction(projectId: string, tree: ProgrammeNode[]) {
   const repo = createSupabaseProgrammeRepository(await createServerSupabaseClient(), projectId);
@@ -123,4 +126,49 @@ export async function getForecastCellValuesForCvrAction(
   const result = await loadForecastEntries(client, projectId);
   if (!result.ok) return { error: result.error };
   return { values: result.values };
+}
+
+/**
+ * Fetches all CVR inputs and runs buildCvrTransposedTable server-side.
+ * Returns the fully computed table (including pre-calculated totals) so the
+ * client never touches raw timesheet rows or forecast cell values.
+ *
+ * @param todayIso - caller's local date (YYYY-MM-DD) used as the forecast cutoff.
+ */
+export async function getCvrTableAction(
+  projectId: string,
+  todayIso: string
+): Promise<{ table: CvrTransposedTable } | { error: string }> {
+  const client = await createServerSupabaseClient();
+
+  const [programmeResult, projectEngineersRes, entriesRes, forecastRes] = await Promise.all([
+    createSupabaseProgrammeRepository(client, projectId).load(),
+    listProjectEngineersForProjectFromDb(client, projectId),
+    getTimesheetCvrEntriesForProject(client, projectId),
+    loadForecastEntries(client, projectId),
+  ]);
+
+  if (!programmeResult.ok) return { error: programmeResult.error };
+  if ("error" in entriesRes) return { error: entriesRes.error };
+
+  const ratesByEngineerId = new Map<string, ProjectEngineerRates>();
+  if ("rows" in projectEngineersRes) {
+    for (const pe of projectEngineersRes.rows) {
+      ratesByEngineerId.set(pe.engineerId, pe.rates);
+    }
+  }
+
+  const engineerPool = programmeResult.engineerPool.map((e) => ({
+    ...e,
+    rates: ratesByEngineerId.get(e.id),
+  }));
+
+  const forecastValues = forecastRes.ok ? forecastRes.values : {};
+
+  const table = buildCvrTransposedTable(programmeResult.tree, engineerPool, entriesRes.rows, {
+    values: forecastValues,
+    afterDateExclusive: todayIso,
+  });
+
+  return { table };
 }
