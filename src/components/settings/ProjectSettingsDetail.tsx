@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import {
+  deleteProjectAction,
   duplicateProjectAction,
   loadProjectForSettingsAction,
   updateProjectAction,
@@ -37,11 +38,14 @@ export function ProjectSettingsDetail({
   projectId,
   onBackToProjects,
   onDuplicated,
+  onDeleted,
 }: {
   projectId: string;
   onBackToProjects: () => void;
   /** When set, called with the new project id after a successful duplicate. */
   onDuplicated?: (newProjectId: string) => void;
+  /** Called after the project is successfully deleted. */
+  onDeleted?: () => void;
 }) {
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
@@ -51,6 +55,8 @@ export function ProjectSettingsDetail({
   const [editDraft, setEditDraft] = useState<ProjectCreatePayload | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isDuplicating, setIsDuplicating] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -81,6 +87,20 @@ export function ProjectSettingsDetail({
       onDuplicated?.(r.newProjectId);
     } else {
       setError(r.error);
+    }
+  };
+
+  const handleDeleteProject = async () => {
+    if (!project) return;
+    setIsDeleting(true);
+    setError(null);
+    const r = await deleteProjectAction(project.id);
+    setIsDeleting(false);
+    if (r.ok) {
+      onDeleted?.();
+    } else {
+      setError(r.error);
+      setConfirmDelete(false);
     }
   };
 
@@ -167,18 +187,56 @@ export function ProjectSettingsDetail({
                   <button
                     type="button"
                     onClick={() => void handleDuplicateProject()}
-                    disabled={isSaving || isDuplicating}
+                    disabled={isSaving || isDuplicating || isDeleting}
                     className="border-border bg-background text-foreground hover:bg-muted rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-60"
                   >
                     {isDuplicating ? "Duplicating…" : "Duplicate project"}
                   </button>
                   <button
                     type="submit"
-                    disabled={isSaving || isDuplicating}
+                    disabled={isSaving || isDuplicating || isDeleting}
                     className="bg-primary text-primary-foreground rounded-md px-4 py-2 text-sm font-medium disabled:opacity-60"
                   >
                     {isSaving ? "Saving…" : "Save changes"}
                   </button>
+                </div>
+
+                <div className="border-border border-t pt-4">
+                  {!confirmDelete ? (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDelete(true)}
+                      disabled={isSaving || isDuplicating || isDeleting}
+                      className="text-status-critical hover:bg-status-critical-bg rounded-md px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-60"
+                    >
+                      Delete project
+                    </button>
+                  ) : (
+                    <div className="bg-status-critical-bg border-status-critical rounded-lg border p-4">
+                      <p className="text-status-critical mb-3 text-sm font-medium">
+                        Delete &ldquo;{project.name}&rdquo;? This cannot be undone — all programme,
+                        forecast, and timesheet data for this project will be permanently removed.
+                      </p>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteProject()}
+                          disabled={isDeleting}
+                          className="bg-status-critical rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
+                        >
+                          {isDeleting ? "Deleting…" : "Yes, delete permanently"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDelete(false)}
+                          disabled={isDeleting}
+                          className="border-border bg-background text-foreground hover:bg-muted rounded-md border px-3 py-1.5 text-sm font-medium disabled:opacity-60"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </form>
             )}

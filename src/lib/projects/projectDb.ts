@@ -73,3 +73,12 @@ export async function updateProjectInDb(
   if (error) return { error: error.message };
   return { project: rowToProject(data as ProjectRow) };
 }
+
+export async function deleteProjectInDb(
+  client: SupabaseClient,
+  id: string
+): Promise<{ ok: true } | { error: string }> {
+  const { error } = await client.from("projects").delete().eq("id", id);
+  if (error) return { error: error.message };
+  return { ok: true };
+}

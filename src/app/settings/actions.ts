@@ -12,6 +12,7 @@ import {
 } from "@/lib/engineers/engineerDb";
 import {
   createProjectInDb,
+  deleteProjectInDb,
   listProjectsFromDb,
   loadProjectById,
   updateProjectInDb,
@@ -179,6 +180,16 @@ export async function duplicateProjectAction(
   const r = await duplicateProjectInDb(client, sourceProjectId);
   if ("error" in r) return { ok: false, error: r.error };
   return { ok: true, newProjectId: r.projectId };
+}
+
+export async function deleteProjectAction(
+  id: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!id) return { ok: false, error: "Project id is required." };
+  const db = await createServerSupabaseClient();
+  const r = await deleteProjectInDb(db, id);
+  if ("error" in r) return { ok: false, error: r.error };
+  return { ok: true };
 }
 
 export async function updateProjectAction(
