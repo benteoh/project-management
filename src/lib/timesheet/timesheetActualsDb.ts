@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import type { TimesheetAllocationRow } from "@/types/allocations";
+
 export interface TimesheetActualEntry {
   engineerId: string | null;
   scopeId: string | null;
@@ -83,6 +85,52 @@ export async function getTimesheetActualsForProject(
       engineerId: r.engineer_id,
       scopeId: r.scope_id,
       hours: r.hours !== null ? Number(r.hours) : null,
+    })),
+  };
+}
+
+function roundHoursOneDp(n: number): number {
+  return Math.round(n * 10) / 10;
+}
+
+/**
+ * All saved timesheet rows for a project (every upload) with scope, activity, and engineer for the Allocations tab.
+ */
+export async function getTimesheetAllocationRowsForProject(
+  client: SupabaseClient,
+  projectId: string
+): Promise<{ rows: TimesheetAllocationRow[] } | { error: string }> {
+  const { data: uploads, error: uploadsErr } = await client
+    .from("timesheet_uploads")
+    .select("id")
+    .eq("project_id", projectId);
+  if (uploadsErr) return { error: uploadsErr.message };
+
+  const ids = (uploads as { id: string }[]).map((u) => u.id);
+  if (ids.length === 0) return { rows: [] };
+
+  const fetched = await fetchAllTimesheetEntriesForUploads(
+    client,
+    ids,
+    "engineer_id, scope_id, activity_id, hours"
+  );
+  if ("error" in fetched) return { error: fetched.error };
+  const data = fetched.rows;
+
+  return {
+    rows: (
+      data as {
+        engineer_id: string | null;
+        scope_id: string | null;
+        activity_id: string | null;
+        hours: number | null;
+      }[]
+    ).map((r) => ({
+      engineerId: r.engineer_id,
+      scopeId: r.scope_id,
+      activityNodeId: r.activity_id,
+      hours:
+        r.hours !== null && !Number.isNaN(Number(r.hours)) ? roundHoursOneDp(Number(r.hours)) : 0,
     })),
   };
 }

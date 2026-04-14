@@ -8,6 +8,7 @@ import { usePersistedTab } from "@/hooks/usePersistedTab";
 
 import { CvrTab } from "@/components/cvr/CvrTab";
 import { ForecastTab } from "@/components/forecast/ForecastTab";
+import { AllocationsTab } from "@/components/allocations/AllocationsTab";
 import { TimesheetTab } from "@/components/timesheet/TimesheetTab";
 import { ProgrammeTab } from "@/components/programme/ProgrammeTab";
 import type { ProgrammeNode } from "@/components/programme/types";
@@ -22,12 +23,13 @@ import { collectScopeNames } from "@/lib/programme/programmeTree";
 import { formatDate } from "@/lib/utils";
 import type { EngineerPoolEntry } from "@/types/engineer-pool";
 import type { Project } from "@/types/project";
+import type { TimesheetAllocationRow } from "@/types/allocations";
 import type { TimesheetUpload } from "@/types/timesheet";
 import type { ForecastHoursByScopeRecord } from "@/types/forecast-scope";
 
 import { saveProgrammeAction } from "./actions";
 
-const TABS = ["Timesheet", "Programme", "Forecast", "CVR"] as const;
+const TABS = ["Timesheet", "Allocations", "Programme", "Forecast", "CVR"] as const;
 type Tab = (typeof TABS)[number];
 
 function formatProjectStatus(status: Project["status"]): string {
@@ -47,6 +49,7 @@ export default function ProjectPageClient({
   programmeLoadError,
   bankHolidays,
   initialTimesheetUploads,
+  initialAllocationRows,
   forecastHoursByScope,
 }: {
   projectId: string;
@@ -57,6 +60,7 @@ export default function ProjectPageClient({
   programmeLoadError: string | null;
   bankHolidays: string[];
   initialTimesheetUploads: TimesheetUpload[];
+  initialAllocationRows: TimesheetAllocationRow[];
   forecastHoursByScope: ForecastHoursByScopeRecord;
 }) {
   const params = useParams();
@@ -242,6 +246,15 @@ export default function ProjectPageClient({
             programmeTree={programmeTree}
           />
         </div>
+        {activeTab === "Allocations" && (
+          <AllocationsTab
+            projectId={projectId}
+            allocationRows={initialAllocationRows}
+            programmeTree={programmeTree}
+            engineerPool={engineerPool}
+            forecastHoursByScope={forecastHoursByScope}
+          />
+        )}
       </div>
     </div>
   );

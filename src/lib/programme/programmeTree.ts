@@ -79,6 +79,65 @@ export function collectScopeNames(nodes: ProgrammeNode[]): string[] {
   return names;
 }
 
+/** Find any programme node by id (depth-first). */
+export function findProgrammeNodeById(nodes: ProgrammeNode[], id: string): ProgrammeNode | null {
+  for (const n of nodes) {
+    if (n.id === id) return n;
+    const d = findProgrammeNodeById(n.children, id);
+    if (d) return d;
+  }
+  return null;
+}
+
+/** Activity nodes nested under a scope (recursive under `scope.children`). */
+export function collectActivityNodesUnderScopeId(
+  roots: ProgrammeNode[],
+  scopeId: string
+): ProgrammeNode[] {
+  const scope = findProgrammeNodeById(roots, scopeId);
+  if (!scope || scope.type !== "scope") return [];
+  const out: ProgrammeNode[] = [];
+  const walk = (list: ProgrammeNode[]) => {
+    for (const n of list) {
+      if (n.type === "activity") out.push(n);
+      if (n.children.length > 0) walk(n.children);
+    }
+  };
+  walk(scope.children);
+  return out;
+}
+
+/**
+ * Map activity node id and activity code (incl. lowercase) to the **name** of the containing scope.
+ */
+export function buildActivityScopeNameMap(roots: ProgrammeNode[]): Map<string, string> {
+  const m = new Map<string, string>();
+  const registerUnderScope = (scopeName: string, list: ProgrammeNode[]) => {
+    const walk = (nodes: ProgrammeNode[]) => {
+      for (const n of nodes) {
+        if (n.type === "activity") {
+          m.set(n.id, scopeName);
+          const code = n.activityId?.trim();
+          if (code) {
+            m.set(code, scopeName);
+            m.set(code.toLowerCase(), scopeName);
+          }
+        }
+        if (n.children.length > 0) walk(n.children);
+      }
+    };
+    walk(list);
+  };
+  const walkRoots = (nodes: ProgrammeNode[]) => {
+    for (const n of nodes) {
+      if (n.type === "scope") registerUnderScope(n.name, n.children);
+      if (n.children.length > 0) walkRoots(n.children);
+    }
+  };
+  walkRoots(roots);
+  return m;
+}
+
 /** All scope nodes in the tree as `{ id, name }` pairs, in tree order. */
 export function collectScopeNodes(nodes: ProgrammeNode[]): { id: string; name: string }[] {
   const result: { id: string; name: string }[] = [];
