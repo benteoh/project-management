@@ -12,7 +12,16 @@ import {
   type EngineerPoolRow,
 } from "@/lib/timesheet/employeeCellMatch";
 import { collectScopeNodes } from "@/lib/programme/programmeTree";
-import { resolveScopeNodeForTaskIdCell } from "@/lib/timesheet/timesheetLinkedResolve";
+import {
+  findParentScopeNameForActivity,
+  resolveActivityForTimesheetCode,
+  resolveScopeNodeForTaskIdCell,
+} from "@/lib/timesheet/timesheetLinkedResolve";
+import {
+  buildActivityLinkTokens,
+  segmentNotesWithActivityCodes,
+  type NotesActivitySegment,
+} from "@/lib/timesheet/timesheetNotesActivitySegments";
 import {
   computeTimesheetRowIssues,
   TIMESHEET_ISSUE_IDS,
@@ -56,24 +65,80 @@ function TimesheetDataCell({ value, issues }: { value: string; issues: Timesheet
     return <>{value}</>;
   }
   return (
-    <div className="relative pr-6">
-      <span className="block">{value}</span>
+    <div className="relative pl-6">
       <span
-        className="text-status-critical pointer-events-none absolute top-1/2 right-0 inline-flex -translate-y-1/2"
+        className="text-status-critical pointer-events-none absolute top-1/2 left-0 inline-flex -translate-y-1/2"
         aria-hidden
       >
         <AlertTriangle className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
       </span>
+      <span className="block">{value}</span>
     </div>
   );
 }
 
-type LinkedSelection = {
-  rowIndex: number;
-  colIndex: number;
-  linkKind: "project" | "employee" | "scope";
-  cellValue: string;
-} | null;
+function TimesheetNotesWithActivityTags({
+  segments,
+  issues,
+  onCodeClick,
+}: {
+  segments: NotesActivitySegment[];
+  issues: TimesheetRowIssue[];
+  onCodeClick: (matchedText: string) => void;
+}) {
+  const body = (
+    <span className="block max-w-md min-w-0 break-words whitespace-pre-wrap">
+      {segments.map((seg, i) =>
+        seg.kind === "text" ? (
+          <span key={i}>{seg.text}</span>
+        ) : (
+          <button
+            key={i}
+            type="button"
+            className="bg-status-info-bg text-status-info hover:bg-status-info-bg/80 mx-0.5 inline rounded-sm px-1 py-0 align-baseline font-mono text-xs leading-snug font-medium transition-colors"
+            onClick={(e) => {
+              e.stopPropagation();
+              onCodeClick(seg.text);
+            }}
+          >
+            {seg.text}
+          </button>
+        )
+      )}
+    </span>
+  );
+
+  if (issues.length === 0) {
+    return body;
+  }
+  return (
+    <div className="relative pl-6">
+      <span
+        className="text-status-critical pointer-events-none absolute top-1/2 left-0 inline-flex -translate-y-1/2"
+        aria-hidden
+      >
+        <AlertTriangle className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+      </span>
+      {body}
+    </div>
+  );
+}
+
+type LinkedSelection =
+  | {
+      rowIndex: number;
+      colIndex: number;
+      linkKind: "project" | "employee" | "scope";
+      cellValue: string;
+    }
+  | {
+      rowIndex: number;
+      colIndex: number;
+      linkKind: "activity";
+      cellValue: string;
+      matchedCode: string;
+    }
+  | null;
 
 export function TimesheetTable({
   sheet,
@@ -107,6 +172,14 @@ export function TimesheetTable({
   ]);
   const taskIdIdx = findCol(sheet.headers, ["task id", "task_id", "taskid", "scope id", "scope"]);
   const notesIdx = findCol(sheet.headers, ["notes", "note", "description", "comments", "comment"]);
+  const activityColIdx = findCol(sheet.headers, [
+    "activity",
+    "activity code",
+    "activity id",
+    "activity_id",
+    "activity no",
+    "activity no.",
+  ]);
   const projectIdx = findCol(sheet.headers, [
     "project",
     "project code",
@@ -130,6 +203,8 @@ export function TimesheetTable({
   const engRows = useMemo(() => poolToEngRows(engineerPool), [engineerPool]);
 
   const programmeScopes = useMemo(() => collectScopeNodes(programmeTree), [programmeTree]);
+
+  const activityLinkTokens = useMemo(() => buildActivityLinkTokens(programmeTree), [programmeTree]);
 
   const issuesContext = useMemo(
     () => ({
@@ -191,9 +266,22 @@ export function TimesheetTable({
     [employeeIdx, project, projectIdx, taskIdIdx]
   );
 
+  const openActivityPanel = useCallback(
+    (ri: number, ci: number, cell: string, matchedCode: string) => {
+      setLinkedSelection({
+        rowIndex: ri,
+        colIndex: ci,
+        linkKind: "activity",
+        cellValue: cell,
+        matchedCode,
+      });
+    },
+    []
+  );
+
   const sidebarPanel = useMemo((): TimesheetSidebarPanel | null => {
     if (!linkedSelection) return null;
-    const { linkKind, cellValue } = linkedSelection;
+    const { linkKind, cellValue, rowIndex } = linkedSelection;
     if (linkKind === "project") {
       if (!project) return null;
       return { kind: "project", project, cellValue };
@@ -203,9 +291,35 @@ export function TimesheetTable({
       const engineer = engineerId ? (engineerPool.find((e) => e.id === engineerId) ?? null) : null;
       return { kind: "employee", engineer, cellValue };
     }
-    const scope = resolveScopeNodeForTaskIdCell(cellValue, programmeTree, scopeMappings);
-    return { kind: "scope", scope, cellValue };
-  }, [linkedSelection, project, engRows, engineerPool, programmeTree, scopeMappings]);
+    if (linkKind === "scope") {
+      const scope = resolveScopeNodeForTaskIdCell(cellValue, programmeTree, scopeMappings);
+      return { kind: "scope", scope, cellValue };
+    }
+    if (linkKind === "activity") {
+      const taskCell = taskIdIdx >= 0 ? (sheet.rows[rowIndex]?.[taskIdIdx] ?? "") : "";
+      const { matchedCode } = linkedSelection;
+      const activity = resolveActivityForTimesheetCode(
+        matchedCode,
+        taskCell,
+        programmeTree,
+        scopeMappings
+      );
+      const parentScopeName = activity
+        ? findParentScopeNameForActivity(programmeTree, activity.id)
+        : null;
+      return { kind: "activity", activity, cellValue, matchedCode, parentScopeName };
+    }
+    return null;
+  }, [
+    linkedSelection,
+    project,
+    engRows,
+    engineerPool,
+    programmeTree,
+    scopeMappings,
+    sheet.rows,
+    taskIdIdx,
+  ]);
 
   useEffect(() => {
     if (!linkedSelection) return;
@@ -251,7 +365,9 @@ export function TimesheetTable({
         </button>
         <p className="text-muted-foreground max-w-xl text-xs">
           Issues are marked with a small warning on the cell. Hover the marker for details. Click
-          project, employee, or task / scope cells to see details on the right.
+          project, employee, or task / scope cells to see details on the right. Recognised activity
+          codes in notes / description / activity columns appear as blue tags — click a tag for the
+          activity sidebar.
         </p>
       </div>
 
@@ -269,14 +385,20 @@ export function TimesheetTable({
                   const isProjectLink = Boolean(project && projectIdx >= 0 && i === projectIdx);
                   const isEmployeeLink = employeeIdx >= 0 && i === employeeIdx;
                   const isScopeLink = taskIdIdx >= 0 && i === taskIdIdx;
-                  const isLinkedCol = isProjectLink || isEmployeeLink || isScopeLink;
+                  const isNotesOrActivityTags =
+                    (notesIdx >= 0 && i === notesIdx) ||
+                    (activityColIdx >= 0 && i === activityColIdx);
+                  const isLinkedCol =
+                    isProjectLink || isEmployeeLink || isScopeLink || isNotesOrActivityTags;
                   const linkHint = isProjectLink
                     ? "Linked to this project — click any cell for details"
                     : isEmployeeLink
                       ? "Linked to the engineer pool — click any cell for details"
                       : isScopeLink
                         ? "Linked to programme scopes — click any cell for details"
-                        : undefined;
+                        : isNotesOrActivityTags
+                          ? "Activity codes matching the programme appear as clickable tags"
+                          : undefined;
 
                   return (
                     <th
@@ -298,7 +420,7 @@ export function TimesheetTable({
                             <span className="text-muted-foreground/40">—</span>
                           )}
                         </span>
-                        {isLinkedCol ? (
+                        {isProjectLink || isEmployeeLink || isScopeLink ? (
                           <MousePointerClick
                             className="text-gold h-3.5 w-3.5 shrink-0"
                             strokeWidth={2}
@@ -326,16 +448,36 @@ export function TimesheetTable({
                       );
                       const isEmployeeLink = employeeIdx >= 0 && ci === employeeIdx;
                       const isScopeLink = taskIdIdx >= 0 && ci === taskIdIdx;
+                      const isNotesOrActivityTags =
+                        (notesIdx >= 0 && ci === notesIdx) ||
+                        (activityColIdx >= 0 && ci === activityColIdx);
                       const isLinked = isProjectLink || isEmployeeLink || isScopeLink;
+                      const isActivityTagCol =
+                        isNotesOrActivityTags && activityLinkTokens.length > 0;
+                      const segments = isActivityTagCol
+                        ? segmentNotesWithActivityCodes(cell, activityLinkTokens)
+                        : null;
+                      const hasActivityTags = Boolean(segments?.some((s) => s.kind === "code"));
+                      const isActivitySidebar =
+                        linkedSelection?.linkKind === "activity" &&
+                        linkedSelection.rowIndex === ri &&
+                        linkedSelection.colIndex === ci;
                       const isSelected =
-                        linkedSelection?.rowIndex === ri && linkedSelection?.colIndex === ci;
+                        (linkedSelection?.rowIndex === ri &&
+                          linkedSelection?.colIndex === ci &&
+                          linkedSelection.linkKind !== "activity") ||
+                        isActivitySidebar;
 
                       return (
                         <td
                           key={ci}
                           role={isLinked ? "button" : undefined}
                           tabIndex={isLinked ? 0 : undefined}
-                          className={`border-border text-foreground border-r border-b px-4 py-2 align-top whitespace-nowrap ${
+                          className={`border-border text-foreground border-r border-b px-4 py-2 align-top ${
+                            hasActivityTags || (notesIdx >= 0 && ci === notesIdx)
+                              ? "max-w-md whitespace-normal"
+                              : "whitespace-nowrap"
+                          } ${
                             isLinked
                               ? "hover:bg-muted/50 focus-visible:ring-gold cursor-pointer focus-visible:ring-2 focus-visible:outline-none"
                               : ""
@@ -359,7 +501,15 @@ export function TimesheetTable({
                               : undefined
                           }
                         >
-                          <TimesheetDataCell value={cell} issues={cellIssues} />
+                          {segments && hasActivityTags ? (
+                            <TimesheetNotesWithActivityTags
+                              segments={segments}
+                              issues={cellIssues}
+                              onCodeClick={(code) => openActivityPanel(ri, ci, cell, code)}
+                            />
+                          ) : (
+                            <TimesheetDataCell value={cell} issues={cellIssues} />
+                          )}
                         </td>
                       );
                     })}

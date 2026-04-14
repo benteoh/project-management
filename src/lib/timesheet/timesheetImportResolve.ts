@@ -32,6 +32,37 @@ function escapeRegex(s: string): string {
 }
 
 /**
+ * Length of `token` matched in `text` starting exactly at `start`, using the same rules as
+ * {@link matchActivityIdInNotes} / `findTokenIndex` (word boundaries for short tokens).
+ * Returns null when there is no match at that offset.
+ */
+export function activityCodeMatchLengthAt(
+  text: string,
+  start: number,
+  token: string
+): number | null {
+  const t = token.trim();
+  if (!t || start < 0 || start > text.length) return null;
+  const slice = text.slice(start);
+  if (!slice) return null;
+  const lowerSlice = slice.toLowerCase();
+  const lowerT = t.toLowerCase();
+
+  if (t.includes(" ") || t.length >= 8) {
+    if (lowerSlice.startsWith(lowerT)) return t.length;
+    return null;
+  }
+  if (t.length >= 4) {
+    if (slice.startsWith(t)) return t.length;
+    if (lowerSlice.length >= t.length && lowerSlice.startsWith(lowerT)) return t.length;
+    return null;
+  }
+  const re = new RegExp(`^\\b${escapeRegex(t)}\\b`, "i");
+  const m = slice.match(re);
+  return m ? m[0].length : null;
+}
+
+/**
  * Normalise spreadsheet cell: BOM, NBSP, Excel dash variants → ASCII hyphen for parsing.
  */
 export function normaliseProjCellRaw(raw: string): string {

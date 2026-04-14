@@ -78,3 +78,78 @@ export function resolveScopeNodeForTaskIdCell(
   visit(programmeTree);
   return bestNode;
 }
+
+/** Activities nested under a scope node (recursive). */
+function collectActivityNodesUnderScope(scope: ProgrammeNode | null): ProgrammeNode[] {
+  if (!scope) return [];
+  const out: ProgrammeNode[] = [];
+  const walk = (nodes: ProgrammeNode[]) => {
+    for (const n of nodes) {
+      if (n.type === "activity") out.push(n);
+      if (n.children.length > 0) walk(n.children);
+    }
+  };
+  walk(scope.children);
+  return out;
+}
+
+function collectAllActivityNodes(programmeTree: ProgrammeNode[]): ProgrammeNode[] {
+  const out: ProgrammeNode[] = [];
+  const walk = (nodes: ProgrammeNode[]) => {
+    for (const n of nodes) {
+      if (n.type === "activity") out.push(n);
+      if (n.children.length > 0) walk(n.children);
+    }
+  };
+  walk(programmeTree);
+  return out;
+}
+
+/**
+ * Nearest enclosing scope name for an activity node id (for sidebar context).
+ */
+export function findParentScopeNameForActivity(
+  programmeTree: ProgrammeNode[],
+  activityNodeId: string
+): string | null {
+  const visit = (nodes: ProgrammeNode[], parentScope: ProgrammeNode | null): string | null => {
+    for (const n of nodes) {
+      const scope = n.type === "scope" ? n : parentScope;
+      if (n.type === "activity" && n.id === activityNodeId) {
+        return parentScope?.name ?? null;
+      }
+      const found = visit(n.children, scope);
+      if (found !== null) return found;
+    }
+    return null;
+  };
+  return visit(programmeTree, null);
+}
+
+/**
+ * Resolve a clicked activity code to a programme activity: prefer activities under the row’s
+ * resolved scope (from the Task ID cell), then search the whole tree.
+ */
+export function resolveActivityForTimesheetCode(
+  matchedText: string,
+  taskIdCellValue: string,
+  programmeTree: ProgrammeNode[],
+  scopeMappings: Map<string, string>
+): ProgrammeNode | null {
+  const scope = resolveScopeNodeForTaskIdCell(taskIdCellValue, programmeTree, scopeMappings);
+  const underScope = collectActivityNodesUnderScope(scope);
+  const t = matchedText.trim();
+  const lower = t.toLowerCase();
+
+  for (const a of underScope) {
+    if (a.activityId?.trim().toLowerCase() === lower) return a;
+    if (a.id === t) return a;
+  }
+
+  for (const a of collectAllActivityNodes(programmeTree)) {
+    if (a.activityId?.trim().toLowerCase() === lower) return a;
+    if (a.id === t) return a;
+  }
+
+  return null;
+}

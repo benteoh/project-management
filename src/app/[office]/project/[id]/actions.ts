@@ -11,6 +11,7 @@ import {
   deleteTimesheetUpload,
   getTimesheetEntries,
   listTimesheetUploads,
+  relinkTimesheetUpload,
   saveTimesheetUpload,
 } from "@/lib/timesheet/timesheetDb";
 import { getScopeMappings, upsertScopeMapping } from "@/lib/timesheet/scopeMappingDb";
@@ -65,6 +66,14 @@ export async function getTimesheetEntriesAction(
 ): Promise<{ entries: TimesheetEntry[]; headers: string[] } | { error: string }> {
   const client = await createServerSupabaseClient();
   return getTimesheetEntries(client, uploadId);
+}
+
+export async function relinkTimesheetUploadAction(
+  projectId: string,
+  uploadId: string
+): Promise<{ ok: true; updatedCount: number } | { ok: false; error: string }> {
+  const client = await createServerSupabaseClient();
+  return relinkTimesheetUpload(client, projectId, uploadId);
 }
 
 export async function getScopeMappingsAction(

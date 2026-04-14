@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Upload } from "lucide-react";
+import { RefreshCw, Upload } from "lucide-react";
 
 import {
   getTimesheetEntriesAction,
   getScopeMappingsAction,
   listTimesheetUploadsAction,
+  relinkTimesheetUploadAction,
   saveTimesheetUploadAction,
   upsertScopeMappingAction,
 } from "@/app/[office]/project/[id]/actions";
@@ -43,6 +44,8 @@ export function TimesheetTab({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [uploads, setUploads] = useState<TimesheetUpload[]>(initialUploads);
   const [scopeMappings, setScopeMappings] = useState<Map<string, string>>(new Map());
+  const [relinkState, setRelinkState] = useState<"idle" | "working" | "error">("idle");
+  const [relinkError, setRelinkError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -79,6 +82,8 @@ export function TimesheetTab({
     setSaveState("idle");
     setSaveError(null);
     setViewingUpload(null);
+    setRelinkState("idle");
+    setRelinkError(null);
     setLoading(true);
     try {
       const parsed = await parseTimesheetWorkbook(file);
@@ -120,6 +125,20 @@ export function TimesheetTab({
     }
   }
 
+  async function handleRelinkFromRaw() {
+    if (!viewingUpload) return;
+    setRelinkState("working");
+    setRelinkError(null);
+    const res = await relinkTimesheetUploadAction(projectId, viewingUpload.id);
+    if (res.ok) {
+      setRelinkState("idle");
+      await handleViewSaved(viewingUpload);
+    } else {
+      setRelinkState("error");
+      setRelinkError(res.error);
+    }
+  }
+
   async function handleViewSaved(upload: TimesheetUpload) {
     setLoadError(null);
     const res = await getTimesheetEntriesAction(upload.id);
@@ -154,6 +173,8 @@ export function TimesheetTab({
     setSaveState("idle");
     setSaveError(null);
     setLoadError(null);
+    setRelinkState("idle");
+    setRelinkError(null);
   }
 
   const isSaved = saveState === "saved" || viewingUpload !== null;
@@ -241,8 +262,27 @@ export function TimesheetTab({
               )}
             </div>
             <div className="flex shrink-0 items-center gap-3">
+              {relinkState === "error" && relinkError && (
+                <p className="text-status-critical text-xs">{relinkError}</p>
+              )}
               {saveState === "error" && saveError && (
                 <p className="text-status-critical text-xs">{saveError}</p>
+              )}
+              {isSaved && viewingUpload && sheet.rows.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleRelinkFromRaw}
+                  disabled={relinkState === "working"}
+                  title="Re-resolve engineers, scopes, and activities from raw columns using the current programme and mappings"
+                  className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-xs font-medium transition-colors disabled:opacity-50"
+                >
+                  <RefreshCw
+                    className={`h-3.5 w-3.5 shrink-0 ${relinkState === "working" ? "animate-spin" : ""}`}
+                    strokeWidth={2}
+                    aria-hidden
+                  />
+                  {relinkState === "working" ? "Relinking…" : "Relink from raw data"}
+                </button>
               )}
               {!isSaved && (
                 <button

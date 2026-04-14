@@ -16,7 +16,14 @@ import {
 export type TimesheetSidebarPanel =
   | { kind: "project"; project: Project; cellValue: string }
   | { kind: "employee"; engineer: EngineerPoolEntry | null; cellValue: string }
-  | { kind: "scope"; scope: ProgrammeNode | null; cellValue: string };
+  | { kind: "scope"; scope: ProgrammeNode | null; cellValue: string }
+  | {
+      kind: "activity";
+      activity: ProgrammeNode | null;
+      cellValue: string;
+      matchedCode: string;
+      parentScopeName: string | null;
+    };
 
 function formatProjectStatus(status: Project["status"]): string {
   return status.replace(/_/g, " ");
@@ -165,6 +172,7 @@ export function TimesheetLinkSidebar({
           {panel.kind === "project" && "Project"}
           {panel.kind === "employee" && "Employee"}
           {panel.kind === "scope" && "Scope"}
+          {panel.kind === "activity" && "Activity"}
         </h3>
         <button
           type="button"
@@ -176,8 +184,23 @@ export function TimesheetLinkSidebar({
         </button>
       </div>
       <div className="text-muted-foreground border-border border-b px-4 py-2 text-xs leading-snug">
-        Timesheet value:{" "}
-        <span className="text-foreground font-mono break-words">{panel.cellValue || "—"}</span>
+        {panel.kind === "activity" ? (
+          <>
+            <span className="text-muted-foreground block">Matched code</span>
+            <span className="text-foreground mt-0.5 block font-mono break-words">
+              {panel.matchedCode || "—"}
+            </span>
+            <span className="text-muted-foreground mt-2 block">Full cell</span>
+            <span className="text-foreground mt-0.5 block break-words">
+              {panel.cellValue || "—"}
+            </span>
+          </>
+        ) : (
+          <>
+            Timesheet value:{" "}
+            <span className="text-foreground font-mono break-words">{panel.cellValue || "—"}</span>
+          </>
+        )}
       </div>
       <div className="flex-1 overflow-auto p-4">
         {panel.kind === "project" && (
@@ -296,6 +319,63 @@ export function TimesheetLinkSidebar({
               programmeScopes={programmeScopes}
               onAddMapping={onAddMapping}
             />
+          ))}
+
+        {panel.kind === "activity" &&
+          (panel.activity ? (
+            <dl className="space-y-3 text-sm">
+              {panel.parentScopeName ? (
+                <div>
+                  <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                    Scope
+                  </dt>
+                  <dd className="text-foreground mt-0.5 font-medium">{panel.parentScopeName}</dd>
+                </div>
+              ) : null}
+              <div>
+                <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                  Activity name
+                </dt>
+                <dd className="text-foreground mt-0.5 font-medium">{panel.activity.name}</dd>
+              </div>
+              {panel.activity.activityId ? (
+                <div>
+                  <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                    Activity code
+                  </dt>
+                  <dd className="text-foreground mt-0.5 font-mono">{panel.activity.activityId}</dd>
+                </div>
+              ) : null}
+              <div>
+                <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                  Dates
+                </dt>
+                <dd className="text-foreground mt-0.5">
+                  {panel.activity.start || panel.activity.finish
+                    ? `${formatDate(panel.activity.start)} – ${formatDate(panel.activity.finish)}`
+                    : "—"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                  Hours
+                </dt>
+                <dd className="text-foreground mt-0.5">
+                  {panel.activity.totalHours != null ? panel.activity.totalHours : "—"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                  Status
+                </dt>
+                <dd className="text-foreground mt-0.5">{panel.activity.status || "—"}</dd>
+              </div>
+            </dl>
+          ) : (
+            <p className="text-muted-foreground text-sm">
+              No activity on this programme matches that code for this row&apos;s task / scope.
+              Check the Task ID cell or add the activity under the right scope.
+            </p>
           ))}
       </div>
     </aside>
