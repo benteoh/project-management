@@ -65,14 +65,14 @@ function TimesheetDataCell({ value, issues }: { value: string; issues: Timesheet
     return <>{value}</>;
   }
   return (
-    <div className="relative pl-6">
+    <div className="relative pr-6">
+      <span className="block">{value}</span>
       <span
-        className="text-status-critical pointer-events-none absolute top-1/2 left-0 inline-flex -translate-y-1/2"
+        className="text-status-critical pointer-events-none absolute top-1/2 right-0 inline-flex -translate-y-1/2"
         aria-hidden
       >
         <AlertTriangle className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
       </span>
-      <span className="block">{value}</span>
     </div>
   );
 }
@@ -112,14 +112,14 @@ function TimesheetNotesWithActivityTags({
     return body;
   }
   return (
-    <div className="relative pl-6">
+    <div className="relative pr-6">
+      {body}
       <span
-        className="text-status-critical pointer-events-none absolute top-1/2 left-0 inline-flex -translate-y-1/2"
+        className="text-status-critical pointer-events-none absolute top-1/2 right-0 inline-flex -translate-y-1/2"
         aria-hidden
       >
         <AlertTriangle className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
       </span>
-      {body}
     </div>
   );
 }
