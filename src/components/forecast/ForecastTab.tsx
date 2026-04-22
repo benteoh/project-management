@@ -368,7 +368,7 @@ export function ForecastTab({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+    <div className="flex flex-col">
       {draftConflict && (
         <div
           className="bg-status-warning-bg text-status-warning border-border flex shrink-0 flex-wrap items-center justify-between gap-3 border-b px-4 py-2 text-sm"
@@ -529,23 +529,21 @@ export function ForecastTab({
       {saveError && <p className="text-status-critical shrink-0 px-4 pb-1 text-xs">{saveError}</p>}
 
       {/* AG Grid */}
-      <div className="relative min-h-0 flex-1">
+      <div className="relative">
         {forecastLoading || hydratePayload === null ? (
-          <div className="bg-muted/40 m-4 flex-1 animate-pulse rounded-lg" aria-hidden />
+          <div className="bg-muted/40 m-4 h-64 animate-pulse rounded-lg" aria-hidden />
         ) : (
-          <div className="absolute inset-0">
-            <ForecastAgGrid
-              ref={gridRef}
-              rows={filteredRows}
-              dailyDates={dailyDates}
-              bankHolidays={bankHolidays}
-              todayIso={todayIso}
-              scrollToTodayRef={scrollToTodayRef}
-              hydratePayload={hydratePayload}
-              onPersistableChange={onPersistableChange}
-              showRateAndSpendColumns={showRateAndSpendColumns}
-            />
-          </div>
+          <ForecastAgGrid
+            ref={gridRef}
+            rows={filteredRows}
+            dailyDates={dailyDates}
+            bankHolidays={bankHolidays}
+            todayIso={todayIso}
+            scrollToTodayRef={scrollToTodayRef}
+            hydratePayload={hydratePayload}
+            onPersistableChange={onPersistableChange}
+            showRateAndSpendColumns={showRateAndSpendColumns}
+          />
         )}
       </div>
 

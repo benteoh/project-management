@@ -216,7 +216,7 @@ export const ForecastAgGrid = forwardRef<ForecastAgGridHandle, Props>(function F
     if (rowNodes.length > 0) api.refreshCells({ rowNodes, force: true });
   }, [pendingFill]);
 
-  // ── Scroll to today ────────────────────────────────────────────────────────
+  // ── Scroll to today ────────────────────────────────��───────────────────────
   const scrollToToday = useCallback(() => {
     gridRef.current?.api?.ensureColumnVisible(todayIso, "middle");
   }, [todayIso]);
@@ -424,7 +424,7 @@ export const ForecastAgGrid = forwardRef<ForecastAgGridHandle, Props>(function F
         }
       `}</style>
 
-      <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      <div style={{ display: "flex", flexDirection: "column" }}>
         {/* Autofill toolbar — also shows inline preview/confirm when active */}
         <AutofillToolbar
           hasSelection={hasSelection}
@@ -442,14 +442,11 @@ export const ForecastAgGrid = forwardRef<ForecastAgGridHandle, Props>(function F
         />
 
         {/* Grid container — needs tabIndex to receive keyboard / paste events */}
-        <div
-          ref={containerRef}
-          tabIndex={-1}
-          style={{ flex: 1, position: "relative", outline: "none", minHeight: 0 }}
-        >
+        <div ref={containerRef} tabIndex={-1} style={{ position: "relative", outline: "none" }}>
           <AgGridReact<RowData>
             ref={gridRef}
             theme={forecastTheme}
+            domLayout="autoHeight"
             groupHeaderHeight={20}
             rowData={rowData}
             columnDefs={columnDefs}
