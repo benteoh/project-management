@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "seed": "npx tsx supabase/seed.ts",
+    "seed:617-csv": "npx tsx supabase/writeIverEghamCsvs.ts",
     "db:start": "npx supabase start",
     "db:stop": "npx supabase stop",
     "db:status": "npx supabase status",

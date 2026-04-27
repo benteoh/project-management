@@ -24,7 +24,10 @@ export type SeedEngineerDef = {
   firstName: string;
   lastName: string;
   maxWeeklyHours: number;
+  /** Rates for the primary seed project (Euston). */
   seedProjectRates?: SeedProjectRates;
+  /** Rates for the 617 seed project (Iver & Egham). */
+  seedProjectRates2?: SeedProjectRates;
 };
 
 /**
@@ -42,6 +45,7 @@ const SEED_ENGINEERS: readonly SeedEngineerDef[] = [
     lastName: "Petit",
     maxWeeklyHours: 6,
     seedProjectRates: { rateA: 104.375, rateB: 91.89 },
+    seedProjectRates2: { rateA: 104.375, rateB: null },
   },
   {
     firstName: "Desirée",
@@ -54,6 +58,7 @@ const SEED_ENGINEERS: readonly SeedEngineerDef[] = [
     lastName: "Chaplin",
     maxWeeklyHours: 24,
     seedProjectRates: { rateA: 131.875, rateB: 147.22 },
+    seedProjectRates2: { rateA: 131.875, rateB: null },
   },
   {
     firstName: "Rufino",
@@ -78,6 +83,7 @@ const SEED_ENGINEERS: readonly SeedEngineerDef[] = [
     lastName: "Wroblicka",
     maxWeeklyHours: 40,
     seedProjectRates: { rateA: 104.375, rateB: 116.52 },
+    seedProjectRates2: { rateA: 104.375, rateB: null },
   },
   {
     firstName: "Meryl",
@@ -96,12 +102,14 @@ const SEED_ENGINEERS: readonly SeedEngineerDef[] = [
     lastName: "Feiersinger",
     maxWeeklyHours: 40,
     seedProjectRates: { rateA: 171.56, rateB: 191.53 },
+    seedProjectRates2: { rateA: 171.56, rateB: null },
   },
   {
     firstName: "Brian",
     lastName: "Lyons",
     maxWeeklyHours: 40,
     seedProjectRates: { rateA: 171.56, rateB: 191.53 },
+    seedProjectRates2: { rateA: 171.56, rateB: null },
   },
   {
     firstName: "Alex",
@@ -144,6 +152,7 @@ const SEED_ENGINEERS: readonly SeedEngineerDef[] = [
     lastName: "Law",
     maxWeeklyHours: 40,
     seedProjectRates: { rateA: 104.375, rateB: 116.52 },
+    seedProjectRates2: { rateA: 104.375, rateB: null },
   },
   {
     firstName: "Phil",
@@ -187,6 +196,12 @@ const SEED_ENGINEERS: readonly SeedEngineerDef[] = [
     maxWeeklyHours: 40,
     seedProjectRates: { rateA: 171.56, rateB: 191.53 },
   },
+  {
+    firstName: "Sebastian",
+    lastName: "Kumpfmueller",
+    maxWeeklyHours: 40,
+    seedProjectRates2: { rateA: 131.875, rateB: null },
+  },
 ];
 
 /** Demo engineer roster for `npm run seed` (`engineer_pool`). */
@@ -199,11 +214,20 @@ export const SEED_ENGINEER_ROWS = SEED_ENGINEERS.map((r) => ({
 
 export type SeedEngineerRow = (typeof SEED_ENGINEER_ROWS)[number];
 
-/** Rows for `project_engineers` on the seed project — derived from {@link SEED_ENGINEERS}, no duplicate names. */
+/** Rows for `project_engineers` on the primary seed project (Euston). */
 export const SEED_PROJECT_ENGINEER_RATE_ROWS = SEED_ENGINEERS.filter(
   (e): e is SeedEngineerDef & { seedProjectRates: SeedProjectRates } => e.seedProjectRates != null
 ).map((e) => ({
   code: deriveEngineerCodeBase(e.firstName, e.lastName),
   rateA: e.seedProjectRates.rateA,
   rateB: e.seedProjectRates.rateB,
+}));
+
+/** Rows for `project_engineers` on the 617 seed project (Iver & Egham). */
+export const SEED_617_PROJECT_ENGINEER_RATE_ROWS = SEED_ENGINEERS.filter(
+  (e): e is SeedEngineerDef & { seedProjectRates2: SeedProjectRates } => e.seedProjectRates2 != null
+).map((e) => ({
+  code: deriveEngineerCodeBase(e.firstName, e.lastName),
+  rateA: e.seedProjectRates2.rateA,
+  rateB: e.seedProjectRates2.rateB,
 }));

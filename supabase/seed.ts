@@ -23,10 +23,18 @@ import {
   SEED_PROJECT_ID,
   seedProjectRow,
 } from "../src/lib/programme/seedConfig";
+import {
+  buildIverEghamProgrammeNodes,
+  iverEghamSeedData,
+  IVER_EGHAM_PROJECT_ENGINEER_RATES,
+  IVER_EGHAM_PROJECT_ID,
+  iverEghamProjectRow,
+} from "../src/lib/seed/iverEghamSeed";
 import { applySeedScopeQuotations } from "../src/lib/programme/seedScopeQuotations";
 import { SEED_SCOPE_ENGINEER_FALLBACK } from "../src/lib/seed/programmeSeedDemo";
 import { parseCsvDataLine } from "../src/lib/seed/seedCsv";
 import {
+  collectSeedScopeForecastSpecs,
   defaultSeedScopeForecastSpecs,
   programmeDemoTimesheetTaskCellToScopeId,
 } from "../src/lib/seed/seedProgrammeScopeMetadata";
@@ -50,6 +58,14 @@ const TIMESHEET_DEMO_CSV = join(__dirname, "seed", "csv", "timesheet_programme_d
 /** Synthetic upload name for {@link TIMESHEET_DEMO_CSV} on the primary seed project. */
 const TIMESHEET_DEMO_FILE_NAME = "Programme_demo_timesheet.csv";
 
+const FORECAST_617_CSV = join(__dirname, "seed", "csv", "forecast_617.csv");
+const SCOPE_ENGINEERS_617_CSV = join(__dirname, "seed", "csv", "scope_engineers_617.csv");
+const TIMESHEET_617_CSV = join(__dirname, "seed", "csv", "timesheet_617.csv");
+const TIMESHEET_617_FILE_NAME = "Iver_Egham_617_timesheet.csv";
+
+const DEMO_617_CSV_HINT =
+  "Run npm run seed:617-csv to generate 617 demo CSVs, then npm run seed again.";
+
 const DEMO_CSV_HINT =
   "Run npm run seed:programme-csv to generate demo CSVs, then npm run seed again.";
 
@@ -63,10 +79,12 @@ type ForecastSeedRow = {
 
 function parseForecastProgrammeDemoCsv(
   csvPath: string,
-  codeToId: Map<string, string>
+  codeToId: Map<string, string>,
+  expectedProjectId: string = SEED_PROJECT_ID,
+  hint: string = DEMO_CSV_HINT
 ): ForecastSeedRow[] {
   if (!existsSync(csvPath)) {
-    throw new Error(`Missing ${csvPath}. ${DEMO_CSV_HINT}`);
+    throw new Error(`Missing ${csvPath}. ${hint}`);
   }
   const raw = readFileSync(csvPath, "utf8").replace(/^\uFEFF/, "");
   const lines = raw.split(/\r?\n/).filter((l) => l.trim() !== "");
@@ -95,7 +113,7 @@ function parseForecastProgrammeDemoCsv(
     const code = cols[2]!.trim();
     const date = cols[3]!.trim();
     const hours = Number(cols[4]!.trim());
-    if (projectId !== SEED_PROJECT_ID) continue;
+    if (projectId !== expectedProjectId) continue;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       throw new Error(`Forecast demo CSV line ${i + 1}: invalid date ${date}`);
     }
@@ -469,6 +487,95 @@ async function seed() {
     demoScopeSpecs
   );
   await insertTimesheetUpload(SEED_PROJECT_ID, TIMESHEET_DEMO_FILE_NAME, demoTimesheetRows);
+
+  // ---- 617: Iver & Egham ---------------------------------------------------
+  const { error: iverProjectErr } = await supabase
+    .from("projects")
+    .upsert([iverEghamProjectRow], { onConflict: "id" });
+  if (iverProjectErr) throw new Error(`projects (617): ${iverProjectErr.message}`);
+  console.log("✓ project (Iver & Egham - 617)");
+
+  const iverEghamNodes = buildIverEghamProgrammeNodes(codeToId);
+  const { nodeRows: iverNodeRows } = flattenTree(iverEghamNodes, IVER_EGHAM_PROJECT_ID);
+  const { error: iverNodesErr } = await supabase
+    .from("programme_nodes")
+    .upsert(iverNodeRows, { onConflict: "id" });
+  if (iverNodesErr) throw new Error(`programme_nodes (617): ${iverNodesErr.message}`);
+  console.log(`✓ ${iverNodeRows.length} programme nodes (617)`);
+
+  const iverProjectEngineerRows = IVER_EGHAM_PROJECT_ENGINEER_RATES.map((r) => {
+    const engineerId = codeToId.get(r.code);
+    if (!engineerId) throw new Error(`project_engineers (617): no pool id for code ${r.code}`);
+    return {
+      project_id: IVER_EGHAM_PROJECT_ID,
+      engineer_id: engineerId,
+      rate_a: r.rateA,
+      rate_b: r.rateB,
+      rate_c: null as number | null,
+      rate_d: null as number | null,
+      rate_e: null as number | null,
+    };
+  });
+  const { error: iverPeErr } = await supabase
+    .from("project_engineers")
+    .upsert(iverProjectEngineerRows, { onConflict: "project_id,engineer_id" });
+  if (iverPeErr) throw new Error(`project_engineers (617): ${iverPeErr.message}`);
+  console.log(`✓ ${iverProjectEngineerRows.length} project-engineer rate rows (617)`);
+
+  const iverScopeIds = collectScopeIds(iverEghamNodes);
+  if (iverScopeIds.length > 0) {
+    const { error: delIverSeErr } = await supabase
+      .from("scope_engineers")
+      .delete()
+      .in("scope_id", iverScopeIds);
+    if (delIverSeErr) throw new Error(`scope_engineers delete (617): ${delIverSeErr.message}`);
+  }
+
+  const iverScopeEng = parseScopeEngineersProgrammeDemoCsv(SCOPE_ENGINEERS_617_CSV, codeToId);
+  if (iverScopeEng.length > 0) {
+    const { error: iverSeErr } = await supabase
+      .from("scope_engineers")
+      .upsert(iverScopeEng, { onConflict: "scope_id,engineer_id" });
+    if (iverSeErr) throw new Error(`scope_engineers (617): ${iverSeErr.message}`);
+  }
+  console.log(`✓ ${iverScopeEng.length} scope-engineer rows (617, demo CSV)`);
+
+  const iverForecastRows = parseForecastProgrammeDemoCsv(
+    FORECAST_617_CSV,
+    codeToId,
+    IVER_EGHAM_PROJECT_ID,
+    DEMO_617_CSV_HINT
+  );
+  const { error: delIverForecastErr } = await supabase
+    .from("forecast_entries")
+    .delete()
+    .eq("project_id", IVER_EGHAM_PROJECT_ID);
+  if (delIverForecastErr)
+    throw new Error(`forecast_entries delete (617): ${delIverForecastErr.message}`);
+  if (iverForecastRows.length > 0) {
+    const { error: iverFcErr } = await supabase.from("forecast_entries").insert(iverForecastRows);
+    if (iverFcErr) throw new Error(`forecast_entries (617): ${iverFcErr.message}`);
+  }
+  console.log(`✓ ${iverForecastRows.length} forecast entries (617, demo CSV)`);
+
+  const { error: delIverUpErr } = await supabase
+    .from("timesheet_uploads")
+    .delete()
+    .eq("project_id", IVER_EGHAM_PROJECT_ID);
+  if (delIverUpErr) throw new Error(`timesheet_uploads delete (617): ${delIverUpErr.message}`);
+
+  const iverScopeSpecs = collectSeedScopeForecastSpecs(iverEghamSeedData, {
+    fallbackAllocations: [],
+    underAllocatedScopeIds: new Set(),
+    overAllocatedScopeIds: new Set(),
+  });
+  const iverTimesheetRows = parseTimesheetProgrammeDemoCsv(
+    TIMESHEET_617_CSV,
+    codeToId,
+    iverEghamProjectRow.project_code ?? "",
+    iverScopeSpecs
+  );
+  await insertTimesheetUpload(IVER_EGHAM_PROJECT_ID, TIMESHEET_617_FILE_NAME, iverTimesheetRows);
 
   console.log("Done.");
 }
