@@ -32,7 +32,7 @@ export const seedProjectRow: ProjectUpsertRow = {
   client: "HS2 Ltd",
   office_id: SEED_LONDON_OFFICE_ID,
   status: "active",
-  fixed_fee: 230_000,
+  fixed_fee: 2_000_000,
   start_date: "2025-01-06",
   end_date: "2026-06-30",
 };
