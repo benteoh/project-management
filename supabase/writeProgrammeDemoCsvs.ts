@@ -30,10 +30,23 @@ import {
   programmeScopeNameForTimesheetDisplay,
   type SeedScopeForecastSpec,
 } from "../src/lib/seed/seedProgrammeScopeMetadata";
+import { deriveEngineerCodeBase } from "../src/lib/engineers/engineerCode";
+import { SEED_ENGINEER_ROWS } from "../src/lib/programme/seedConfig";
 import { sumAllocationPlannedHrs } from "../src/lib/seed/scopeEngineerPlannedDistribution";
 import { toCsvContent } from "../src/lib/seed/seedCsv";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+function engineerDisplayName(firstName: string, lastName: string): string {
+  return `${lastName} ${firstName[0]}.`;
+}
+
+const CODE_TO_EMPLOYEE = new Map(
+  SEED_ENGINEER_ROWS.map((r) => [
+    deriveEngineerCodeBase(r.firstName, r.lastName),
+    engineerDisplayName(r.firstName, r.lastName),
+  ])
+);
 const ROOT = resolve(__dirname, "..");
 const OUT_DIR = join(ROOT, "supabase", "seed", "csv");
 const DEMO_SEED = 42;
@@ -125,10 +138,10 @@ function main() {
   );
 
   const timesheetCsv = toCsvContent(
-    ["Date", "Code", "Hours", "Task ID", "Project", "Description"],
+    ["Date", "Employee", "Hours", "Task ID", "Project", "Notes"],
     timesheetRows.map((r) => [
       r.date.split("-").reverse().join("/"),
-      r.code,
+      CODE_TO_EMPLOYEE.get(r.code) ?? r.code,
       String(r.hours),
       r.taskId,
       PROGRAMME_DEMO_PROJECT_CODE,

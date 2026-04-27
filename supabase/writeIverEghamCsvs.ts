@@ -40,6 +40,17 @@ const NAME_TO_CODE: Record<string, string> = {
   "Alex Petit": "APe",
 };
 
+function nameToEmployee(fullName: string): string {
+  const parts = fullName.trim().split(/\s+/);
+  const last = parts.at(-1) ?? fullName;
+  const first = parts[0] ?? "";
+  return first ? `${last} ${first[0]}.` : last;
+}
+
+const CODE_TO_EMPLOYEE = new Map(
+  Object.entries(NAME_TO_CODE).map(([name, code]) => [code, nameToEmployee(name)])
+);
+
 const MONTH_ABBR: Record<string, string> = {
   Jan: "01",
   Feb: "02",
@@ -226,10 +237,10 @@ function main() {
   writeFileSync(
     join(OUT_DIR, "timesheet_617.csv"),
     toCsvContent(
-      ["Date", "Code", "Hours", "Task ID", "Project", "Description"],
+      ["Date", "Employee", "Hours", "Task ID", "Project", "Notes"],
       timesheetRows.map((r) => [
         r.date.split("-").reverse().join("/"),
-        r.code,
+        CODE_TO_EMPLOYEE.get(r.code) ?? r.code,
         String(r.hours),
         r.taskId,
         iverEghamProjectRow.project_code ?? "",

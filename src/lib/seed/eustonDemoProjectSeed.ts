@@ -83,7 +83,7 @@ function activityIdFromTimesheetDescription(description: string): string | null 
 
 function parseTimesheetProgrammeDemoCsv(
   raw: string,
-  codeToId: Map<string, string>,
+  displayToId: Map<string, string>,
   expectedProjectCode: string,
   scopeSpecs: ReadonlyArray<{ scopeId: string; name: string }>
 ): TimesheetSeedEntryRow[] {
@@ -92,7 +92,7 @@ function parseTimesheetProgrammeDemoCsv(
     throw new Error("Timesheet demo CSV has no data rows");
   }
   const header = lines[0]!.split(",").map((c) => c.trim());
-  const expected = ["Date", "Code", "Hours", "Task ID", "Project", "Description"];
+  const expected = ["Date", "Employee", "Hours", "Task ID", "Project", "Notes"];
   if (header.length !== expected.length || !expected.every((h, i) => header[i] === h)) {
     throw new Error(`Timesheet demo CSV unexpected header (got: ${lines[0]})`);
   }
@@ -104,12 +104,12 @@ function parseTimesheetProgrammeDemoCsv(
       throw new Error(`Timesheet demo CSV line ${i + 1}: expected at least 6 columns`);
     }
     const dateRaw = cols[0]!;
-    const code = cols[1]!;
+    const employee = cols[1]!;
     const hoursN = Number(cols[2]!);
     const taskCell = cols[3]!;
     const scopeId = programmeDemoTimesheetTaskCellToScopeId(taskCell, scopeSpecs);
     const projectCol = cols[4]!;
-    const description = cols.slice(5).join(",");
+    const notes = cols.slice(5).join(",");
 
     if (projectCol !== expectedProjectCode) {
       throw new Error(
@@ -121,19 +121,19 @@ function parseTimesheetProgrammeDemoCsv(
     }
 
     const entryDate = parseDdMmYyyyToIso(dateRaw, i + 1);
-    const engineerId = codeToId.get(code) ?? null;
+    const engineerId = displayToId.get(employee) ?? null;
     if (!engineerId) {
-      throw new Error(`Timesheet demo CSV line ${i + 1}: unknown engineer code ${code}`);
+      throw new Error(`Timesheet demo CSV line ${i + 1}: unknown employee "${employee}"`);
     }
 
-    const activityId = activityIdFromTimesheetDescription(description);
+    const activityId = activityIdFromTimesheetDescription(notes);
     const rawData: Record<string, string> = {
       Date: dateRaw,
-      Code: code,
+      Employee: employee,
       Hours: String(hoursN),
       "Task ID": taskCell,
       Project: projectCol,
-      Description: description,
+      Notes: notes,
     };
 
     out.push({
@@ -142,7 +142,7 @@ function parseTimesheetProgrammeDemoCsv(
       hours: hoursN,
       scopeId,
       activityId,
-      notes: description,
+      notes,
       rawData,
     });
   }
@@ -363,10 +363,12 @@ export async function insertEustonDemoProject(
 
     const { data: poolRows, error: poolErr } = await client
       .from("engineer_pool")
-      .select("id, code");
+      .select("id, code, first_name, last_name");
     if (poolErr) return { ok: false, error: poolErr.message };
-    const codeToId = new Map(
-      (poolRows ?? []).map((r: { id: string; code: string }) => [r.code, r.id])
+    type PoolRow = { id: string; code: string; first_name: string; last_name: string };
+    const codeToId = new Map((poolRows ?? []).map((r: PoolRow) => [r.code, r.id]));
+    const displayToId = new Map(
+      (poolRows ?? []).map((r: PoolRow) => [`${r.last_name} ${r.first_name[0]}.`, r.id])
     );
     if (codeToId.size === 0) {
       return {
@@ -440,7 +442,7 @@ export async function insertEustonDemoProject(
     const timesheetRaw = readRequiredCsv(TIMESHEET_CSV);
     const timesheetRows = parseTimesheetProgrammeDemoCsv(
       timesheetRaw,
-      codeToId,
+      displayToId,
       seedProjectRow.project_code ?? "",
       tsSpecs
     );
