@@ -84,7 +84,7 @@ const rawIverEghamNodes: SeedProgrammeNode[] = [
         totalHours: 54,
         start: "01-Jul-25",
         finish: "31-Oct-25",
-        status: "Completed",
+        status: "In Progress",
         children: [],
       },
       {
@@ -95,7 +95,7 @@ const rawIverEghamNodes: SeedProgrammeNode[] = [
         totalHours: 54,
         start: "01-Jul-25",
         finish: "31-Oct-25",
-        status: "Completed",
+        status: "In Progress",
         children: [],
       },
       {
@@ -106,7 +106,7 @@ const rawIverEghamNodes: SeedProgrammeNode[] = [
         totalHours: 36,
         start: "01-Jul-25",
         finish: "31-Oct-25",
-        status: "Completed",
+        status: "In Progress",
         children: [],
       },
       {
@@ -117,7 +117,7 @@ const rawIverEghamNodes: SeedProgrammeNode[] = [
         totalHours: 108,
         start: "01-Aug-25",
         finish: "31-Oct-25",
-        status: "Completed",
+        status: "In Progress",
         children: [],
       },
       {
@@ -128,7 +128,7 @@ const rawIverEghamNodes: SeedProgrammeNode[] = [
         totalHours: 108,
         start: "01-Aug-25",
         finish: "31-Oct-25",
-        status: "Completed",
+        status: "In Progress",
         children: [],
       },
     ],
@@ -157,7 +157,7 @@ const rawIverEghamNodes: SeedProgrammeNode[] = [
         totalHours: 79,
         start: "01-Sep-25",
         finish: "31-Oct-25",
-        status: "Completed",
+        status: "In Progress",
         children: [],
       },
       {
@@ -168,7 +168,7 @@ const rawIverEghamNodes: SeedProgrammeNode[] = [
         totalHours: 79,
         start: "01-Nov-25",
         finish: "31-Jan-26",
-        status: "Completed",
+        status: "In Progress",
         children: [],
       },
       {
@@ -179,7 +179,7 @@ const rawIverEghamNodes: SeedProgrammeNode[] = [
         totalHours: 79,
         start: "01-Nov-25",
         finish: "12-Feb-26",
-        status: "Completed",
+        status: "In Progress",
         children: [],
       },
       {
@@ -190,7 +190,7 @@ const rawIverEghamNodes: SeedProgrammeNode[] = [
         totalHours: 197,
         start: "01-Dec-25",
         finish: "02-Mar-26",
-        status: "Completed",
+        status: "In Progress",
         children: [],
       },
       {
@@ -201,7 +201,7 @@ const rawIverEghamNodes: SeedProgrammeNode[] = [
         totalHours: 79,
         start: "01-Sep-25",
         finish: "16-Jun-26",
-        status: "In Progress",
+        status: "Not Started",
         children: [],
       },
       {
@@ -212,7 +212,7 @@ const rawIverEghamNodes: SeedProgrammeNode[] = [
         totalHours: 197,
         start: "01-Sep-25",
         finish: "16-Jun-26",
-        status: "In Progress",
+        status: "Not Started",
         children: [],
       },
       {
@@ -247,7 +247,7 @@ const rawIverEghamNodes: SeedProgrammeNode[] = [
         totalHours: 33,
         start: "01-Sep-25",
         finish: "31-Oct-25",
-        status: "Completed",
+        status: "In Progress",
         children: [],
       },
       {
@@ -258,7 +258,7 @@ const rawIverEghamNodes: SeedProgrammeNode[] = [
         totalHours: 33,
         start: "01-Nov-25",
         finish: "31-Jan-26",
-        status: "Completed",
+        status: "In Progress",
         children: [],
       },
       {
@@ -269,7 +269,7 @@ const rawIverEghamNodes: SeedProgrammeNode[] = [
         totalHours: 33,
         start: "01-Nov-25",
         finish: "19-Jan-26",
-        status: "Completed",
+        status: "In Progress",
         children: [],
       },
       {
@@ -280,7 +280,7 @@ const rawIverEghamNodes: SeedProgrammeNode[] = [
         totalHours: 33,
         start: "01-Nov-25",
         finish: "04-Feb-26",
-        status: "Completed",
+        status: "In Progress",
         children: [],
       },
       {
@@ -291,7 +291,7 @@ const rawIverEghamNodes: SeedProgrammeNode[] = [
         totalHours: 82,
         start: "01-Nov-25",
         finish: "24-Apr-26",
-        status: "Completed",
+        status: "In Progress",
         children: [],
       },
       {
@@ -302,7 +302,7 @@ const rawIverEghamNodes: SeedProgrammeNode[] = [
         totalHours: 82,
         start: "01-Nov-25",
         finish: "24-Apr-26",
-        status: "Completed",
+        status: "In Progress",
         children: [],
       },
       {
@@ -313,7 +313,7 @@ const rawIverEghamNodes: SeedProgrammeNode[] = [
         totalHours: 33,
         start: "01-Apr-26",
         finish: "20-Jul-26",
-        status: "In Progress",
+        status: "Not Started",
         children: [],
       },
     ],
@@ -337,7 +337,7 @@ const rawIverEghamNodes: SeedProgrammeNode[] = [
         totalHours: 23,
         start: "01-Nov-25",
         finish: "31-Jan-26",
-        status: "Completed",
+        status: "In Progress",
         children: [],
       },
       {
@@ -348,7 +348,7 @@ const rawIverEghamNodes: SeedProgrammeNode[] = [
         totalHours: 23,
         start: "01-Nov-25",
         finish: "31-Jan-26",
-        status: "Completed",
+        status: "In Progress",
         children: [],
       },
       {
@@ -359,7 +359,7 @@ const rawIverEghamNodes: SeedProgrammeNode[] = [
         totalHours: 23,
         start: "01-Nov-25",
         finish: "12-Jan-26",
-        status: "Completed",
+        status: "In Progress",
         children: [],
       },
       {
@@ -370,7 +370,7 @@ const rawIverEghamNodes: SeedProgrammeNode[] = [
         totalHours: 23,
         start: "01-Nov-25",
         finish: "28-Jan-26",
-        status: "Completed",
+        status: "In Progress",
         children: [],
       },
       {
@@ -381,7 +381,7 @@ const rawIverEghamNodes: SeedProgrammeNode[] = [
         totalHours: 57,
         start: "01-Nov-25",
         finish: "09-Feb-26",
-        status: "Completed",
+        status: "In Progress",
         children: [],
       },
       {
@@ -392,7 +392,7 @@ const rawIverEghamNodes: SeedProgrammeNode[] = [
         totalHours: 57,
         start: "01-Nov-25",
         finish: "09-Feb-26",
-        status: "Completed",
+        status: "In Progress",
         children: [],
       },
       {
@@ -403,7 +403,7 @@ const rawIverEghamNodes: SeedProgrammeNode[] = [
         totalHours: 23,
         start: "01-Feb-26",
         finish: "20-Apr-26",
-        status: "Completed",
+        status: "In Progress",
         children: [],
       },
     ],
@@ -427,7 +427,7 @@ const rawIverEghamNodes: SeedProgrammeNode[] = [
         totalHours: 23,
         start: "01-Nov-25",
         finish: "31-Jan-26",
-        status: "Completed",
+        status: "In Progress",
         children: [],
       },
       {
@@ -438,7 +438,7 @@ const rawIverEghamNodes: SeedProgrammeNode[] = [
         totalHours: 23,
         start: "01-Nov-25",
         finish: "31-Jan-26",
-        status: "Completed",
+        status: "In Progress",
         children: [],
       },
       {
@@ -449,7 +449,7 @@ const rawIverEghamNodes: SeedProgrammeNode[] = [
         totalHours: 23,
         start: "01-Nov-25",
         finish: "31-Jan-26",
-        status: "Completed",
+        status: "In Progress",
         children: [],
       },
       {
@@ -460,7 +460,7 @@ const rawIverEghamNodes: SeedProgrammeNode[] = [
         totalHours: 23,
         start: "01-Nov-25",
         finish: "31-Jan-26",
-        status: "Completed",
+        status: "In Progress",
         children: [],
       },
       {
@@ -471,7 +471,7 @@ const rawIverEghamNodes: SeedProgrammeNode[] = [
         totalHours: 57,
         start: "01-Nov-25",
         finish: "03-Apr-26",
-        status: "Completed",
+        status: "In Progress",
         children: [],
       },
       {
@@ -482,7 +482,7 @@ const rawIverEghamNodes: SeedProgrammeNode[] = [
         totalHours: 57,
         start: "01-Nov-25",
         finish: "03-Apr-26",
-        status: "Completed",
+        status: "In Progress",
         children: [],
       },
       {
@@ -493,7 +493,7 @@ const rawIverEghamNodes: SeedProgrammeNode[] = [
         totalHours: 23,
         start: "01-Mar-26",
         finish: "12-Jun-26",
-        status: "In Progress",
+        status: "Not Started",
         children: [],
       },
     ],
